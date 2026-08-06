@@ -57,16 +57,22 @@ protocol: `docs/MIND_PALACE.md`. The rules that matter most:
 - **Every week has two equal tracks** (video + reading) covering the same
   material, and every activity has a **twist** that can't be copied from the
   tutorial.
-- **Supabase is only touched from `src/app/api/` routes.** Pages and components
-  never import `src/lib/supabase.ts`.
-- **Env vars deliberately have no `NEXT_PUBLIC_` prefix** — adding one would
-  ship a Supabase key in the client bundle. See `.env.example`.
-- **RLS:** the anon key may only INSERT into `reflections`; reads go through the
-  service-role key server-side, behind `TEACHER_PASSCODE`.
-- **Auth stays minimal in v1**: students are anonymous (name field only), the
-  teacher has one passcode. No accounts.
-- **API routes fail soft** when env vars are missing (503 + readable message),
-  so the site runs locally without Supabase configured.
+- **Auth is Supabase Auth (email + password) with roles.** Everyone signs up as
+  a `student`; `teacher` is granted only by hand in SQL (see `supabase/README.md`).
+  Access helpers live in `src/lib/auth.ts` — use `requireUser`/`requireTeacher`,
+  and always `getUser()`, never `getSession()`, on the server.
+- **RLS is the security boundary, not the app.** App redirects are UX; the
+  database policies in `supabase/schema.sql` are what actually protect data.
+  Change one, change the other, in the same commit.
+- **Env vars ARE `NEXT_PUBLIC_`** (`NEXT_PUBLIC_SUPABASE_URL`,
+  `NEXT_PUBLIC_SUPABASE_ANON_KEY`) — Supabase Auth runs in the browser, so they
+  must ship to the client. Safe because RLS, not key secrecy, guards the data.
+  **Never add a service-role key** — the app doesn't use one, by design.
+- **Supabase clients**: `@/lib/supabase/server` in server components, route
+  handlers and server actions; `@/lib/supabase/client` in client components.
+  Queries run as the logged-in user.
+- **Next 16 renamed `middleware` → `proxy`.** `src/proxy.ts` exists only to
+  refresh auth cookies; keep route logic out of it.
 - **Student-facing copy is written to the student**: second person, plain
   language, and encouraging about being stuck.
 - **Never mention grading in student-facing copy — in either direction.** The

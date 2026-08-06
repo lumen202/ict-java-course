@@ -1,13 +1,20 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 
 type Status = "idle" | "sending" | "done" | "error";
 
 // Weekly reflection form — the teacher's main signal for who is stuck on what.
-// Posts to /api/reflections; Supabase stores it.
-export function ReflectionForm({ weekSlug }: { weekSlug: string }) {
-  const [name, setName] = useState("");
+// Only rendered for signed-in students; the name comes from their account, so
+// there's no name field to fill in (or to fake).
+export function ReflectionForm({
+  weekSlug,
+  studentName,
+}: {
+  weekSlug: string;
+  studentName: string;
+}) {
   const [hardest, setHardest] = useState("");
   const [want, setWant] = useState("");
   const [status, setStatus] = useState<Status>("idle");
@@ -21,12 +28,7 @@ export function ReflectionForm({ weekSlug }: { weekSlug: string }) {
       const res = await fetch("/api/reflections", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          weekSlug,
-          studentName: name,
-          hardestPart: hardest,
-          wantExplained: want,
-        }),
+        body: JSON.stringify({ weekSlug, hardestPart: hardest, wantExplained: want }),
       });
       const data = await res.json();
       if (!res.ok) {
@@ -44,7 +46,7 @@ export function ReflectionForm({ weekSlug }: { weekSlug: string }) {
   if (status === "done") {
     return (
       <div className="rounded-lg border border-emerald-300 dark:border-emerald-800 bg-emerald-50 dark:bg-emerald-950/40 p-5">
-        <p className="font-medium">Reflection sent — thank you, {name.trim()}! 🎉</p>
+        <p className="font-medium">Reflection sent — thank you, {studentName}! 🎉</p>
         <p className="mt-1 text-sm text-zinc-600 dark:text-zinc-400">
           Being honest about what was hard is how the next week gets better for everyone.
         </p>
@@ -57,20 +59,9 @@ export function ReflectionForm({ weekSlug }: { weekSlug: string }) {
 
   return (
     <form onSubmit={submit} className="space-y-4">
-      <div>
-        <label htmlFor="rf-name" className="block text-sm font-medium mb-1">
-          Your name
-        </label>
-        <input
-          id="rf-name"
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-          required
-          maxLength={100}
-          className={inputCls}
-          placeholder="Juan Dela Cruz"
-        />
-      </div>
+      <p className="text-sm text-zinc-600 dark:text-zinc-400">
+        Sending as <span className="font-medium text-zinc-900 dark:text-zinc-100">{studentName}</span>.
+      </p>
       <div>
         <label htmlFor="rf-hardest" className="block text-sm font-medium mb-1">
           What was the hardest part this week? (2–3 sentences)
@@ -100,7 +91,14 @@ export function ReflectionForm({ weekSlug }: { weekSlug: string }) {
         />
       </div>
       {status === "error" && (
-        <p className="text-sm text-red-600 dark:text-red-400">{message}</p>
+        <p className="text-sm text-red-600 dark:text-red-400">
+          {message}{" "}
+          {message.includes("sign in") && (
+            <Link href="/login" className="underline">
+              Sign in
+            </Link>
+          )}
+        </p>
       )}
       <button
         type="submit"

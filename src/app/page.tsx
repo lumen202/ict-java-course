@@ -1,70 +1,164 @@
 import Link from "next/link";
 import { weeks, roadmap } from "@/lib/content";
 import { WeekDoneBadge } from "@/components/WeekProgress";
+import { requireUser } from "@/lib/auth";
 
-// Home page — the course map. Everything here comes from src/lib/content:
-// adding a week to `weeks[]` makes it appear here, no edits to this file.
+// Course dashboard — the syllabus, not a sales page. Signed-out visitors never
+// see this: requireUser() sends them to /login, which is the only public page.
+// Everything here comes from src/lib/content, so adding a week to `weeks[]`
+// makes it appear with no edits to this file.
 
 const units = [
-  { icon: "🗄️", name: "Databases & SQL", detail: "Tables, queries, JDBC from Java" },
-  { icon: "🖥️", name: "JavaFX", detail: "Real desktop apps with a real UI" },
-  { icon: "🌐", name: "REST APIs", detail: "Spring Boot — your data on the web" },
-  { icon: "🚀", name: "Capstone", detail: "Your app talking to your own API" },
+  {
+    n: 1,
+    icon: "🗄️",
+    name: "Databases & SQL",
+    outcome: "Store and query real data, then reach it from Java with JDBC.",
+  },
+  {
+    n: 2,
+    icon: "🖥️",
+    name: "JavaFX",
+    outcome: "Turn your database work into a desktop app people can click.",
+  },
+  {
+    n: 3,
+    icon: "🌐",
+    name: "REST APIs",
+    outcome: "Put your data on the web with Spring Boot and test it properly.",
+  },
+  {
+    n: 4,
+    icon: "🚀",
+    name: "Capstone",
+    outcome: "Your JavaFX app talking to your own API — a real client–server system.",
+  },
 ];
 
-export default function Home() {
+export default async function Home() {
+  const user = await requireUser("/");
   const available = weeks.filter((w) => w.status === "available");
+  const current = available[available.length - 1];
 
   return (
-    <main className="mx-auto w-full max-w-5xl px-6 py-12">
-      {/* Hero */}
-      <header className="mb-12 max-w-3xl">
+    <main className="mx-auto w-full max-w-5xl px-6 py-10">
+      <header className="mb-10">
         <p className="text-xs font-medium uppercase tracking-wide text-emerald-700 dark:text-emerald-400">
           ICT · Java track
         </p>
-        <h1 className="mt-2 text-4xl font-bold tracking-tight sm:text-5xl">
-          Learn Java the way it&apos;s{" "}
-          <span className="text-emerald-600 dark:text-emerald-400">actually used</span>.
+        <h1 className="mt-1 text-2xl font-bold tracking-tight sm:text-3xl">
+          Welcome back, {user.fullName.split(" ")[0]}
         </h1>
-        <p className="mt-4 text-lg text-zinc-600 dark:text-zinc-400 leading-relaxed">
-          Databases → desktop apps → web APIs → one capstone that connects them
-          all. Two ways to learn every topic, and one thing you actually build
-          each week.
+        <p className="mt-2 max-w-2xl text-sm text-zinc-600 dark:text-zinc-400 leading-relaxed">
+          Four units, one week at a time. Each week has a video track and a
+          reading track covering the same material — take whichever suits you —
+          something to build, and a short reflection at the end.
         </p>
-        {available.length > 0 && (
-          <Link
-            href={`/week/${available[available.length - 1].slug}`}
-            className="mt-6 inline-block rounded-md bg-emerald-600 px-5 py-2.5 text-sm font-medium text-white hover:bg-emerald-700"
-          >
-            Start the current week →
-          </Link>
-        )}
       </header>
 
-      {/* Course arc */}
-      <section className="mb-12 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-        {units.map((u, i) => (
-          <div
-            key={u.name}
-            className="rounded-lg border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900/50 p-4"
+      {/* Continue where you left off */}
+      {current && (
+        <section className="mb-10">
+          <h2 className="mb-3 text-xs font-semibold uppercase tracking-wide text-zinc-500">
+            Continue
+          </h2>
+          <Link
+            href={`/week/${current.slug}`}
+            className="block rounded-lg border border-emerald-300 dark:border-emerald-800 bg-emerald-50 dark:bg-emerald-950/30 p-5 transition-colors hover:border-emerald-500"
           >
-            <p className="text-2xl" aria-hidden="true">
-              {u.icon}
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <p className="text-xs font-medium uppercase tracking-wide text-emerald-700 dark:text-emerald-400">
+                {current.unit}
+              </p>
+              <WeekDoneBadge slug={current.slug} />
+            </div>
+            <p className="mt-1 font-semibold">{current.title}</p>
+            <p className="mt-2 text-sm text-zinc-600 dark:text-zinc-400 leading-relaxed">
+              {current.summary}
             </p>
-            <p className="mt-2 text-xs font-medium uppercase tracking-wide text-zinc-500">
-              Unit {i + 1}
+            <p className="mt-3 text-sm font-medium text-emerald-700 dark:text-emerald-400">
+              Open this week →
             </p>
-            <p className="font-semibold">{u.name}</p>
-            <p className="mt-1 text-sm text-zinc-600 dark:text-zinc-400 leading-relaxed">
-              {u.detail}
-            </p>
-          </div>
-        ))}
+          </Link>
+        </section>
+      )}
+
+      {/* The curriculum */}
+      <section>
+        <h2 className="mb-1 text-xs font-semibold uppercase tracking-wide text-zinc-500">
+          Curriculum
+        </h2>
+        <p className="mb-5 text-sm text-zinc-600 dark:text-zinc-400">
+          The whole course, so you always know where this is going. Weeks unlock
+          as we reach them.
+        </p>
+
+        <div className="space-y-4">
+          {units.map((unit) => {
+            const unitWeeks = available.filter((w) => w.unit.startsWith(`Unit ${unit.n}`));
+            const upcoming =
+              roadmap.find((g) => g.unit.startsWith(`Unit ${unit.n}`))?.items ?? [];
+
+            return (
+              <div
+                key={unit.n}
+                className="rounded-lg border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900/50 p-5"
+              >
+                <div className="flex items-start gap-3">
+                  <span aria-hidden="true" className="text-xl">
+                    {unit.icon}
+                  </span>
+                  <div className="min-w-0">
+                    <p className="text-xs font-medium uppercase tracking-wide text-zinc-500">
+                      Unit {unit.n}
+                    </p>
+                    <p className="font-semibold">{unit.name}</p>
+                    <p className="mt-0.5 text-sm text-zinc-600 dark:text-zinc-400 leading-relaxed">
+                      {unit.outcome}
+                    </p>
+                  </div>
+                </div>
+
+                <ul className="mt-4 space-y-1.5 border-l-2 border-zinc-200 dark:border-zinc-800 pl-4">
+                  {unitWeeks.map((w) => (
+                    <li key={w.slug}>
+                      <Link
+                        href={`/week/${w.slug}`}
+                        className="group flex flex-wrap items-center gap-2 rounded-md py-1 text-sm hover:text-emerald-700 dark:hover:text-emerald-400"
+                      >
+                        <span aria-hidden="true">📗</span>
+                        <span className="font-medium">{w.title}</span>
+                        <WeekDoneBadge slug={w.slug} />
+                        <span className="text-xs text-zinc-400 opacity-0 transition-opacity group-hover:opacity-100">
+                          open →
+                        </span>
+                      </Link>
+                    </li>
+                  ))}
+                  {upcoming.map((item) => (
+                    <li
+                      key={item}
+                      className="flex items-start gap-2 py-1 text-sm text-zinc-500"
+                    >
+                      <span aria-hidden="true">🔒</span>
+                      <span className="leading-relaxed">{item}</span>
+                    </li>
+                  ))}
+                  {unitWeeks.length === 0 && upcoming.length === 0 && (
+                    <li className="py-1 text-sm text-zinc-500">Planned.</li>
+                  )}
+                </ul>
+              </div>
+            );
+          })}
+        </div>
       </section>
 
-      {/* How a week works */}
-      <section className="mb-12 rounded-lg border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900/50 p-6">
-        <h2 className="text-sm font-semibold mb-4">How a week works</h2>
+      {/* How a week works — reference, kept below the fold */}
+      <section className="mt-10 rounded-lg border border-zinc-200 dark:border-zinc-800 p-5">
+        <h2 className="mb-4 text-xs font-semibold uppercase tracking-wide text-zinc-500">
+          How a week works
+        </h2>
         <ol className="grid gap-4 text-sm sm:grid-cols-2 lg:grid-cols-4">
           {[
             ["Pick a track", "Video or reading — same material, your choice."],
@@ -86,80 +180,6 @@ export default function Home() {
             </li>
           ))}
         </ol>
-        <p className="mt-5 text-sm text-zinc-600 dark:text-zinc-400 leading-relaxed">
-          Follow the daily pacing inside each week. If you get stuck, say so in
-          the reflection — that&apos;s exactly what it&apos;s for, and it decides
-          what gets covered next.
-        </p>
-      </section>
-
-      {/* Available weeks */}
-      <section className="mb-12">
-        <h2 className="text-lg font-semibold mb-3">Available now</h2>
-        <ul className="space-y-3">
-          {available.map((week) => (
-            <li key={week.slug}>
-              <Link
-                href={`/week/${week.slug}`}
-                className="block rounded-lg border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900/50 p-5 transition-colors hover:border-emerald-500 dark:hover:border-emerald-500"
-              >
-                <div className="flex flex-wrap items-center justify-between gap-2">
-                  <p className="text-xs font-medium uppercase tracking-wide text-emerald-700 dark:text-emerald-400">
-                    {week.unit}
-                  </p>
-                  <WeekDoneBadge slug={week.slug} />
-                </div>
-                <p className="mt-1 font-semibold">{week.title}</p>
-                <p className="mt-2 text-sm text-zinc-600 dark:text-zinc-400 leading-relaxed">
-                  {week.summary}
-                </p>
-                <p className="mt-3 text-sm font-medium text-emerald-700 dark:text-emerald-400">
-                  Start this week →
-                </p>
-              </Link>
-            </li>
-          ))}
-          {available.length === 0 && (
-            <li className="rounded-lg border border-dashed border-zinc-300 dark:border-zinc-700 p-5 text-sm text-zinc-600 dark:text-zinc-400">
-              The first week is being written — check back shortly.
-            </li>
-          )}
-        </ul>
-      </section>
-
-      {/* Roadmap */}
-      <section>
-        <h2 className="text-lg font-semibold mb-1">Coming up</h2>
-        <p className="text-sm text-zinc-600 dark:text-zinc-400 mb-5 leading-relaxed">
-          The whole course, so you can see where this is going. Each week opens
-          up as we get to it.
-        </p>
-        <div className="space-y-6 border-l-2 border-zinc-200 dark:border-zinc-800 pl-5">
-          {roadmap.map((group) => (
-            <div key={group.unit} className="relative">
-              <span
-                aria-hidden="true"
-                className="absolute -left-[27px] top-1 h-2.5 w-2.5 rounded-full bg-zinc-300 dark:bg-zinc-700"
-              />
-              <p className="text-xs font-medium uppercase tracking-wide text-zinc-500">
-                {group.unit}
-              </p>
-              <ul className="mt-2 space-y-1.5">
-                {group.items.map((item) => (
-                  <li
-                    key={item}
-                    className="flex items-start gap-2 text-sm text-zinc-500 leading-relaxed"
-                  >
-                    <span aria-hidden="true" className="mt-px">
-                      🔒
-                    </span>
-                    <span>{item}</span>
-                  </li>
-                ))}
-              </ul>
-            </div>
-          ))}
-        </div>
       </section>
     </main>
   );

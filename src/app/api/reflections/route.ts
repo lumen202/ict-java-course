@@ -1,13 +1,23 @@
 import { NextResponse } from "next/server";
-import { getAnonClient } from "@/lib/supabase";
+import { createClient } from "@/lib/supabase/server";
 
-// POST /api/reflections — a student submits their weekly reflection.
+// POST /api/reflections — a signed-in student submits their weekly reflection.
+//
+// The insert runs as the student's own user via their auth cookie, so the RLS
+// policy ("user_id must equal auth.uid()") is what actually enforces ownership.
+// The name is read from their profile rather than the request body, so nobody
+// can submit under someone else's name.
 export async function POST(request: Request) {
-  const supabase = getAnonClient();
-  if (!supabase) {
+  const supabase = await createClient();
+
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) {
     return NextResponse.json(
-      { error: "Reflections aren't set up yet — tell your teacher the site is missing its Supabase keys." },
-      { status: 503 },
+      { error: "Please sign in again — your session expired." },
+      { status: 401 },
     );
   }
 
@@ -18,30 +28,42 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Invalid request." }, { status: 400 });
   }
 
-  const { weekSlug, studentName, hardestPart, wantExplained } = (body ?? {}) as Record<string, unknown>;
+  const { weekSlug, hardestPart, wantExplained } = (body ?? {}) as Record<string, unknown>;
 
-  const name = typeof studentName === "string" ? studentName.trim() : "";
+  const slug = typeof weekSlug === "string" ? weekSlug.trim() : "";
   const hardest = typeof hardestPart === "string" ? hardestPart.trim() : "";
   const want = typeof wantExplained === "string" ? wantExplained.trim() : "";
-  const slug = typeof weekSlug === "string" ? weekSlug.trim() : "";
 
-  if (!slug || !name || !hardest) {
-    return NextResponse.json({ error: "Please fill in your name and the 'hardest part' box." }, { status: 400 });
+  if (!slug || !hardest) {
+    return NextResponse.json({ error: "Please fill in the 'hardest part' box." }, { status: 400 });
   }
-  if (name.length > 100 || hardest.length > 2000 || want.length > 2000) {
-    return NextResponse.json({ error: "That's a bit too long — keep it under a few sentences." }, { status: 400 });
+  if (hardest.length > 2000 || want.length > 2000) {
+    return NextResponse.json(
+      { error: "That's a bit too long — keep it under a few sentences." },
+      { status: 400 },
+    );
   }
+
+  const { data: profile } = await supabase
+    .from("profiles")
+    .select("full_name")
+    .eq("id", user.id)
+    .single();
 
   const { error } = await supabase.from("reflections").insert({
+    user_id: user.id,
     week_slug: slug,
-    student_name: name,
+    student_name: profile?.full_name || user.email || "Unknown",
     hardest_part: hardest,
     want_explained: want || null,
   });
 
   if (error) {
     console.error("reflection insert failed:", error.message);
-    return NextResponse.json({ error: "Couldn't save right now — try again in a minute." }, { status: 500 });
+    return NextResponse.json(
+      { error: "Couldn't save right now — try again in a minute." },
+      { status: 500 },
+    );
   }
 
   return NextResponse.json({ ok: true });

@@ -35,26 +35,35 @@ src/lib/content/weeks/unit1-week1.ts   ← the material (text, links, questions)
 
 ## Request flows
 
+**Signing in**
+
+```
+/login → server action (signIn/signUp) → Supabase Auth → cookies set
+                                          ↳ signup trigger creates profiles row
+                                            (role = student)
+src/proxy.ts refreshes those cookies on every later request
+```
+
 **Student submits a reflection**
 
 ```
-ReflectionForm (client)  →  POST /api/reflections  →  anon Supabase client
-                                                       → INSERT into reflections
-                                                         (RLS allows insert only)
+ReflectionForm (client)  →  POST /api/reflections  →  server client (the
+                                                      student's own token)
+                                                      → INSERT with user_id
+                                                        (RLS: user_id = auth.uid())
 ```
 
 **Teacher reads reflections**
 
 ```
-/teacher (client)  →  POST /api/teacher/reflections  →  passcode checked against
-                                                        TEACHER_PASSCODE
-                                                        → service-role client
-                                                          → SELECT (bypasses RLS)
+/teacher (server)  →  requireTeacher() redirects non-teachers
+                   →  SELECT reflections as the teacher's own user
+                      (RLS: is_teacher() returns everyone's rows)
 ```
 
-Both API routes fail soft: if the Supabase env vars are missing they return 503
-with a readable message instead of crashing, so the site still renders during
-local development without keys.
+Access is enforced twice on purpose: the app-level redirect is UX, and the RLS
+policy is the real boundary — a student hitting `/teacher` directly is bounced,
+and even if they weren't, the query would return only their own rows.
 
 ## Files
 
@@ -75,10 +84,12 @@ See [`src/lib/content/README.md`](../src/lib/content/README.md) — how to add a
 | `layout.tsx` | server | Root layout: fonts, title template, global `SiteHeader`/`SiteFooter`. |
 | `page.tsx` | server | Home: hero, course-arc cards, "how a week works", available weeks from `weeks[]`, roadmap timeline. |
 | `not-found.tsx` | server | Custom 404; unknown week slugs land here. |
-| `week/[slug]/page.tsx` | server | The generic week template. Embeds the video when `video.youtubeId` is set. `generateStaticParams()` prerenders every registered week; `generateMetadata()` sets per-week titles; unknown slugs `notFound()`. |
-| `teacher/page.tsx` | client | Passcode form → reflections list, newest first, filterable by week. |
-| `api/reflections/route.ts` | route | `POST` — validates and inserts a student reflection (anon key). |
-| `api/teacher/reflections/route.ts` | route | `POST` — checks passcode, returns all reflections (service-role key). |
+| `week/[slug]/page.tsx` | server | The generic week template. Renders `video.days` as day cards with embedded players. Reflection form for signed-in students, sign-in CTA otherwise. |
+| `login/` | server + client | `page.tsx`, `LoginForm.tsx` (tabbed sign in / create account), `actions.ts` (`signIn`, `signUp`, `signOut`). |
+| `teacher/page.tsx` | server | Teacher-only reflections list (`requireTeacher()`), read under RLS. `WeekFilter.tsx` is the `?week=` select. |
+| `api/reflections/route.ts` | route | `POST` — signed-in student submits; inserts `user_id` + profile name. |
+
+`src/proxy.ts` (root, Next 16's renamed `middleware`) refreshes auth cookies.
 
 See [`src/app/README.md`](../src/app/README.md).
 
@@ -98,13 +109,15 @@ See [`src/components/README.md`](../src/components/README.md).
 
 | File | What it is |
 |---|---|
-| `supabase.ts` | `getAnonClient()` (student writes) and `getServiceClient()` (teacher reads). Both return `null` when env vars are missing — callers must handle it. |
+| `supabase/server.ts` | Cookie-bound server client — server components, route handlers, server actions. Runs as the logged-in user. |
+| `supabase/client.ts` | Browser client for client components (auth). |
+| `auth.ts` | `getCurrentUser()`, `requireUser()`, `requireTeacher()`. The only place access is decided. |
 
 ### `supabase/`
 
 | File | What it is |
 |---|---|
-| `schema.sql` | The `reflections` table and its RLS policy. Run once in the Supabase SQL Editor. |
+| `schema.sql` | `profiles` (+ `user_role` enum, signup trigger, role-escalation guard) and `reflections` (+ `user_id`), with role-based RLS. Run once in the SQL Editor; idempotent. |
 
 See [`supabase/README.md`](../supabase/README.md).
 

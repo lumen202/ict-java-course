@@ -3,22 +3,22 @@
 Protocol: [`docs/MIND_PALACE.md`](../../../docs/MIND_PALACE.md) · How-it-works: [`../README.md`](../README.md)
 
 - **Layout** (`layout.tsx`): Geist fonts, title template `%s · Java Course Hub`,
-  global `<SiteHeader>`/`<SiteFooter>` around every page.
+  global `<SiteHeader>` (async, reads session) / `<SiteFooter>`.
 - **Home** (`page.tsx`): hero → 4-unit course-arc cards → "how a week works" →
-  available week cards (client `<WeekDoneBadge>`) → roadmap timeline. Fully
-  driven by `weeks[]`/`roadmap[]`.
-- **Week template** (`week/[slug]/page.tsx`): SSG via `generateStaticParams()`;
-  per-week titles via `generateMetadata()`; video track renders `video.days` as
-  day cards (day chip + focus + "N min of video" / "practice day", embedded
-  `<VideoEmbed>` players in a 2-col grid, "✍️ Then do:" practice box); ends
-  with `<MarkWeekDone>`.
-- **Copy rule**: no grading mentions anywhere student-facing, either direction
-  (see AGENTS.md; docs/_palace D-entries).
-- **Teacher** (`teacher/page.tsx`): client page, passcode → reflections list,
-  week filter.
-- **API routes**: `api/reflections` (student submit, anon key) and
-  `api/teacher/reflections` (passcode + service-role key). Both fail soft (503)
-  without env vars.
+  available week cards → roadmap timeline. Driven by `weeks[]`/`roadmap[]`.
+- **Week template** (`week/[slug]/page.tsx`): renders `video.days` as day cards
+  with embedded players + practice; self-check; then either the reflection form
+  (signed-in) or a sign-in prompt; ends with `<MarkWeekDone>`.
+- **Login** (`login/`): `page.tsx` (redirects if already signed in) +
+  `LoginForm.tsx` (tabbed sign-in/sign-up, `useActionState`) + `actions.ts`
+  (`signIn`, `signUp`, `signOut` server actions, `?next=` sanitized).
+- **Teacher** (`teacher/page.tsx`): server component, `requireTeacher()`, reads
+  reflections directly under RLS; `WeekFilter.tsx` pushes `?week=`.
+- **API**: only `api/reflections` remains — POST as the signed-in student.
+  (`api/teacher/reflections` deleted with the passcode.)
 - **404** (`not-found.tsx`): custom; unknown week slugs land here.
-- Verified: `npm run lint` + `npm run build` pass; all static/SSG pages
-  prerender.
+- **`src/proxy.ts`**: refreshes Supabase auth cookies each request (Next 16
+  renamed `middleware` → `proxy`).
+- **Everything is dynamic** (`ƒ`) since the header reads the session — no page
+  prerenders anymore, including week pages. Accepted trade-off.
+- **Copy rule**: no grading mentions anywhere student-facing, either direction.

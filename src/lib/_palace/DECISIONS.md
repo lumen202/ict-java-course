@@ -8,7 +8,16 @@
 - **D3** — Both tracks (video + reading) must genuinely cover the same
   material; every activity needs a twist that can't be copied from a tutorial;
   ~5 self-check items per week.
-- **D4** — `supabase.ts` may only be imported from `src/app/api/` routes.
+- **D4** — ~~`supabase.ts` may only be imported from `src/app/api/` routes.~~
+  Superseded by D8: with RLS-per-user, server components read directly.
+- **D8** (2026-08-07, supersedes D4) — Supabase clients live in
+  `src/lib/supabase/{client,server}.ts` and may be used from server components,
+  route handlers, server actions, and (browser client) client components. Safe
+  because every query runs as the logged-in user under RLS. **No service-role
+  client exists anymore** — nothing in the app bypasses RLS.
+- **D9** — `src/lib/auth.ts` is the only place that decides access:
+  `getCurrentUser` / `requireUser` / `requireTeacher`. Always `getUser()` (token
+  verified with Supabase), never `getSession()` (cookie contents unverified).
 - **D5** — `video.youtubeId` is optional by design: weeks whose video isn't on
   YouTube fall back to an external link instead of an embed.
 - **D6** — Supersedes D5 (same day): video track is paced **day-by-day** (`DayPlan[]`): students have no

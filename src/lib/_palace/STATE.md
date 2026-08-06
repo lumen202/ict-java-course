@@ -12,5 +12,11 @@ Protocol: [`docs/MIND_PALACE.md`](../../../docs/MIND_PALACE.md) · How-it-works:
   no-video practice day.
 - `content/index.ts` — `weeks[]` (display order), `roadmap[]` (units 1–4
   coming soon), `getWeek(slug)`.
-- `supabase.ts` — `getAnonClient()` / `getServiceClient()`, both return `null`
-  when env vars are missing; callers must handle it.
+- `supabase/client.ts` — `createBrowserClient` for client components.
+- `supabase/server.ts` — `createServerClient` bound to request cookies; use in
+  server components, route handlers, server actions. Queries run as the
+  logged-in user, so RLS applies.
+- `auth.ts` — `getCurrentUser()` (user + profile role), `requireUser()`,
+  `requireTeacher()`. Always uses `getUser()`, never `getSession()`.
+- ~~`supabase.ts`~~ deleted 2026-08-07 (anon/service-role helpers) — replaced by
+  the two clients above when accounts landed.

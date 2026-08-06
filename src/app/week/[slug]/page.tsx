@@ -6,6 +6,7 @@ import { SelfCheck } from "@/components/SelfCheck";
 import { ReflectionForm } from "@/components/ReflectionForm";
 import { VideoEmbed } from "@/components/VideoEmbed";
 import { MarkWeekDone } from "@/components/WeekProgress";
+import { requireUser } from "@/lib/auth";
 
 export function generateStaticParams() {
   return weeks.map((w) => ({ slug: w.slug }));
@@ -24,6 +25,9 @@ export default async function WeekPage({ params }: PageProps<"/week/[slug]">) {
   const { slug } = await params;
   const week = getWeek(slug);
   if (!week) notFound();
+
+  // The whole course is behind sign-in — /login is the only public page.
+  const user = await requireUser(`/week/${slug}`);
 
   return (
     <main className="mx-auto max-w-3xl px-6 py-12">
@@ -174,7 +178,7 @@ export default async function WeekPage({ params }: PageProps<"/week/[slug]">) {
           This is how I know what to explain better next week. Honest answers
           only — &quot;it was all easy&quot; helps nobody, including you.
         </p>
-        <ReflectionForm weekSlug={week.slug} />
+        <ReflectionForm weekSlug={week.slug} studentName={user.fullName} />
       </Section>
 
       <MarkWeekDone slug={week.slug} />
