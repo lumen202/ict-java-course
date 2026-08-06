@@ -58,10 +58,18 @@ avoid.
   **tailored plan** — rebuild-from-blank, revisit the specific day, or stretch further — plus the
   week's reading links when confidence is low. Copy must never imply "wait for the teacher to
   explain it"; the teacher is supervisory. No name field: identity comes from the session.
+- `components/GameModal.tsx` — client. Full-screen shell a game can open into, so a long game
+  doesn't depend on page height: the panel caps at `94vh`, the game pins its own header and
+  scrolls the rest. Rendered via `createPortal` to `document.body` **on purpose** — several
+  lesson cards use `backdrop-blur`, and a blurred ancestor becomes the containing block for
+  `fixed`, which would trap the overlay inside the card. Backdrop clicks deliberately don't
+  close it (Escape and ✕ do); losing a battle to a stray click is worse than one extra press.
+  Currently used by BossBattle; RowHunt/Quest/TypingGame could adopt it unchanged.
 - `components/BossBattle.tsx` / `components/RowHunt.tsx` / `components/Quest.tsx` — client. The
-  playable mini-games (see [`course-content.md`](course-content.md)). BossBattle: RPG quiz with
-  boss HP, 3 hearts, and wrong-answer re-queueing, so a win means every concept was answered
-  correctly. RowHunt: click the rows that match a spoken query, then see it as real SQL. Quest:
+  playable mini-games (see [`course-content.md`](course-content.md)). BossBattle: a card on the
+  timeline opens the fight in a `GameModal` — RPG quiz with boss HP, 5 hearts, and wrong-answer
+  re-queueing, so a win means every concept was answered correctly. Closing mid-fight confirms
+  first and resets that fight; the card then shows the last result. RowHunt: click the rows that match a spoken query, then see it as real SQL. Quest:
   real Workbench/file work as one-mission-at-a-time cards with a progress bar — checks retry
   until right, `input` missions collect pasted work into the turn-in. All three auto-submit
   their result (item = the game's `id`; replays overwrite) and signal the flow via

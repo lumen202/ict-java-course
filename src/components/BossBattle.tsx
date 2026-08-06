@@ -3,12 +3,16 @@
 import { useState } from "react";
 import type { BossBattleGame } from "@/lib/content/types";
 import { useFlowComplete } from "@/components/LessonFlow";
+import { GameModal } from "@/components/GameModal";
 
-// The day's boss battle: an always-dark arena where the boss looms over an
-// animated HP bar. Each correct answer lands a hit (shake + damage flash); a
-// wrong answer costs a heart AND sends the question back into the queue, so a
-// win means every concept was eventually answered right — spaced retrieval
-// practice wearing a dragon costume.
+// The day's boss battle. The lesson page shows a compact card; pressing
+// "Enter the arena" opens the fight in a full-screen modal, so a long battle
+// never depends on the page's height — the arena (boss, HP, hearts) stays
+// pinned while the questions scroll under it.
+//
+// Each correct answer lands a hit; a wrong answer costs a heart AND sends the
+// question back into the queue, so a win means every concept was eventually
+// answered right — spaced retrieval practice wearing a dragon costume.
 //
 // The result auto-saves as a turn-in (item = game.id) so playing counts as
 // work the teacher can see; replaying overwrites with the newer result.
@@ -35,12 +39,14 @@ export function BossBattle({
   const [picked, setPicked] = useState<number | null>(null);
   const [fx, setFx] = useState(0); // increments to retrigger animations
   const [saved, setSaved] = useState(false);
+  const [lastResult, setLastResult] = useState<string | null>(null);
   const flowComplete = useFlowComplete();
 
   const currentIndex = queue[0];
   const current = currentIndex !== undefined ? game.questions[currentIndex] : null;
   const bossHp = queue.length;
   const inBattle = phase === "question" || phase === "feedback";
+  const finished = phase === "won" || phase === "lost";
   const lastHit = phase === "feedback" && picked === current?.answer;
 
   function start() {
@@ -51,6 +57,16 @@ export function BossBattle({
     setPicked(null);
     setSaved(false);
     setPhase("question");
+  }
+
+  function requestClose() {
+    if (
+      inBattle &&
+      !window.confirm("Leave the battle? This fight starts over next time.")
+    ) {
+      return;
+    }
+    setPhase("intro");
   }
 
   function choose(i: number) {
@@ -93,6 +109,11 @@ export function BossBattle({
     const summary =
       `${game.title} — ${outcome === "won" ? `defeated ${game.boss.name}` : `defeated by ${game.boss.name}`}: ` +
       `${hits}/${total} first-try hits, ${heartsLeft} heart${heartsLeft === 1 ? "" : "s"} left.`;
+    setLastResult(
+      outcome === "won"
+        ? `🏆 You defeated ${game.boss.name} — ${hits}/${total} first-try hits.`
+        : `${game.boss.emoji} ${game.boss.name} won that round — ${hits}/${total} first-try hits.`,
+    );
     fetch("/api/submissions", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -103,52 +124,55 @@ export function BossBattle({
   }
 
   return (
-    <div className="overflow-hidden rounded-2xl border border-violet-800/60 shadow-[0_16px_40px_-20px_rgb(124_58_237/0.5)]">
-      {/* The arena — always dark, whatever the theme. */}
-      <div
-        className="relative bg-zinc-950 p-5 text-white"
-        style={{
-          backgroundImage:
-            "radial-gradient(30rem 16rem at 50% 0%, rgb(124 58 237 / 0.3), transparent 65%), radial-gradient(20rem 12rem at 10% 100%, rgb(217 70 239 / 0.15), transparent 60%)",
-        }}
-      >
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <p className="text-sm font-bold tracking-wide">{game.title}</p>
-          {inBattle && (
-            <p className="text-xs font-medium text-violet-300">
-              {total - bossHp}/{total} hits landed
-            </p>
-          )}
-        </div>
-
-        {phase === "intro" && (
-          <div className="mt-4 text-center">
-            <p className="text-8xl drop-shadow-[0_0_24px_rgb(168_85_247/0.6)]" aria-hidden="true">
-              {game.boss.emoji}
-            </p>
-            <p className="mt-2 text-lg font-extrabold tracking-tight">{game.boss.name}</p>
-            <p className="mx-auto mt-3 max-w-md text-sm leading-relaxed text-zinc-300">
-              {game.intro}
-            </p>
-            <p className="mt-3 text-xs text-zinc-400">
-              Right answer → the boss takes a hit. Wrong answer → you lose a heart
-              and the question returns. Bring it to 0 HP before your{" "}
-              {MAX_HEARTS} hearts run out.
-            </p>
-            <button type="button" onClick={start} className="btn-primary mt-5">
-              ⚔️ Enter the arena
-            </button>
-          </div>
+    <>
+      {/* Card on the lesson timeline — the door to the arena. */}
+      <div className="rounded-2xl border border-violet-300/80 bg-linear-to-br from-violet-50/95 to-fuchsia-50/60 dark:border-violet-800/80 dark:from-violet-950/40 dark:to-fuchsia-950/20 p-5 text-center">
+        <p className="text-sm font-semibold">{game.title}</p>
+        <p className="mt-3 text-6xl" aria-hidden="true">
+          {game.boss.emoji}
+        </p>
+        <p className="mt-2 text-base font-extrabold tracking-tight">{game.boss.name}</p>
+        <p className="mx-auto mt-2 max-w-md text-sm leading-relaxed text-zinc-600 dark:text-zinc-400">
+          {game.intro}
+        </p>
+        <p className="mt-2 text-xs text-zinc-500">
+          {total} questions · {MAX_HEARTS} hearts · a wrong answer sends the
+          question back for later
+        </p>
+        {lastResult && (
+          <p className="mx-auto mt-3 max-w-md rounded-xl border border-violet-200 dark:border-violet-900 bg-white/70 dark:bg-zinc-900/40 p-2.5 text-sm font-medium">
+            {lastResult}
+          </p>
         )}
+        <button type="button" onClick={start} className="btn-primary mt-4">
+          {lastResult ? "⚔️ Fight again" : "⚔️ Enter the arena"}
+        </button>
+      </div>
 
-        {inBattle && (
-          <div className="mt-4">
-            {/* Boss + HP bar */}
-            <div className="text-center">
+      <GameModal open={inBattle || finished} onClose={requestClose} label={game.title}>
+        {/* Arena — pinned, always dark whatever the theme. */}
+        <div
+          className="shrink-0 bg-zinc-950 p-5 text-white"
+          style={{
+            backgroundImage:
+              "radial-gradient(30rem 16rem at 50% 0%, rgb(124 58 237 / 0.35), transparent 65%), radial-gradient(20rem 12rem at 10% 100%, rgb(217 70 239 / 0.18), transparent 60%)",
+          }}
+        >
+          <div className="flex flex-wrap items-center justify-between gap-2 pr-10">
+            <p className="text-sm font-bold tracking-wide">{game.title}</p>
+            {inBattle && (
+              <p className="text-xs font-medium text-violet-300">
+                {total - bossHp}/{total} hits landed
+              </p>
+            )}
+          </div>
+
+          {inBattle && (
+            <div className="mt-3 text-center">
               <div className="relative inline-block">
                 <p
                   key={fx}
-                  className={`text-7xl drop-shadow-[0_0_20px_rgb(168_85_247/0.55)] ${
+                  className={`text-6xl drop-shadow-[0_0_20px_rgb(168_85_247/0.55)] ${
                     phase === "feedback" ? (lastHit ? "anim-hit" : "anim-loom") : ""
                   }`}
                   aria-hidden="true"
@@ -165,7 +189,7 @@ export function BossBattle({
                   </span>
                 )}
               </div>
-              <div className="mx-auto mt-2 max-w-xs">
+              <div className="mx-auto mt-1 max-w-xs">
                 <div className="flex items-center justify-between text-[10px] font-bold uppercase tracking-widest text-zinc-400">
                   <span>{game.boss.name}</span>
                   <span>
@@ -179,19 +203,72 @@ export function BossBattle({
                   />
                 </div>
               </div>
+              <p
+                className="mt-2 text-sm tracking-widest"
+                aria-label={`${hearts} of ${MAX_HEARTS} hearts left`}
+              >
+                {"❤️".repeat(Math.max(hearts, 0))}
+                {"🖤".repeat(Math.max(MAX_HEARTS - hearts, 0))}
+              </p>
+            </div>
+          )}
+        </div>
+
+        {/* Questions — the only part that scrolls. */}
+        {inBattle && current && (
+          <div className="min-h-0 flex-1 overflow-y-auto bg-white p-5 dark:bg-zinc-900">
+            <p className="text-sm font-medium leading-relaxed">{current.prompt}</p>
+            {current.code && (
+              <pre className="mt-2 overflow-x-auto rounded-xl bg-zinc-900/[0.06] dark:bg-white/10 p-3 font-mono text-xs whitespace-pre-wrap break-words">
+                {current.code}
+              </pre>
+            )}
+            <div className="mt-3 grid gap-2">
+              {current.choices.map((c, i) => {
+                const isAnswer = i === current.answer;
+                const isPicked = picked === i;
+                const showState = phase === "feedback" && (isAnswer || isPicked);
+                return (
+                  <button
+                    key={c}
+                    type="button"
+                    disabled={phase === "feedback"}
+                    onClick={() => choose(i)}
+                    className={`rounded-xl border p-3 text-left text-sm leading-relaxed transition-colors disabled:pointer-events-none ${
+                      showState && isAnswer
+                        ? "border-emerald-500 bg-emerald-50 dark:bg-emerald-950/40"
+                        : showState
+                          ? "border-red-400 bg-red-50 dark:bg-red-950/30"
+                          : "border-zinc-300 bg-white/70 hover:border-violet-400 dark:border-zinc-700 dark:bg-zinc-900/40 dark:hover:border-violet-500"
+                    }`}
+                  >
+                    {c}
+                  </button>
+                );
+              })}
             </div>
 
-            {/* Player hearts */}
-            <p className="mt-3 text-center text-sm tracking-widest" aria-label={`${hearts} of ${MAX_HEARTS} hearts left`}>
-              {"❤️".repeat(Math.max(hearts, 0))}
-              {"🖤".repeat(Math.max(MAX_HEARTS - hearts, 0))}
-            </p>
+            {phase === "feedback" && picked !== null && (
+              <div className="mt-3 rounded-xl border border-violet-200 dark:border-violet-900 bg-violet-50/60 dark:bg-violet-950/30 p-3">
+                <p className="text-sm font-semibold">
+                  {lastHit
+                    ? `🗡️ Direct hit! ${game.boss.name} staggers.`
+                    : `💢 ${game.boss.name} strikes back — you lose a heart. This one returns later!`}
+                </p>
+                <p className="mt-1 text-sm leading-relaxed">{current.explain}</p>
+                <div className="mt-3 text-center">
+                  <button type="button" onClick={advance} className="btn-primary">
+                    {queue.length === 1 && lastHit ? "Land the final blow" : "Next →"}
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
         )}
 
-        {(phase === "won" || phase === "lost") && (
-          <div className="mt-4 text-center">
-            <p className="text-8xl" aria-hidden="true">
+        {finished && (
+          <div className="min-h-0 flex-1 overflow-y-auto bg-white p-6 text-center dark:bg-zinc-900">
+            <p className="text-7xl" aria-hidden="true">
               {phase === "won" ? "🏆" : game.boss.emoji}
             </p>
             {phase === "won" && (
@@ -204,14 +281,19 @@ export function BossBattle({
                 ? `${game.boss.name} is defeated!`
                 : `${game.boss.name} wins this round…`}
             </p>
-            <p className="mt-1 text-sm text-zinc-300">
+            <p className="mt-1 text-sm text-zinc-600 dark:text-zinc-400">
               {firstTryHits}/{total} first-try hits
               {phase === "won" ? ` · ${hearts} heart${hearts === 1 ? "" : "s"} left` : ""}.
               {phase === "lost" && " Every hero loses to the boss once — go again."}
             </p>
-            <button type="button" onClick={start} className="btn-primary mt-4">
-              {phase === "won" ? "⚔️ Rematch for a perfect run" : "⚔️ Rematch"}
-            </button>
+            <div className="mt-4 flex flex-wrap items-center justify-center gap-3">
+              <button type="button" onClick={start} className="btn-primary">
+                {phase === "won" ? "⚔️ Rematch for a perfect run" : "⚔️ Rematch"}
+              </button>
+              <button type="button" onClick={() => setPhase("intro")} className="btn-ghost">
+                Back to the lesson
+              </button>
+            </div>
             <p className="mt-3 text-xs text-zinc-500" aria-live="polite">
               {saved
                 ? "✓ Result turned in — replaying updates it."
@@ -219,59 +301,7 @@ export function BossBattle({
             </p>
           </div>
         )}
-      </div>
-
-      {/* Question panel — normal surface below the arena. */}
-      {inBattle && current && (
-        <div className="border-t border-violet-800/40 bg-white/90 p-5 backdrop-blur-sm dark:bg-zinc-900/90">
-          <p className="text-sm font-medium leading-relaxed">{current.prompt}</p>
-          {current.code && (
-            <pre className="mt-2 overflow-x-auto rounded-xl bg-zinc-900/[0.06] dark:bg-white/10 p-3 font-mono text-xs whitespace-pre-wrap break-words">
-              {current.code}
-            </pre>
-          )}
-          <div className="mt-3 grid gap-2">
-            {current.choices.map((c, i) => {
-              const isAnswer = i === current.answer;
-              const isPicked = picked === i;
-              const showState = phase === "feedback" && (isAnswer || isPicked);
-              return (
-                <button
-                  key={c}
-                  type="button"
-                  disabled={phase === "feedback"}
-                  onClick={() => choose(i)}
-                  className={`rounded-xl border p-3 text-left text-sm leading-relaxed transition-colors disabled:pointer-events-none ${
-                    showState && isAnswer
-                      ? "border-emerald-500 bg-emerald-50 dark:bg-emerald-950/40"
-                      : showState
-                        ? "border-red-400 bg-red-50 dark:bg-red-950/30"
-                        : "border-zinc-300 bg-white/70 hover:border-violet-400 dark:border-zinc-700 dark:bg-zinc-900/40 dark:hover:border-violet-500"
-                  }`}
-                >
-                  {c}
-                </button>
-              );
-            })}
-          </div>
-
-          {phase === "feedback" && picked !== null && (
-            <div className="mt-3 rounded-xl border border-violet-200 dark:border-violet-900 bg-violet-50/60 dark:bg-violet-950/30 p-3">
-              <p className="text-sm font-semibold">
-                {lastHit
-                  ? `🗡️ Direct hit! ${game.boss.name} staggers.`
-                  : `💢 ${game.boss.name} strikes back — you lose a heart. This one returns later!`}
-              </p>
-              <p className="mt-1 text-sm leading-relaxed">{current.explain}</p>
-              <div className="mt-3 text-center">
-                <button type="button" onClick={advance} className="btn-primary">
-                  {queue.length === 1 && lastHit ? "Land the final blow" : "Next →"}
-                </button>
-              </div>
-            </div>
-          )}
-        </div>
-      )}
-    </div>
+      </GameModal>
+    </>
   );
 }
