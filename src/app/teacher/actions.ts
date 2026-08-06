@@ -7,7 +7,12 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import { getWeek } from "@/lib/content";
 
-export type ClassListState = { error?: string; notice?: string };
+export type ClassListState = {
+  error?: string;
+  notice?: string;
+  /** Set when the student must register themselves — the form shows it to copy. */
+  registerUrl?: string;
+};
 
 // Managing the class list — the emails allowed to register. Teacher-only:
 // requireTeacher() redirects rather than returning, and the table's RLS policy
@@ -39,21 +44,26 @@ export async function addStudent(
 
   revalidatePath("/teacher/students");
 
+  const origin = (await headers()).get("origin") ?? "";
+  // Carry the email in the link so the student doesn't retype the exact address
+  // the class list is keyed on — mistyping it is the main way registration fails.
+  const registerUrl = `${origin}/register?email=${encodeURIComponent(email)}`;
+
   if (!sendEmail) {
-    return { notice: `${email} is on the class list and can now register.` };
+    return { notice: `${email} is on the class list.`, registerUrl };
   }
 
   // Emailing is a convenience on top of the class list, never a requirement:
   // if it fails (no service-role key, SMTP limits) the student can still
-  // register themselves, so we report it as a warning rather than an error.
+  // register themselves, so we hand back the link rather than erroring.
   const admin = createAdminClient();
   if (!admin) {
     return {
-      notice: `${email} is on the class list, but no invite email was sent — the server has no service-role key. They can register at /register.`,
+      notice: `${email} is on the class list, but no invite email was sent — the server has no service-role key.`,
+      registerUrl,
     };
   }
 
-  const origin = (await headers()).get("origin") ?? "";
   const { error: inviteError } = await admin.auth.admin.inviteUserByEmail(email, {
     redirectTo: `${origin}/auth/confirm?next=/welcome`,
     data: { first_name: firstName, last_name: lastName },
@@ -64,8 +74,9 @@ export async function addStudent(
     const rateLimited = inviteError.message.toLowerCase().includes("rate");
     return {
       notice: rateLimited
-        ? `${email} is on the class list, but the email wasn't sent — Supabase's built-in mail is rate-limited. They can register at /register instead.`
-        : `${email} is on the class list, but the invite email failed to send. They can register at /register instead.`,
+        ? `${email} is on the class list, but the email wasn't sent — Supabase's built-in mail is rate-limited.`
+        : `${email} is on the class list, but the invite email failed to send.`,
+      registerUrl,
     };
   }
 

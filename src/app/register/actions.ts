@@ -3,13 +3,20 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 
 export type RegisterState = { error?: string; notice?: string };
 
-// Self-registration, gated by the class list. The real gate is the
-// handle_new_user() trigger in the database, which aborts the signup when the
-// email isn't in allowed_students — so this holds even if someone calls the
-// Supabase auth API directly instead of using this form.
+// Self-registration, gated by the class list.
+//
+// The real gate is the handle_new_user() trigger in the database, which aborts
+// the signup when the email isn't in allowed_students — so this holds even if
+// someone calls the Supabase auth API directly instead of using this form.
+//
+// Nothing here depends on email being deliverable. When the service-role key is
+// present we create the account already confirmed and sign the student in on
+// the spot; students never wait for a confirmation message that Supabase's
+// built-in SMTP may never actually send.
 export async function register(
   _prev: RegisterState,
   formData: FormData,
@@ -30,35 +37,78 @@ export async function register(
   if (password.length < 8) return { error: "Use a password of at least 8 characters." };
   if (password !== confirm) return { error: "The two passwords don't match." };
 
+  const metadata = {
+    first_name: firstName,
+    middle_name: middleName,
+    last_name: lastName,
+  };
+
   const supabase = await createClient();
+  const admin = createAdminClient();
+
+  if (admin) {
+    // email_confirm: true marks the address verified without sending anything,
+    // so the "Confirm email" project setting can't strand a student.
+    const { error: createError } = await admin.auth.admin.createUser({
+      email,
+      password,
+      email_confirm: true,
+      user_metadata: metadata,
+    });
+
+    if (createError) {
+      const failure = describe(createError.message);
+      if (failure) return { error: failure };
+      console.error("registration failed:", createError.message);
+      return { error: "Couldn't create the account. Check the email address and try again." };
+    }
+
+    // Sign them in immediately so they land in the app, not on a login screen.
+    const { error: signInError } = await supabase.auth.signInWithPassword({ email, password });
+    if (signInError) {
+      return {
+        notice: "Your account is ready — sign in with the email and password you just chose.",
+      };
+    }
+
+    revalidatePath("/", "layout");
+    redirect("/");
+  }
+
+  // No service-role key configured: fall back to ordinary signup. This path is
+  // subject to the project's "Confirm email" setting.
   const { data, error } = await supabase.auth.signUp({
     email,
     password,
-    options: {
-      data: { first_name: firstName, middle_name: middleName, last_name: lastName },
-    },
+    options: { data: metadata },
   });
 
   if (error) {
-    const message = error.message.toLowerCase();
-    if (message.includes("class list")) {
-      return {
-        error:
-          "That email isn't on the class list yet. Send your teacher the exact address you're using and try again once they've added it.",
-      };
-    }
-    if (message.includes("already")) {
-      return { error: "There's already an account with that email — sign in instead." };
-    }
+    const failure = describe(error.message);
+    if (failure) return { error: failure };
     console.error("registration failed:", error.message);
     return { error: "Couldn't create the account. Check the email address and try again." };
   }
 
-  // No session means email confirmation is switched on in Supabase.
   if (!data.session) {
-    return { notice: "Account created. Check your email to confirm it, then sign in." };
+    return {
+      notice:
+        "Your account was created, but this site has email confirmation switched on. Ask your teacher to turn it off, then sign in.",
+    };
   }
 
   revalidatePath("/", "layout");
   redirect("/");
+}
+
+/** Turns a Supabase auth error into student-readable copy, or null if unknown. */
+function describe(message: string): string | null {
+  const lower = message.toLowerCase();
+  if (lower.includes("class list")) {
+    return "That email isn't on the class list yet. Send your teacher the exact address you're using and try again once they've added it.";
+  }
+  if (lower.includes("already") || lower.includes("registered")) {
+    return "There's already an account with that email — sign in instead.";
+  }
+  return null;
 }

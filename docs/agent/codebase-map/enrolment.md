@@ -38,6 +38,33 @@ One exemption: if no teacher exists yet, the first account is allowed through
 | `app/welcome/` | invited user sets password + name, stamps `onboarded_at` |
 | `lib/supabase/admin.ts` | service-role client, **only** for `inviteUserByEmail` |
 
+## The register link carries the email
+
+`addStudent` returns a `registerUrl` of `<origin>/register?email=<their address>`, and the form
+renders it with a **Copy link** button and an "Open it ↗". That link is the primary handover
+mechanism — the teacher pastes it into whatever channel the class actually uses.
+
+`/register` prefills the email field from that query param but leaves it **editable**: someone may
+arrive without the link, or with a typo'd one, and must be able to fix it. Registration is still
+matched on the submitted address against `allowed_students`, never on the query param — the URL is
+a convenience, not a credential.
+
+Why `/register` asks for the email at all when the teacher already typed it: the page is public
+and anonymous, so the address is the only thing tying an arriving stranger to a class-list row.
+
+## Registration never waits on email
+
+`register()` prefers the **admin** path: `admin.createUser({ email_confirm: true })` creates the
+account already verified, then `signInWithPassword` establishes the session and the student lands
+in the app. Nothing is emailed and the project's "Confirm email" setting can't strand anyone.
+
+The class-list check still applies — `createUser` inserts into `auth.users`, which fires
+`handle_new_user()`, which raises for an unlisted email and rolls the whole thing back.
+
+Without `SUPABASE_SERVICE_ROLE_KEY` it falls back to plain `signUp()`, which *is* subject to
+"Confirm email"; if that returns no session the student is told to ask the teacher to switch the
+setting off. Prefer having the key set.
+
 ## Email is optional, by design
 
 `SUPABASE_SERVICE_ROLE_KEY` may be absent — `createAdminClient()` returns null
@@ -55,22 +82,31 @@ Project Settings → Auth → SMTP.
 account that already exists, which is why the Remove button is hidden once
 `registered_at` is set. Delete real accounts in the Supabase dashboard.
 
-## The invite email template must be edited, or invite links break
+## Invite links: three shapes, all handled
 
-Supabase's **default** invite template uses `{{ .ConfirmationURL }}`, which routes through
-Supabase's own `/auth/v1/verify` and hands the session back in the URL **fragment**
-(`#access_token=…`). Fragments never reach the server, so `/auth/confirm` receives no token and
-redirects to `/login?error=invalid-link`.
+`app/auth/confirm/` is a **page**, not a route handler, because one of the three link shapes can
+only be read in the browser:
 
-Fix it in **Authentication → Email Templates → Invite user**, replacing the link with:
+| Link carries | Where it comes from | Handled by |
+|---|---|---|
+| `?token_hash=…&type=…` | a template using `{{ .TokenHash }}` | server: `verifyOtp` |
+| `?code=…` | the PKCE flow | server: `exchangeCodeForSession` |
+| `#access_token=…&refresh_token=…` | **Supabase's default template**, via its own `/auth/v1/verify` | client: `HashSession.tsx` |
+
+The third one is the trap: a URL fragment is never sent to the server, so a route handler sees an
+empty request and dead-ends at `/login?error=invalid-link`. `HashSession` reads
+`window.location.hash`, calls `setSession()`, then does a **full page replace** (not
+`router.push`) so the server components re-render with the new auth cookies.
+
+Because of that fallback, **no email-template editing is required**. If you want the tidier link
+anyway, set **Authentication → Email Templates → Invite user** to:
 
 ```
 {{ .SiteURL }}/auth/confirm?token_hash={{ .TokenHash }}&type=invite&next=/welcome
 ```
 
-`/auth/confirm` also accepts `?code=` (the PKCE flow) as a fallback, but `token_hash` is the
-shape to aim for. Until the template is changed, tell students to ignore the email and register
-at `/register` — the class list is what grants access, so nothing is blocked by this.
+And if the email never arrives at all, nothing is blocked — the student registers at `/register`,
+since the class list is what grants access.
 
 ## Supabase dashboard settings this depends on
 

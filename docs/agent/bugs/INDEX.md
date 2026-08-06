@@ -8,6 +8,8 @@ empty for long stretches; that's fine.
 |---|---|---|---|
 | BUG-001 | Role-escalation guard blocked the SQL Editor, making the first teacher unappointable | fixed | [`BUG-001-role-escalation-guard-blocks-admin-sql.md`](BUG-001-role-escalation-guard-blocks-admin-sql.md) |
 | BUG-002 | Sidebar highlighted two nav items at once | fixed | [`BUG-002-sidebar-highlights-two-items.md`](BUG-002-sidebar-highlights-two-items.md) |
+| BUG-003 | Invite links dead-ended because the token arrives in the URL fragment | fixed | [`BUG-003-invite-links-dead-ended-on-fragment-tokens.md`](BUG-003-invite-links-dead-ended-on-fragment-tokens.md) |
+| BUG-004 | Registration told students to check an email that never arrived | fixed | [`BUG-004-registration-waited-on-undeliverable-confirmation-email.md`](BUG-004-registration-waited-on-undeliverable-confirmation-email.md) |
 
 **To file a bug:** create `BUG-NNN-short-slug.md` here (sequential ID, never reused, even for
 invalidated bugs) with:

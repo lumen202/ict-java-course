@@ -44,6 +44,13 @@ the trigger is the gate. "Confirm email" stays off.
 - `BackLink` component; back navigation was missing on every inner page after the tabs landed.
 - Teacher dashboard gained a "Class is on …" card linking to the release control.
 
+## Follow-ups in the same session
+
+- Adding a student now returns a copyable `<origin>/register?email=…` link, shown with a Copy
+  button — when no email is sent, the teacher needs something to hand over, not a bare path.
+- `/register` prefills the email from that param (still editable), so students don't retype the
+  exact address their access is keyed on.
+
 ## Watch out for
 
 - **Schema changes need re-running.** The owner hit

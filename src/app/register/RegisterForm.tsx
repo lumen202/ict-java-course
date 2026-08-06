@@ -22,7 +22,7 @@ function SubmitButton() {
   );
 }
 
-export function RegisterForm() {
+export function RegisterForm({ defaultEmail = "" }: { defaultEmail?: string }) {
   const [state, formAction] = useActionState(register, {} as RegisterState);
 
   return (
@@ -77,11 +77,14 @@ export function RegisterForm() {
           name="email"
           type="email"
           required
+          defaultValue={defaultEmail}
           autoComplete="email"
           className={inputCls}
         />
         <p className="mt-1 text-xs text-zinc-500">
-          Use the exact address you gave your teacher.
+          {defaultEmail
+            ? "This is the address your teacher added — change it only if it's wrong."
+            : "Use the exact address you gave your teacher."}
         </p>
       </div>
 
