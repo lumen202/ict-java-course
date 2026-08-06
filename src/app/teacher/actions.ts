@@ -188,6 +188,47 @@ export async function updateStudentName(formData: FormData) {
   revalidatePath("/", "layout");
 }
 
+// Hand work back. The lesson page gates each day on the turn-ins that exist,
+// so deleting them re-locks that part of the day and the student walks it
+// again — including on their own browser, which discards its stored progress
+// when the server's turn-in count drops (see components/LessonFlow.tsx).
+//
+// The delete runs as the teacher: RLS ("teachers delete submissions") is what
+// actually permits it, so a student calling this action deletes nothing.
+export async function deleteSubmission(formData: FormData) {
+  await requireTeacher("/teacher/submissions");
+
+  const id = String(formData.get("id") ?? "").trim();
+  if (!id) return;
+
+  const supabase = await createClient();
+  const { error } = await supabase.from("submissions").delete().eq("id", id);
+  if (error) console.error("delete submission failed:", error.message);
+
+  revalidatePath("/teacher/submissions", "layout");
+}
+
+/** Delete every turn-in a student has for one day — puts the whole day back. */
+export async function resetStudentDay(formData: FormData) {
+  await requireTeacher("/teacher/submissions");
+
+  const userId = String(formData.get("userId") ?? "").trim();
+  const weekSlug = String(formData.get("weekSlug") ?? "").trim();
+  const day = Number(formData.get("day"));
+  if (!userId || !weekSlug || !Number.isInteger(day)) return;
+
+  const supabase = await createClient();
+  const { error } = await supabase
+    .from("submissions")
+    .delete()
+    .eq("user_id", userId)
+    .eq("week_slug", weekSlug)
+    .eq("day_number", day);
+  if (error) console.error("reset day failed:", error.message);
+
+  revalidatePath("/teacher/submissions", "layout");
+}
+
 export async function removeStudent(formData: FormData) {
   await requireTeacher("/teacher/students");
 

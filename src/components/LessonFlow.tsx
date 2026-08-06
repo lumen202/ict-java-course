@@ -9,9 +9,20 @@ import { createContext, useCallback, useContext, useSyncExternalStore } from "re
 // always a next thing to anticipate.
 //
 // Progress lives in localStorage (per week+day) merged with what the server
-// already knows (steps whose turn-in exists start unlocked). Teachers see
-// everything ungated. Reads go through useSyncExternalStore — same pattern as
-// WeekProgress — so there's no hydration mismatch and no setState-in-effect.
+// already knows. Teachers see everything ungated. Reads go through
+// useSyncExternalStore — same pattern as WeekProgress — so there's no
+// hydration mismatch and no setState-in-effect.
+//
+// Two rules make revisiting sane:
+//
+//   1. The server unlock is based on the LAST step with a saved turn-in, not
+//      the first one without. Videos and text cards have no server record
+//      (they're cleared by a button), so a first-gap rule would walk a student
+//      who finished the whole day back to video 1 on a different device.
+//   2. The stored value carries the number of turn-ins that existed when it
+//      was written. If the server now has FEWER, the teacher deleted work —
+//      the stored progress is stale and gets discarded, so the gate really
+//      does close again on the student's own browser.
 
 const FlowCtx = createContext<(key: string) => void>(() => {});
 
@@ -31,17 +42,33 @@ function subscribe(onChange: () => void) {
   };
 }
 
-function readUnlocked(key: string): number {
+/** `{ u: unlocked step count, c: turn-ins on the server when written }` */
+type Progress = { u: number; c: number };
+
+function readProgress(key: string): Progress {
   try {
-    return Number(localStorage.getItem(key)) || 0;
+    const parsed = JSON.parse(localStorage.getItem(key) ?? "");
+    if (parsed && typeof parsed.u === "number" && typeof parsed.c === "number") {
+      return parsed as Progress;
+    }
   } catch {
-    return 0;
+    // Missing, blocked, or the older plain-number format — start fresh.
   }
+  return { u: 0, c: 0 };
 }
 
-function writeUnlocked(key: string, value: number) {
+/**
+ * How far this browser has walked, ignoring progress recorded against more
+ * turn-ins than the server still has (the teacher deleted some, so it's stale).
+ */
+function storedUnlocked(key: string, serverDone: number): number {
+  const { u, c } = readProgress(key);
+  return c > serverDone ? 0 : u;
+}
+
+function writeUnlocked(key: string, value: number, serverDone: number) {
   try {
-    localStorage.setItem(key, String(value));
+    localStorage.setItem(key, JSON.stringify({ u: value, c: serverDone } as Progress));
   } catch {
     // Storage blocked — gating still works for this page view via re-render.
   }
@@ -72,10 +99,22 @@ export function LessonFlow({
   gated: boolean;
   children: React.ReactNode[];
 }) {
-  const stored = useSyncExternalStore(subscribe, () => readUnlocked(storageKey), () => 0);
+  // How many of this day's steps the server has a turn-in for.
+  const serverDone = steps.reduce((n, s) => (s.done ? n + 1 : n), 0);
 
-  const firstIncomplete = steps.findIndex((s) => !s.done);
-  const serverUnlocked = firstIncomplete === -1 ? steps.length : firstIncomplete + 1;
+  const stored = useSyncExternalStore(
+    subscribe,
+    () => storedUnlocked(storageKey, serverDone),
+    () => 0,
+  );
+
+  // Unlock through the LAST step with a saved turn-in — see the header note.
+  let lastDone = -1;
+  steps.forEach((s, i) => {
+    if (s.done) lastDone = i;
+  });
+  const serverUnlocked = lastDone + 2;
+
   const unlocked = gated
     ? Math.min(steps.length, Math.max(stored, serverUnlocked, 1))
     : steps.length;
@@ -84,9 +123,11 @@ export function LessonFlow({
     (key: string) => {
       const i = steps.findIndex((s) => s.key === key);
       if (i === -1) return;
-      if (i + 2 > readUnlocked(storageKey)) writeUnlocked(storageKey, i + 2);
+      if (i + 2 > storedUnlocked(storageKey, serverDone)) {
+        writeUnlocked(storageKey, i + 2, serverDone);
+      }
     },
-    [steps, storageKey],
+    [steps, storageKey, serverDone],
   );
 
   const remaining = steps.length - unlocked;

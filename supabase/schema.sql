@@ -385,6 +385,16 @@ create policy "teachers read all submissions"
   to authenticated
   using (public.is_teacher());
 
+-- Teachers can delete a turn-in to hand work back: the lesson page derives its
+-- gating from these rows, so removing them re-locks that part of the day and
+-- the student redoes it. Students cannot delete their own — "I'll just clear
+-- it" is not a thing, and nothing else in the app deletes submissions.
+drop policy if exists "teachers delete submissions" on public.submissions;
+create policy "teachers delete submissions"
+  on public.submissions for delete
+  to authenticated
+  using (public.is_teacher());
+
 -- ---------------------------------------------------------------------------
 -- Promote the teacher (run separately, AFTER they have an account)
 -- ---------------------------------------------------------------------------

@@ -24,7 +24,14 @@ is the exact thing the release control exists to prevent.
    the day's `game` → the closing practice → the **day turn-in step** (✓ node). For students,
    steps unlock one at a time (games on finish via `useFlowComplete`, boxes on save, videos via
    a "done watching" button) with a 🔒 "up next" teaser; teachers see everything. Unlock state:
-   `jch-flow:<slug>:<day>` in localStorage, merged with server-known turn-ins.
+   `jch-flow:<slug>:<day>` in localStorage, merged with server-known turn-ins. Two rules that
+   are easy to break by "simplifying":
+   - The server unlock comes from the **last** step with a turn-in, not the first step without
+     one. Videos and text cards have no server record, so a first-gap rule walked a student who
+     had finished the whole day back to video 1 on any other device.
+   - The stored value is `{u, c}` — unlocked count plus **the turn-in count when it was
+     written**. If the server now has fewer, a teacher deleted work, so the stored progress is
+     discarded and the gate genuinely closes again on the student's own browser.
 4. **Prev / next day** buttons, bounded by what's released.
 5. **`<details>` Reading track** — the text alternative, collapsed.
 6. **Final day only**: finish-the-activity (goal, the amber **twist**, what to turn in), the

@@ -29,7 +29,8 @@ and `week_slug`.
 `day_number`, `item` (`'day'` for the closing box, or a `DayActivity.id` — every activity has its
 own box), `student_name` (snapshot), `content` (the pasted work). The unique index on
 `(user_id, week_slug, day_number, item)` makes resubmission an upsert. Same RLS shape as
-reflections, plus a students-update-own policy so the upsert's conflict path works.
+reflections, plus a students-update-own policy so the upsert's conflict path works, and a
+**teachers-delete** policy (handing work back — students may never delete their own).
 
 ## Security model
 

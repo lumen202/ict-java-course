@@ -33,7 +33,10 @@ table. See [`enrolment.md`](enrolment.md) for the mechanics.
 (deliberately not accordions — the teacher rejected inline expansion as clutter):
 `page.tsx` is a grid of student cards → `[studentId]/page.tsx` lists that student's days →
 the same route with `?week=…&day=…` shows the day's turn-ins oldest-first (the order the day
-was worked), each with an item chip and scrollable `<pre>`. Day rows show the lesson `focus`
+was worked), each with an item chip and scrollable `<pre>`. That view can **hand work back**:
+`deleteSubmission` (one turn-in) and `resetStudentDay` (all of a day) — both behind
+`ConfirmButton`, both gated by the `teachers delete submissions` RLS policy. Deleting re-locks
+that part of the student's day, since the lesson flow unlocks from these rows. Day rows show the lesson `focus`
 resolved from the content registry. Display names resolve via `lib/student-names.ts`:
 current profile `full_name` → the class list's name (`allowed_students`, teacher-readable) →
 the row's snapshot (which is the email for accounts that never had a name). The signup

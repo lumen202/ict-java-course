@@ -6,6 +6,8 @@ import { createClient } from "@/lib/supabase/server";
 import { BackLink } from "@/components/BackLink";
 import { getWeek } from "@/lib/content";
 import { studentDisplayNames } from "@/lib/student-names";
+import { deleteSubmission, resetStudentDay } from "../../actions";
+import { ConfirmButton } from "../ConfirmButton";
 
 export const metadata: Metadata = { title: "Submissions" };
 
@@ -68,10 +70,25 @@ export default async function StudentSubmissionsPage({
         <h1 className="mt-1 text-2xl font-bold tracking-tight">
           {focus ?? `Day ${dayNumber}`}
         </h1>
-        <p className="mt-1 mb-8 text-sm text-zinc-600 dark:text-zinc-400">
+        <p className="mt-1 text-sm text-zinc-600 dark:text-zinc-400">
           {name} — {dayWork.length} turn-in{dayWork.length === 1 ? "" : "s"}, in
           the order they were worked.
         </p>
+
+        {/* Handing work back is the point of these controls: the student's
+            lesson page unlocks from these rows, so deleting them re-locks
+            that part of the day and they walk it again. */}
+        <form action={resetStudentDay} className="mt-4 mb-8">
+          <input type="hidden" name="userId" value={studentId} />
+          <input type="hidden" name="weekSlug" value={weekSlug} />
+          <input type="hidden" name="day" value={dayNumber} />
+          <ConfirmButton
+            className="btn-ghost text-sm"
+            message={`Hand back all of Day ${dayNumber} to ${name}?\n\nEvery turn-in for this day is deleted and they redo the whole day. This can't be undone.`}
+          >
+            ↩ Hand back the whole day
+          </ConfirmButton>
+        </form>
 
         <ul className="space-y-4">
           {dayWork.map((s) => (
@@ -80,8 +97,19 @@ export default async function StudentSubmissionsPage({
                 <span className="chip bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300">
                   {s.item === "day" ? "day wrap-up" : s.item}
                 </span>
-                <span className="text-xs text-zinc-500">
-                  {new Date(s.updated_at).toLocaleString()}
+                <span className="flex items-center gap-3">
+                  <span className="text-xs text-zinc-500">
+                    {new Date(s.updated_at).toLocaleString()}
+                  </span>
+                  <form action={deleteSubmission}>
+                    <input type="hidden" name="id" value={s.id} />
+                    <ConfirmButton
+                      className="rounded-lg px-2 py-1 text-xs font-medium text-zinc-500 transition-colors hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-950/40 dark:hover:text-red-400"
+                      message={`Delete this turn-in (${s.item === "day" ? "day wrap-up" : s.item}) from ${name}?\n\nThey'll need to do it again. This can't be undone.`}
+                    >
+                      Delete
+                    </ConfirmButton>
+                  </form>
                 </span>
               </div>
               <pre className="mt-2 max-h-96 overflow-auto rounded-xl bg-zinc-900/[0.04] dark:bg-white/5 p-4 font-mono text-xs leading-relaxed whitespace-pre-wrap">
