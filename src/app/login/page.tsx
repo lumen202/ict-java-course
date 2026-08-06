@@ -10,8 +10,9 @@ export const metadata: Metadata = { title: "Sign in" };
 // pitch, since the only people here are already in the class.
 const LINK_ERRORS: Record<string, string> = {
   "expired-link":
-    "That invite link has expired or was already used. Ask your teacher to send a new one.",
-  "invalid-link": "That link wasn't valid. Ask your teacher to send a new invite.",
+    "That link has expired or was already used. Sign in below, or create your account if you haven't yet.",
+  "invalid-link":
+    "That link didn't carry a valid code. You don't need it — create your account below with the email your teacher added.",
 };
 
 export default async function LoginPage({ searchParams }: PageProps<"/login">) {
@@ -48,8 +49,8 @@ export default async function LoginPage({ searchParams }: PageProps<"/login">) {
         </ul>
 
         <p className="mt-6 text-xs text-zinc-500 leading-relaxed">
-          Accounts are created by your teacher. If you don&apos;t have one yet,
-          send them your email address.
+          Give your teacher your email address, then create your account here
+          once they&apos;ve added you to the class list.
         </p>
       </div>
 

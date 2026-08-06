@@ -34,10 +34,9 @@ export async function signIn(_prev: AuthState, formData: FormData): Promise<Auth
   redirect(next);
 }
 
-// There is deliberately no signUp action: accounts exist only by teacher
-// invite (src/app/teacher/actions.ts → inviteUserByEmail), and the invited
-// student sets their password at /welcome. Turn off "Allow new users to sign
-// up" in the Supabase dashboard too, so the API can't be used to self-register.
+// Signing up lives in src/app/register/actions.ts, not here. It's open to
+// anyone the teacher has put on the class list (`allowed_students`) and closed
+// to everyone else — enforced by a database trigger, not by this file.
 
 export async function signOut() {
   const supabase = await createClient();

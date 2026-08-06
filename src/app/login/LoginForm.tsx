@@ -2,12 +2,12 @@
 
 import { useActionState } from "react";
 import { useFormStatus } from "react-dom";
+import Link from "next/link";
 import { signIn, type AuthState } from "./actions";
 import { PasswordField } from "@/components/PasswordField";
 
-// Sign-in only. There is no self-serve signup: accounts are created by the
-// teacher sending an invite (see src/app/teacher/actions.ts), and the invited
-// student sets their own password at /welcome.
+// Sign-in only. Account creation lives at /register, and is limited to emails
+// the teacher has added to the class list.
 
 const inputCls =
   "w-full rounded-md border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500";
@@ -59,8 +59,12 @@ export function LoginForm({ next, linkError }: { next: string; linkError?: strin
       <SubmitButton />
 
       <p className="border-t border-zinc-200 dark:border-zinc-800 pt-4 text-xs text-zinc-500 leading-relaxed">
-        No account yet? Send your email address to your teacher and they&apos;ll
-        invite you — you&apos;ll get a link to set your own password.
+        First time here? Once your teacher has added your email to the class
+        list,{" "}
+        <Link href="/register" className="text-emerald-700 dark:text-emerald-400 hover:underline">
+          create your account
+        </Link>
+        .
       </p>
     </form>
   );

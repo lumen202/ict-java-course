@@ -6,7 +6,8 @@ empty for long stretches; that's fine.
 
 | ID | Title | Status | File |
 |---|---|---|---|
-| — | none open | — | — |
+| BUG-001 | Role-escalation guard blocked the SQL Editor, making the first teacher unappointable | fixed | [`BUG-001-role-escalation-guard-blocks-admin-sql.md`](BUG-001-role-escalation-guard-blocks-admin-sql.md) |
+| BUG-002 | Sidebar highlighted two nav items at once | fixed | [`BUG-002-sidebar-highlights-two-items.md`](BUG-002-sidebar-highlights-two-items.md) |
 
 **To file a bug:** create `BUG-NNN-short-slug.md` here (sequential ID, never reused, even for
 invalidated bugs) with:

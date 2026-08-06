@@ -2,6 +2,7 @@ import Link from "next/link";
 import { weeks } from "@/lib/content";
 import { CurriculumList } from "@/components/CurriculumList";
 import { createClient } from "@/lib/supabase/server";
+import { getCourseState, currentLesson } from "@/lib/release";
 import type { CurrentUser } from "@/lib/auth";
 
 // Teacher view of the dashboard: the class at a glance, then the same
@@ -25,6 +26,9 @@ export async function TeacherDashboard({ user }: { user: CurrentUser }) {
   const students = (profiles ?? []).filter((p) => p.role === "student");
   const pending = students.filter((p) => !p.onboarded_at).length;
   const recent = reflections ?? [];
+
+  const state = await getCourseState();
+  const lesson = currentLesson(state);
 
   const stats = [
     { label: "Students", value: students.length - pending, hint: "set up" },
@@ -61,20 +65,25 @@ export async function TeacherDashboard({ user }: { user: CurrentUser }) {
         ))}
       </section>
 
-      <section className="mb-10 flex flex-wrap gap-3">
-        <Link
-          href="/teacher/students"
-          className="rounded-md bg-emerald-600 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-700"
-        >
-          Invite a student
-        </Link>
-        <Link
-          href="/teacher"
-          className="rounded-md border border-zinc-300 dark:border-zinc-700 px-4 py-2 text-sm font-medium hover:bg-zinc-100 dark:hover:bg-zinc-800"
-        >
-          All reflections
-        </Link>
-      </section>
+      {lesson && (
+        <section className="mb-8 rounded-lg border border-emerald-300 dark:border-emerald-800 bg-emerald-50 dark:bg-emerald-950/30 p-5">
+          <p className="text-xs font-semibold uppercase tracking-wide text-emerald-700 dark:text-emerald-400">
+            Class is on
+          </p>
+          <p className="mt-1 font-semibold">
+            {lesson.week.title} — {lesson.day.day}
+          </p>
+          <p className="mt-1 text-sm text-zinc-600 dark:text-zinc-400 leading-relaxed">
+            {lesson.day.focus}
+          </p>
+          <Link
+            href="/teacher/lessons"
+            className="mt-3 inline-block text-sm font-medium text-emerald-700 dark:text-emerald-400 hover:underline"
+          >
+            Release the next day →
+          </Link>
+        </section>
+      )}
 
       <section className="mb-10">
         <div className="mb-3 flex items-baseline justify-between gap-3">

@@ -5,9 +5,9 @@ import { WelcomeForm } from "./WelcomeForm";
 
 export const metadata: Metadata = { title: "Finish setting up" };
 
-// Where an invited person lands after clicking the link in their email.
-// They already have a session at this point (created by /auth/confirm), but no
-// password and usually no name yet — this page collects both.
+// Where someone invited by email lands after clicking the link. They already
+// have a session (created by /auth/confirm) but no password and usually no
+// name. Students who registered themselves at /register never see this page.
 export default async function WelcomePage() {
   const supabase = await createClient();
   const {
@@ -22,7 +22,6 @@ export default async function WelcomePage() {
     .eq("id", user.id)
     .single();
 
-  // Already finished? Nothing to do here.
   if (profile?.onboarded_at) redirect("/");
 
   return (
@@ -33,8 +32,8 @@ export default async function WelcomePage() {
       <h1 className="mt-2 text-2xl font-bold tracking-tight">Set up your account</h1>
       <p className="mt-2 mb-8 text-sm text-zinc-600 dark:text-zinc-400 leading-relaxed">
         You were invited as <span className="font-medium">{user.email}</span>. Enter
-        your name the way it appears on the class list, and pick a password you&apos;ll
-        remember — you&apos;ll use it every week.
+        your name the way it appears on the class list, and pick a password
+        you&apos;ll remember — you&apos;ll use it every week.
       </p>
 
       <WelcomeForm

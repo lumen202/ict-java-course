@@ -1,22 +1,29 @@
 import type { Metadata } from "next";
 import { requireTeacher } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
-import { InviteForm } from "../InviteForm";
-import { TeacherTabs } from "../TeacherTabs";
+import { AddStudentForm } from "../AddStudentForm";
+import { RemoveStudentButton } from "../RemoveStudentButton";
 
 export const metadata: Metadata = { title: "Students" };
 
-// Roster + invites. Reads profiles as the teacher's own user: the
-// "teachers read all profiles" RLS policy is what makes the full list visible.
+// The class list (who may register) and the roster (who actually has an
+// account). Both read as the teacher's own user — the "teachers manage the
+// class list" and "teachers read all profiles" RLS policies are what make them
+// visible at all.
+
+type AllowedRow = {
+  email: string;
+  first_name: string;
+  last_name: string;
+  added_at: string;
+  registered_at: string | null;
+};
 
 type ProfileRow = {
   id: string;
   created_at: string;
   email: string | null;
   full_name: string;
-  first_name: string;
-  middle_name: string;
-  last_name: string;
   role: "student" | "teacher";
   onboarded_at: string | null;
 };
@@ -25,46 +32,100 @@ export default async function StudentsPage() {
   await requireTeacher("/teacher/students");
 
   const supabase = await createClient();
-  const { data, error } = await supabase
-    .from("profiles")
-    .select(
-      "id, created_at, email, full_name, first_name, middle_name, last_name, role, onboarded_at",
-    )
-    .order("created_at", { ascending: false });
+  const [{ data: allowed, error: allowedError }, { data: profiles }] = await Promise.all([
+    supabase
+      .from("allowed_students")
+      .select("email, first_name, last_name, added_at, registered_at")
+      .order("added_at", { ascending: false }),
+    supabase
+      .from("profiles")
+      .select("id, created_at, email, full_name, role, onboarded_at")
+      .order("created_at", { ascending: false }),
+  ]);
 
-  const people = (data ?? []) as ProfileRow[];
-  const students = people.filter((p) => p.role === "student");
-  const pending = students.filter((p) => !p.onboarded_at).length;
+  const classList = (allowed ?? []) as AllowedRow[];
+  const people = (profiles ?? []) as ProfileRow[];
+  const registered = classList.filter((s) => s.registered_at).length;
 
   return (
     <main className="mx-auto w-full max-w-5xl px-6 py-10">
       <h1 className="text-2xl font-bold tracking-tight">Students</h1>
       <p className="mt-1 text-sm text-zinc-600 dark:text-zinc-400">
-        {students.length} invited · {students.length - pending} set up · {pending} waiting
+        {classList.length} on the class list · {registered} have created an account
       </p>
 
-      <TeacherTabs active="students" />
 
       <section className="mb-10 rounded-lg border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900/50 p-5">
-        <h2 className="text-sm font-semibold mb-1">Invite a student</h2>
+        <h2 className="text-sm font-semibold mb-1">Add a student</h2>
         <p className="mb-4 text-sm text-zinc-600 dark:text-zinc-400 leading-relaxed">
-          Students can&apos;t sign themselves up. Send their email an invite here;
-          the link lets them set their own password.
+          Only emails on this list can create an account. Add the address, then
+          tell the student to go to <span className="font-mono">/register</span> and
+          set their own password — no email is sent.
         </p>
-        <InviteForm />
+        <AddStudentForm />
       </section>
 
-      {error && (
+      {allowedError && (
         <p className="mb-6 rounded-lg border border-red-300 dark:border-red-800 bg-red-50 dark:bg-red-950/40 p-4 text-sm">
-          Couldn&apos;t load the roster: {error.message}
+          Couldn&apos;t load the class list: {allowedError.message}
         </p>
       )}
 
+      <section className="mb-10">
+        <h2 className="mb-3 text-sm font-semibold">Class list</h2>
+        {classList.length === 0 ? (
+          <p className="rounded-lg border border-dashed border-zinc-300 dark:border-zinc-700 p-6 text-sm text-zinc-600 dark:text-zinc-400">
+            Nobody yet — add your first student above.
+          </p>
+        ) : (
+          <div className="overflow-x-auto rounded-lg border border-zinc-200 dark:border-zinc-800">
+            <table className="w-full text-sm">
+              <thead className="bg-zinc-50 dark:bg-zinc-900 text-left text-xs uppercase tracking-wide text-zinc-500">
+                <tr>
+                  <th className="px-4 py-3 font-medium">Email</th>
+                  <th className="px-4 py-3 font-medium">Name on list</th>
+                  <th className="px-4 py-3 font-medium">Status</th>
+                  <th className="px-4 py-3 font-medium">Added</th>
+                  <th className="px-4 py-3 font-medium sr-only">Actions</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-zinc-200 dark:divide-zinc-800">
+                {classList.map((s) => (
+                  <tr key={s.email}>
+                    <td className="px-4 py-3 font-medium">{s.email}</td>
+                    <td className="px-4 py-3 text-zinc-600 dark:text-zinc-400">
+                      {[s.first_name, s.last_name].filter(Boolean).join(" ") || (
+                        <span className="text-zinc-400">—</span>
+                      )}
+                    </td>
+                    <td className="px-4 py-3">
+                      {s.registered_at ? (
+                        <span className="text-emerald-700 dark:text-emerald-400">
+                          ✓ Registered
+                        </span>
+                      ) : (
+                        <span className="text-amber-700 dark:text-amber-500">Not yet</span>
+                      )}
+                    </td>
+                    <td className="px-4 py-3 text-xs text-zinc-500">
+                      {new Date(s.added_at).toLocaleDateString()}
+                    </td>
+                    <td className="px-4 py-3 text-right">
+                      {!s.registered_at && <RemoveStudentButton email={s.email} />}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </section>
+
       <section>
-        <h2 className="mb-3 text-sm font-semibold">Registered users</h2>
+        <h2 className="mb-3 text-sm font-semibold">Accounts</h2>
         {people.length === 0 ? (
           <p className="rounded-lg border border-dashed border-zinc-300 dark:border-zinc-700 p-6 text-sm text-zinc-600 dark:text-zinc-400">
-            Nobody yet — send your first invite above.
+            No accounts yet.
           </p>
         ) : (
           <div className="overflow-x-auto rounded-lg border border-zinc-200 dark:border-zinc-800">
@@ -74,22 +135,14 @@ export default async function StudentsPage() {
                   <th className="px-4 py-3 font-medium">Name</th>
                   <th className="px-4 py-3 font-medium">Email</th>
                   <th className="px-4 py-3 font-medium">Role</th>
-                  <th className="px-4 py-3 font-medium">Status</th>
-                  <th className="px-4 py-3 font-medium">Invited</th>
+                  <th className="px-4 py-3 font-medium">Joined</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-zinc-200 dark:divide-zinc-800">
                 {people.map((p) => (
                   <tr key={p.id}>
                     <td className="px-4 py-3">
-                      {p.full_name || (
-                        <span className="text-zinc-400">— not set yet —</span>
-                      )}
-                      {p.middle_name && (
-                        <span className="block text-xs text-zinc-500">
-                          {p.first_name} {p.middle_name} {p.last_name}
-                        </span>
-                      )}
+                      {p.full_name || <span className="text-zinc-400">— not set —</span>}
                     </td>
                     <td className="px-4 py-3 text-zinc-600 dark:text-zinc-400">{p.email}</td>
                     <td className="px-4 py-3">
@@ -102,13 +155,6 @@ export default async function StudentsPage() {
                       >
                         {p.role}
                       </span>
-                    </td>
-                    <td className="px-4 py-3">
-                      {p.onboarded_at ? (
-                        <span className="text-emerald-700 dark:text-emerald-400">✓ Active</span>
-                      ) : (
-                        <span className="text-amber-700 dark:text-amber-500">Invite pending</span>
-                      )}
                     </td>
                     <td className="px-4 py-3 text-xs text-zinc-500">
                       {new Date(p.created_at).toLocaleDateString()}

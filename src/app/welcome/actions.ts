@@ -6,10 +6,10 @@ import { createClient } from "@/lib/supabase/server";
 
 export type WelcomeState = { error?: string };
 
-// Completes an invited account: set a password, fill in the real name.
+// Completes an invited account: set a password, confirm the real name.
 // Runs as the invited user (their session came from the invite link), so RLS
-// covers the profile update — they can only touch their own row, and the
-// role-escalation trigger stops them granting themselves teacher.
+// covers the profile update and the role-escalation trigger stops them granting
+// themselves teacher.
 export async function completeSignup(
   _prev: WelcomeState,
   formData: FormData,
@@ -34,7 +34,7 @@ export async function completeSignup(
   } = await supabase.auth.getUser();
 
   if (!user) {
-    return { error: "Your invite link expired. Ask your teacher to send a new one." };
+    return { error: "Your link expired. Ask your teacher to send a new one." };
   }
 
   const { error: passwordError } = await supabase.auth.updateUser({ password });

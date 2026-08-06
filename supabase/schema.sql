@@ -95,7 +95,12 @@ create policy "update own profile"
   using (id = auth.uid())
   with check (id = auth.uid());
 
--- Block self-promotion: role changes are rejected unless made by a teacher.
+-- Block self-promotion: a logged-in non-teacher cannot change any role.
+--
+-- `auth.uid() is null` means there's no end-user JWT — the SQL Editor, a
+-- service-role connection, or a migration. Those are trusted (they already have
+-- full database access) and must be allowed, or there'd be no way to appoint
+-- the first teacher. See BUG-001.
 create or replace function public.prevent_role_escalation()
 returns trigger
 language plpgsql
@@ -103,7 +108,9 @@ security definer
 set search_path = public
 as $$
 begin
-  if new.role is distinct from old.role and not public.is_teacher() then
+  if new.role is distinct from old.role
+     and auth.uid() is not null
+     and not public.is_teacher() then
     raise exception 'only teachers can change roles';
   end if;
   return new;
@@ -115,18 +122,70 @@ create trigger profiles_no_role_escalation
   before update on public.profiles
   for each row execute function public.prevent_role_escalation();
 
--- Every new auth user automatically gets a profile (role defaults to student).
+-- ---------------------------------------------------------------------------
+-- allowed_students — the class list
+-- ---------------------------------------------------------------------------
+-- The teacher adds emails here; only those emails can create an account. This
+-- replaces emailed invites: no mail is sent, so nothing depends on SMTP limits
+-- or students finding a link in their inbox. They just go to /register.
+
+create table if not exists public.allowed_students (
+  email text primary key,
+  first_name text not null default '',
+  last_name text not null default '',
+  added_at timestamptz not null default now(),
+  added_by uuid references auth.users(id) on delete set null,
+  -- Stamped by the signup trigger when this person actually registers.
+  registered_at timestamptz
+);
+
+alter table public.allowed_students enable row level security;
+
+-- Only teachers can see or change the class list. Students never read it —
+-- the signup check below runs SECURITY DEFINER instead, so an applicant can be
+-- validated without the list being readable.
+drop policy if exists "teachers manage the class list" on public.allowed_students;
+create policy "teachers manage the class list"
+  on public.allowed_students for all
+  to authenticated
+  using (public.is_teacher())
+  with check (public.is_teacher());
+
+create or replace function public.is_email_allowed(check_email text)
+returns boolean
+language sql
+stable
+security definer
+set search_path = public
+as $$
+  select exists (
+    select 1 from public.allowed_students
+    where lower(email) = lower(check_email)
+  );
+$$;
+
+-- Every new auth user automatically gets a profile (role defaults to student),
+-- but ONLY if their email is on the class list. Raising here aborts the signup
+-- transaction, so this is the real gate: it holds even if someone calls the
+-- Supabase auth API directly, bypassing our /register page.
 --
--- Everyone signs up as a student. To promote the teacher, run this ONCE in the
--- SQL Editor *after* that person has created their account (the row doesn't
--- exist until they sign up). See the bottom of this file.
+-- Two exemptions: the very first account (bootstrap, when no teacher exists
+-- yet) and anyone added by a teacher afterwards.
 create or replace function public.handle_new_user()
 returns trigger
 language plpgsql
 security definer
 set search_path = public
 as $$
+declare
+  bootstrap boolean;
 begin
+  select not exists (select 1 from public.profiles where role = 'teacher') into bootstrap;
+
+  if not bootstrap and not public.is_email_allowed(new.email) then
+    raise exception 'email not on the class list';
+  end if;
+
   insert into public.profiles (id, email, first_name, middle_name, last_name, full_name)
   values (
     new.id,
@@ -137,6 +196,11 @@ begin
     coalesce(new.raw_user_meta_data ->> 'full_name', '')
   )
   on conflict (id) do nothing;
+
+  update public.allowed_students
+  set registered_at = now()
+  where lower(email) = lower(new.email);
+
   return new;
 end;
 $$;
@@ -145,6 +209,41 @@ drop trigger if exists on_auth_user_created on auth.users;
 create trigger on_auth_user_created
   after insert on auth.users
   for each row execute function public.handle_new_user();
+
+-- ---------------------------------------------------------------------------
+-- course_state — what the class is working on right now
+-- ---------------------------------------------------------------------------
+-- A single row the teacher controls. Students only ever see the current day's
+-- lesson and the days already released, so the week page can't become a wall of
+-- material to skim ahead through (or get lost in).
+
+create table if not exists public.course_state (
+  id boolean primary key default true,
+  current_week_slug text not null default 'unit1-week1',
+  -- 1-based index into that week's `video.days` array.
+  current_day int not null default 1,
+  updated_at timestamptz not null default now(),
+  updated_by uuid references auth.users(id) on delete set null,
+  -- Enforces exactly one row.
+  constraint course_state_singleton check (id)
+);
+
+insert into public.course_state (id) values (true) on conflict (id) do nothing;
+
+alter table public.course_state enable row level security;
+
+drop policy if exists "everyone signed in reads course state" on public.course_state;
+create policy "everyone signed in reads course state"
+  on public.course_state for select
+  to authenticated
+  using (true);
+
+drop policy if exists "teachers set course state" on public.course_state;
+create policy "teachers set course state"
+  on public.course_state for update
+  to authenticated
+  using (public.is_teacher())
+  with check (public.is_teacher());
 
 -- ---------------------------------------------------------------------------
 -- reflections
@@ -191,12 +290,12 @@ create policy "teachers read all reflections"
   using (public.is_teacher());
 
 -- ---------------------------------------------------------------------------
--- Promote the teacher (run separately, AFTER they have signed up)
+-- Promote the teacher (run separately, AFTER they have an account)
 -- ---------------------------------------------------------------------------
--- Signing up always creates a student. Grant the teacher role by email:
+-- Registering always creates a student. Grant the teacher role by email:
 --
 --   update public.profiles
---   set role = 'teacher'
+--   set role = 'teacher', first_name = 'J', last_name = 'Diniega'
 --   where id = (select id from auth.users where email = 'jdiniega202@gmail.com');
 --
 -- Check it worked:
@@ -205,4 +304,9 @@ create policy "teachers read all reflections"
 --   join auth.users u on u.id = p.id;
 --
 -- There is no in-app way to become a teacher — that's deliberate, since a
--- self-serve teacher signup would expose every student's reflections.
+-- self-serve teacher role would expose every student's reflections.
+--
+-- Supabase dashboard settings this schema assumes:
+--   • Authentication → Providers → Email → "Allow new users to sign up" **ON**
+--     (the class-list trigger above is the real gate, not this switch)
+--   • "Confirm email" **OFF** — nothing in this app sends or depends on email

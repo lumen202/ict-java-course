@@ -16,19 +16,22 @@ curriculum students see. Counts come from RLS-scoped queries; the total uses
 `WeekFilter.tsx` is a client `<select>` that pushes `?week=…`, so a filtered view is linkable and
 survives a refresh.
 
-**`/teacher/students`** — `app/teacher/students/page.tsx`: the invite form plus the roster table
-(name, email, role, **Active** vs **Invite pending** from `onboarded_at`, invited date). See
-[`invites-onboarding.md`](invites-onboarding.md) for the invite mechanics.
+**`/teacher/students`** — `app/teacher/students/page.tsx`: the add-a-student form, the **class
+list** table (email, name, Registered / Not yet, added date, Remove) and an **Accounts** table.
+See [`enrolment.md`](enrolment.md) for the mechanics.
 
-`TeacherTabs.tsx` is the shared Reflections | Students sub-nav; each page passes its own `active`
-key rather than reading the router.
+**`/teacher/lessons`** — `app/teacher/lessons/page.tsx`: releases the day the class is on. See
+[`lesson-release.md`](lesson-release.md).
+
+Navigation is the sidebar only — the old `TeacherTabs` strip and the dashboard's duplicate
+"Add a student" / "All reflections" buttons were removed once the sidebar carried those links.
 
 ## Discoverability rules
 
 Students must never be nudged toward this area:
 
-- `SiteFooter` has **no** teacher link (it had one; it was removed for exactly this reason).
-- `SiteHeader` renders the Reflections link only when `role === "teacher"`.
+- `AppShell` builds the sidebar list on the **server**, so a student's browser is never sent the
+  teacher routes at all — not hidden with CSS, absent.
 - A student who types `/teacher` is redirected to `/`, silently.
 
 ## Deliberate gaps

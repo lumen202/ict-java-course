@@ -2,7 +2,6 @@ import type { Metadata } from "next";
 import { requireTeacher } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { WeekFilter } from "./WeekFilter";
-import { TeacherTabs } from "./TeacherTabs";
 
 export const metadata: Metadata = { title: "Reflections" };
 
@@ -21,7 +20,7 @@ type Reflection = {
 };
 
 export default async function TeacherPage({ searchParams }: PageProps<"/teacher">) {
-  const user = await requireTeacher("/teacher");
+  await requireTeacher("/teacher");
   const { week } = await searchParams;
   const weekFilter = typeof week === "string" ? week : "all";
 
@@ -40,15 +39,9 @@ export default async function TeacherPage({ searchParams }: PageProps<"/teacher"
   return (
     <main className="mx-auto w-full max-w-5xl px-6 py-10">
       <h1 className="text-2xl font-bold tracking-tight">Student reflections</h1>
-      <p className="mt-1 text-sm text-zinc-600 dark:text-zinc-400">
-        Signed in as {user.fullName} · {reflections.length} total · newest first
-      </p>
-
-      <TeacherTabs active="reflections" />
-
-      <header className="mb-8 flex flex-wrap items-end justify-between gap-4">
+      <header className="mt-1 mb-8 flex flex-wrap items-end justify-between gap-4">
         <p className="text-sm text-zinc-600 dark:text-zinc-400">
-          What students found hardest, newest first.
+          What students found hardest — {reflections.length} total, newest first.
         </p>
         {weekSlugs.length > 1 && <WeekFilter weeks={weekSlugs} current={weekFilter} />}
       </header>

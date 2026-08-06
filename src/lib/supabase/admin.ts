@@ -11,13 +11,12 @@ import { createClient as createSupabaseClient } from "@supabase/supabase-js";
 //   • never use it to read or write course data — that's what the per-user
 //     client in ./server.ts is for, so RLS stays the boundary,
 //   • every caller must check requireTeacher() first.
+//
+// Returns null when the key isn't configured, so emailing can degrade to
+// "student registers themselves at /register" instead of crashing.
 export function createAdminClient() {
   const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
-  if (!key) {
-    throw new Error(
-      "SUPABASE_SERVICE_ROLE_KEY is not set — invites can't be sent without it.",
-    );
-  }
+  if (!key) return null;
 
   return createSupabaseClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, key, {
     auth: { autoRefreshToken: false, persistSession: false },

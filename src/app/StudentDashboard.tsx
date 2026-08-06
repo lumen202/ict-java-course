@@ -1,77 +1,110 @@
 import Link from "next/link";
 import { weeks } from "@/lib/content";
-import { CurriculumList } from "@/components/CurriculumList";
 import { WeekDoneBadge } from "@/components/WeekProgress";
+import { UnitOutline } from "@/components/UnitOutline";
+import { getCourseState, currentLesson } from "@/lib/release";
 import type { CurrentUser } from "@/lib/auth";
 
-// Student view of the dashboard: what to do now, then the full curriculum for
-// context. No teacher links of any kind appear here.
-export function StudentDashboard({ user }: { user: CurrentUser }) {
-  const available = weeks.filter((w) => w.status === "available");
-  const current = available[available.length - 1];
+// Student view: today's lesson first, everything else quiet. The full week is
+// deliberately not laid out here — the teacher releases one day at a time, and
+// showing four locked bullets per unit just invites skimming ahead.
+export async function StudentDashboard({ user }: { user: CurrentUser }) {
+  const state = await getCourseState();
+  const lesson = currentLesson(state);
+  const published = weeks.filter((w) => w.status === "available");
 
   return (
-    <main className="mx-auto w-full max-w-5xl px-6 py-10">
-      <header className="mb-10">
+    <main className="mx-auto w-full max-w-3xl px-6 py-10">
+      <header className="mb-8">
         <p className="text-xs font-medium uppercase tracking-wide text-emerald-700 dark:text-emerald-400">
           ICT · Java track
         </p>
         <h1 className="mt-1 text-2xl font-bold tracking-tight sm:text-3xl">
           Welcome back, {user.fullName.split(" ")[0]}
         </h1>
-        <p className="mt-2 max-w-2xl text-sm text-zinc-600 dark:text-zinc-400 leading-relaxed">
-          Four units, one week at a time. Each week has a video track and a
-          reading track covering the same material — take whichever suits you —
-          something to build, and a short reflection at the end.
-        </p>
       </header>
 
-      {current && (
+      {lesson ? (
         <section className="mb-10">
           <h2 className="mb-3 text-xs font-semibold uppercase tracking-wide text-zinc-500">
-            Your current week
+            Today
           </h2>
           <Link
-            href={`/week/${current.slug}`}
-            className="block rounded-lg border border-emerald-300 dark:border-emerald-800 bg-emerald-50 dark:bg-emerald-950/30 p-5 transition-colors hover:border-emerald-500"
+            href={`/week/${lesson.week.slug}`}
+            className="block rounded-lg border border-emerald-300 dark:border-emerald-800 bg-emerald-50 dark:bg-emerald-950/30 p-6 transition-colors hover:border-emerald-500"
           >
             <div className="flex flex-wrap items-center justify-between gap-2">
-              <p className="text-xs font-medium uppercase tracking-wide text-emerald-700 dark:text-emerald-400">
-                {current.unit}
-              </p>
-              <WeekDoneBadge slug={current.slug} />
+              <span className="rounded-full bg-emerald-600 px-2.5 py-0.5 text-xs font-bold text-white">
+                {lesson.day.day}
+              </span>
+              <WeekDoneBadge slug={lesson.week.slug} />
             </div>
-            <p className="mt-1 font-semibold">{current.title}</p>
+            <p className="mt-3 text-lg font-semibold leading-snug">{lesson.day.focus}</p>
             <p className="mt-2 text-sm text-zinc-600 dark:text-zinc-400 leading-relaxed">
-              {current.summary}
+              {lesson.day.videos.length === 0
+                ? "No new video today — practice and catch up."
+                : `${lesson.day.videos.length} short video${
+                    lesson.day.videos.length > 1 ? "s" : ""
+                  }, then the practice underneath it.`}
             </p>
-            <p className="mt-3 text-sm font-medium text-emerald-700 dark:text-emerald-400">
-              Open this week →
+            <p className="mt-4 text-sm font-medium text-emerald-700 dark:text-emerald-400">
+              Start today&apos;s lesson →
             </p>
           </Link>
+          <p className="mt-2 text-xs text-zinc-500">
+            {lesson.week.unit} · {lesson.week.title}
+          </p>
+        </section>
+      ) : (
+        <section className="mb-10 rounded-lg border border-dashed border-zinc-300 dark:border-zinc-700 p-6 text-sm text-zinc-600 dark:text-zinc-400">
+          Nothing to open yet — your teacher will start the first lesson soon.
         </section>
       )}
 
-      <section>
+      <section className="mb-10">
         <h2 className="mb-1 text-xs font-semibold uppercase tracking-wide text-zinc-500">
-          Curriculum
+          Where this is going
         </h2>
-        <p className="mb-5 text-sm text-zinc-600 dark:text-zinc-400">
-          The whole course, so you always know where this is going. Weeks unlock
-          as we reach them.
+        <p className="mb-4 text-sm text-zinc-600 dark:text-zinc-400 leading-relaxed">
+          Four units across the year. You don&apos;t need to look ahead — each day
+          opens when we reach it.
         </p>
-        <CurriculumList />
+        <UnitOutline currentWeekSlug={state.currentWeekSlug} />
       </section>
 
-      <section className="mt-10 rounded-lg border border-zinc-200 dark:border-zinc-800 p-5">
+      {published.length > 1 && (
+        <section className="mb-10">
+          <h2 className="mb-3 text-xs font-semibold uppercase tracking-wide text-zinc-500">
+            Earlier weeks
+          </h2>
+          <ul className="space-y-2">
+            {published
+              .filter((w) => w.slug !== lesson?.week.slug)
+              .map((w) => (
+                <li key={w.slug}>
+                  <Link
+                    href={`/week/${w.slug}`}
+                    className="flex flex-wrap items-center gap-2 rounded-lg border border-zinc-200 dark:border-zinc-800 px-4 py-3 text-sm hover:border-emerald-500"
+                  >
+                    <span aria-hidden="true">📗</span>
+                    <span className="font-medium">{w.title}</span>
+                    <WeekDoneBadge slug={w.slug} />
+                  </Link>
+                </li>
+              ))}
+          </ul>
+        </section>
+      )}
+
+      <section className="rounded-lg border border-zinc-200 dark:border-zinc-800 p-5">
         <h2 className="mb-4 text-xs font-semibold uppercase tracking-wide text-zinc-500">
-          How a week works
+          How a day works
         </h2>
-        <ol className="grid gap-4 text-sm sm:grid-cols-2 lg:grid-cols-4">
+        <ol className="grid gap-4 text-sm sm:grid-cols-2">
           {[
-            ["Pick a track", "Video or reading — same material, your choice."],
-            ["Do the activity", "Including its twist, which can't be copied from the tutorial."],
-            ["Check yourself", "Questions with hidden answers. Nothing is recorded."],
+            ["Watch or read", "Same material either way — pick one and type along."],
+            ["Do the practice", "The part under the video. This is where it sticks."],
+            ["Check yourself", "Hidden-answer questions at the end of the week."],
             ["Reflect", "Two minutes, and it's the part I actually read."],
           ].map(([title, detail], i) => (
             <li key={title} className="flex gap-3">

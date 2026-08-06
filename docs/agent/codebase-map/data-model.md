@@ -37,7 +37,11 @@ RLS is on for both tables and is the real boundary; the app's redirects are only
   isn't already a teacher. So promotion is a deliberate manual step, not something a student can
   do to themselves.
 - Nothing in the app bypasses RLS except invite sending — see
-  [`invites-onboarding.md`](invites-onboarding.md).
+  [`enrolment.md`](enrolment.md).
+
+Two more tables carry the rest of the model: `allowed_students` (the class list — who may create
+an account, see [`enrolment.md`](enrolment.md)) and `course_state` (a single row saying which week
+and day the class is on, see [`lesson-release.md`](lesson-release.md)).
 
 ## Making someone a teacher
 

@@ -7,6 +7,8 @@ HANDOFF file).
 
 | Date | Title | File |
 |---|---|---|
+| 2026-08-07 | Sidebar app shell replaces the top nav | [`2026-08-07-sidebar-app-shell.md`](2026-08-07-sidebar-app-shell.md) |
+| 2026-08-07 | Class list enrolment, day-by-day lesson release | [`2026-08-07-class-list-and-day-release.md`](2026-08-07-class-list-and-day-release.md) |
 | 2026-08-07 | Docs framework rebuilt on the `docs/agent/` model; dashboard split by role | [`2026-08-07-agent-docs-framework-and-role-dashboards.md`](2026-08-07-agent-docs-framework-and-role-dashboards.md) |
 | 2026-08-07 | Invite-only accounts, curriculum dashboard, app-shaped shell | [`2026-08-07-invite-only-accounts-and-app-shell.md`](2026-08-07-invite-only-accounts-and-app-shell.md) |
 | 2026-08-07 | Accounts and role-scoped RLS (the anonymous model is gone) | [`2026-08-07-accounts-roles-and-rls.md`](2026-08-07-accounts-roles-and-rls.md) |

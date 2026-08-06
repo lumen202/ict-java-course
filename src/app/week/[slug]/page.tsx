@@ -1,4 +1,3 @@
-import Link from "next/link";
 import { notFound } from "next/navigation";
 import type { Metadata } from "next";
 import { weeks, getWeek } from "@/lib/content";
@@ -7,6 +6,8 @@ import { ReflectionForm } from "@/components/ReflectionForm";
 import { VideoEmbed } from "@/components/VideoEmbed";
 import { MarkWeekDone } from "@/components/WeekProgress";
 import { requireUser } from "@/lib/auth";
+import { BackLink } from "@/components/BackLink";
+import { getCourseState, releasedDayCount } from "@/lib/release";
 
 export function generateStaticParams() {
   return weeks.map((w) => ({ slug: w.slug }));
@@ -29,11 +30,17 @@ export default async function WeekPage({ params }: PageProps<"/week/[slug]">) {
   // The whole course is behind sign-in — /login is the only public page.
   const user = await requireUser(`/week/${slug}`);
 
+  // Students see only what the teacher has released; teachers see everything,
+  // so they can review a week before opening it to the class.
+  const state = await getCourseState();
+  const released =
+    user.role === "teacher" ? week.video.days.length : releasedDayCount(week, state);
+  const visibleDays = week.video.days.slice(0, released);
+  const todayIndex = visibleDays.length - 1;
+
   return (
     <main className="mx-auto max-w-3xl px-6 py-12">
-      <Link href="/" className="text-sm text-zinc-500 hover:underline">
-        ← All weeks
-      </Link>
+      <BackLink href="/" label="Curriculum" />
 
       <header className="mt-4 mb-10">
         <p className="text-xs font-medium uppercase tracking-wide text-emerald-700 dark:text-emerald-400">
@@ -74,18 +81,39 @@ export default async function WeekPage({ params }: PageProps<"/week/[slug]">) {
                 <li key={n}>• {n}</li>
               ))}
             </ul>
+            {visibleDays.length === 0 && (
+              <p className="rounded-lg border border-dashed border-zinc-300 dark:border-zinc-700 p-5 text-sm text-zinc-600 dark:text-zinc-400 leading-relaxed">
+                This week hasn&apos;t started yet. Your teacher opens it one day at
+                a time — check back when they say so.
+              </p>
+            )}
             <div className="space-y-4">
-              {week.video.days.map((d) => (
+              {visibleDays.map((d, i) => (
                 <div
                   key={d.day}
-                  className="rounded-lg border border-zinc-200 dark:border-zinc-800 p-4"
+                  className={`rounded-lg border p-4 ${
+                    i === todayIndex
+                      ? "border-emerald-300 dark:border-emerald-800 bg-emerald-50/60 dark:bg-emerald-950/20"
+                      : "border-zinc-200 dark:border-zinc-800"
+                  }`}
                 >
                   <div className="flex flex-wrap items-baseline justify-between gap-2">
                     <p className="text-sm font-semibold">
-                      <span className="mr-2 rounded-full bg-emerald-600 px-2.5 py-0.5 text-xs font-bold text-white">
+                      <span
+                        className={`mr-2 rounded-full px-2.5 py-0.5 text-xs font-bold ${
+                          i === todayIndex
+                            ? "bg-emerald-600 text-white"
+                            : "bg-zinc-200 text-zinc-600 dark:bg-zinc-800 dark:text-zinc-400"
+                        }`}
+                      >
                         {d.day}
                       </span>
                       {d.focus}
+                      {i === todayIndex && (
+                        <span className="ml-2 text-xs font-medium text-emerald-700 dark:text-emerald-400">
+                          ← you&apos;re here
+                        </span>
+                      )}
                     </p>
                     <p className="text-xs text-zinc-500">
                       {d.videos.length === 0
@@ -114,6 +142,12 @@ export default async function WeekPage({ params }: PageProps<"/week/[slug]">) {
                 </div>
               ))}
             </div>
+            {released < week.video.days.length && released > 0 && (
+              <p className="mt-4 text-xs text-zinc-500 leading-relaxed">
+                🔒 The rest of this week opens as we get to it — finish today&apos;s
+                practice first.
+              </p>
+            )}
           </div>
           <div className="rounded-lg border border-zinc-200 dark:border-zinc-800 p-4">
             <p className="font-semibold text-sm mb-2">📖 Reading track</p>

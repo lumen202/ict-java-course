@@ -1,7 +1,7 @@
 # Auth, Sessions, Route Gating
 
 Supabase Auth, email + password only — no OAuth, no magic links, and **no signup route** (see
-[`invites-onboarding.md`](invites-onboarding.md)). Two roles, `student` and `teacher`, stored in
+[`enrolment.md`](enrolment.md)). Two roles, `student` and `teacher`, stored in
 `profiles.role`.
 
 ## Files
