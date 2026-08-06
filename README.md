@@ -1,36 +1,91 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Java Course Hub
 
-## Getting Started
+A small course website for an ICT Java class. Students work through weekly
+self-paced modules — pick a **video track** or a **reading track**, build the
+week's activity (including a required "twist" that can't be copied from the
+tutorial), self-check with hidden answers, then submit a short reflection.
+The teacher reads the reflections to see who is stuck on what. Nothing is graded.
 
-First, run the development server:
+Course arc: **Unit 1** SQL + JDBC → **Unit 2** JavaFX → **Unit 3** REST API
+(Spring Boot) → **Unit 4** capstone (a JavaFX client consuming their own API).
+Weeks are published one at a time.
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+Stack: Next.js 16 (App Router, TypeScript, Tailwind v4) · Supabase (Postgres) ·
+deployed on Vercel.
+
+## Setup
+
+1. **Install dependencies**
+
+   ```bash
+   npm install
+   ```
+
+2. **Create a Supabase project** at [supabase.com](https://supabase.com) (the
+   free tier is plenty).
+
+3. **Create the table.** In the Supabase dashboard go to **SQL Editor → New
+   query**, paste the contents of [`supabase/schema.sql`](supabase/schema.sql),
+   and run it. This creates the `reflections` table and its row-level-security
+   policy.
+
+4. **Set environment variables.** Copy the template and fill it in:
+
+   ```bash
+   cp .env.example .env.local
+   ```
+
+   | Variable | Where to get it |
+   |---|---|
+   | `SUPABASE_URL` | Supabase → Project Settings → API → Project URL |
+   | `SUPABASE_ANON_KEY` | same page → Project API keys → "anon public" |
+   | `SUPABASE_SERVICE_ROLE_KEY` | same page → "service_role" (secret — bypasses RLS) |
+   | `TEACHER_PASSCODE` | invent one; it's the whole teacher login |
+
+   None of these use the `NEXT_PUBLIC_` prefix, and that is deliberate — see
+   [Conventions](#conventions).
+
+5. **Run it**
+
+   ```bash
+   npm run dev
+   ```
+
+   Open <http://localhost:3000>. The site renders without Supabase configured;
+   only reflection submit/read need the keys.
+
+## Deploy
+
+1. Push the repo to GitHub.
+2. Import it at [vercel.com/new](https://vercel.com/new) — the Next.js preset is
+   detected automatically, no build settings to change.
+3. In **Project → Settings → Environment Variables**, add the same four
+   variables from step 4 above (Production, Preview, and Development).
+4. Deploy. The same Supabase project serves local and production.
+
+## Adding a week
+
+One new file plus one line of registration — no page code:
+
+```
+src/lib/content/weeks/unit1-week2.ts   # export a `Week` object
+src/lib/content/index.ts               # add it to `weeks[]`
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+See [`src/lib/content/README.md`](src/lib/content/README.md) for the full
+walkthrough.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Conventions
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+- **Content is data, not pages.** `src/app/week/[slug]/page.tsx` renders any
+  week from its `Week` object. There is no per-week JSX.
+- **Supabase is only touched from API routes** (server side). No key ever
+  reaches the browser, which is why the env vars have no `NEXT_PUBLIC_` prefix.
+- **Auth is minimal on purpose.** Students are anonymous (name field only); the
+  teacher uses one passcode env var. No accounts in v1.
+- **Slugs are permanent** once a link has been shared with students.
 
-## Learn More
+## Project layout
 
-To learn more about Next.js, take a look at the following resources:
-
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+See [`docs/CODEBASE_MAP.md`](docs/CODEBASE_MAP.md) for a file-by-file tour, and
+[`docs/HANDOFF.md`](docs/HANDOFF.md) for current build state and remaining work.
