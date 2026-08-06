@@ -28,11 +28,18 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Invalid request." }, { status: 400 });
   }
 
-  const { weekSlug, hardestPart, wantExplained } = (body ?? {}) as Record<string, unknown>;
+  const { weekSlug, hardestPart, wantExplained, confidence } = (body ?? {}) as Record<
+    string,
+    unknown
+  >;
 
   const slug = typeof weekSlug === "string" ? weekSlug.trim() : "";
   const hardest = typeof hardestPart === "string" ? hardestPart.trim() : "";
   const want = typeof wantExplained === "string" ? wantExplained.trim() : "";
+  // 1 = not yet, 2 = getting there, 3 = solid. Null when the column doesn't
+  // exist yet or the client sent something odd — the insert still succeeds.
+  const level =
+    typeof confidence === "number" && [1, 2, 3].includes(confidence) ? confidence : null;
 
   if (!slug || !hardest) {
     return NextResponse.json({ error: "Please fill in the 'hardest part' box." }, { status: 400 });
@@ -56,6 +63,7 @@ export async function POST(request: Request) {
     student_name: profile?.full_name || user.email || "Unknown",
     hardest_part: hardest,
     want_explained: want || null,
+    confidence: level,
   });
 
   if (error) {

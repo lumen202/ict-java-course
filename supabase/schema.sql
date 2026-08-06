@@ -263,6 +263,12 @@ create table if not exists public.reflections (
 alter table public.reflections
   add column if not exists user_id uuid references auth.users(id) on delete cascade;
 
+-- 1 = not yet, 2 = getting there, 3 = solid. Drives the follow-up advice the
+-- student sees on submit, and gives the teacher an at-a-glance signal.
+alter table public.reflections
+  add column if not exists confidence smallint
+  check (confidence is null or confidence between 1 and 3);
+
 create index if not exists reflections_user_id_idx on public.reflections (user_id);
 create index if not exists reflections_week_slug_idx on public.reflections (week_slug);
 

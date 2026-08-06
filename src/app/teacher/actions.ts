@@ -83,23 +83,18 @@ export async function addStudent(
   return { notice: `${email} is on the class list and an invite email is on its way.` };
 }
 
-export type ReleaseState = { error?: string; notice?: string };
-
-// Move the class forward. Students see days up to and including this one.
-export async function setCurrentLesson(
-  _prev: ReleaseState,
-  formData: FormData,
-): Promise<ReleaseState> {
+// Release a specific day straight from the lesson list — no form state, just a
+// button per row. Selecting an earlier day is a rollback; the dedicated undo
+// (below) is the same thing for the common "one step back" case.
+export async function releaseDay(formData: FormData) {
   await requireTeacher("/teacher/lessons");
 
   const weekSlug = String(formData.get("weekSlug") ?? "").trim();
   const day = Number(formData.get("day"));
 
   const week = getWeek(weekSlug);
-  if (!week) return { error: "That week doesn't exist." };
-  if (!Number.isInteger(day) || day < 1 || day > week.video.days.length) {
-    return { error: "Pick a day that exists in this week." };
-  }
+  if (!week) return;
+  if (!Number.isInteger(day) || day < 1 || day > week.video.days.length) return;
 
   const supabase = await createClient();
   const {
@@ -116,15 +111,81 @@ export async function setCurrentLesson(
     })
     .eq("id", true);
 
-  if (error) {
-    console.error("release failed:", error.message);
-    return { error: "Couldn't update what students can see. Try again." };
-  }
+  if (error) console.error("release failed:", error.message);
 
   revalidatePath("/", "layout");
-  return {
-    notice: `Students can now open ${week.title} up to ${week.video.days[day - 1].day}.`,
-  };
+}
+
+// Step the class back one day. Releasing is reversible on purpose: opening the
+// wrong day by mistake shouldn't need a database edit to fix. Walking it down
+// to 0 closes the week entirely, so students see "hasn't started yet" again.
+export async function undoRelease() {
+  await requireTeacher("/teacher/lessons");
+
+  const supabase = await createClient();
+  const { data: state } = await supabase
+    .from("course_state")
+    .select("current_day")
+    .single();
+
+  const nextDay = Math.max(0, (state?.current_day ?? 1) - 1);
+
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  const { error } = await supabase
+    .from("course_state")
+    .update({
+      current_day: nextDay,
+      updated_at: new Date().toISOString(),
+      updated_by: user?.id ?? null,
+    })
+    .eq("id", true);
+
+  if (error) console.error("undo release failed:", error.message);
+
+  revalidatePath("/", "layout");
+}
+
+// Fix or fill in a student's name. Updates the class list, and — when the
+// service-role key is available — the account itself, so the corrected name is
+// what the app actually shows. RLS lets a teacher read every profile but only
+// update their own, which is why the profile write needs the admin client.
+export async function updateStudentName(formData: FormData) {
+  await requireTeacher("/teacher/students");
+
+  const email = String(formData.get("email") ?? "").trim().toLowerCase();
+  const firstName = String(formData.get("firstName") ?? "").trim().slice(0, 60);
+  const lastName = String(formData.get("lastName") ?? "").trim().slice(0, 60);
+  if (!email) return;
+
+  const supabase = await createClient();
+  await supabase
+    .from("allowed_students")
+    .update({ first_name: firstName, last_name: lastName })
+    .eq("email", email);
+
+  const admin = createAdminClient();
+  if (admin) {
+    const fullName = [firstName, lastName].filter(Boolean).join(" ");
+    const { data: authUsers } = await admin.auth.admin.listUsers({ perPage: 1000 });
+    const account = authUsers?.users.find((u) => u.email?.toLowerCase() === email);
+
+    if (account) {
+      await admin
+        .from("profiles")
+        .update({ first_name: firstName, last_name: lastName, full_name: fullName })
+        .eq("id", account.id);
+      // Keep auth metadata in step — it's the app's last-resort name source.
+      await admin.auth.admin.updateUserById(account.id, {
+        user_metadata: { ...account.user_metadata, first_name: firstName, last_name: lastName },
+      });
+    }
+  }
+
+  revalidatePath("/teacher/students");
+  revalidatePath("/", "layout");
 }
 
 export async function removeStudent(formData: FormData) {

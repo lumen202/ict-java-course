@@ -55,10 +55,14 @@ export function isWeekOpen(week: Week, state: CourseState): boolean {
   return releasedDayCount(week, state) > 0;
 }
 
-/** The week + day the class is on, resolved against the content registry. */
+/**
+ * The week + day the class is on, resolved against the content registry.
+ * `currentDay` of 0 means the teacher has pulled everything back — nothing is
+ * released, so there is no current lesson.
+ */
 export function currentLesson(state: CourseState) {
   const week = getWeek(state.currentWeekSlug);
-  if (!week) return null;
-  const dayIndex = Math.max(0, Math.min(state.currentDay, week.video.days.length) - 1);
+  if (!week || state.currentDay < 1) return null;
+  const dayIndex = Math.min(state.currentDay, week.video.days.length) - 1;
   return { week, day: week.video.days[dayIndex], dayNumber: dayIndex + 1 };
 }

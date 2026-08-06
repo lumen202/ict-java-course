@@ -31,15 +31,19 @@ export const unit1Week1: Week = {
             title: "MySQL tutorial for beginners (intro + installation)",
             youtubeId: "oPV2sjMG53U",
             length: "10:30",
+            practice:
+              "Install MySQL Community Server and MySQL Workbench, then open Workbench and connect to your local server. If it still won't install after 30 minutes, switch to DB Fiddle (reading track) — don't lose the day to an installer.",
           },
           {
             title: "How to create a DATABASE",
             youtubeId: "9LQ9rGoGfYQ",
             length: "4:01",
+            practice:
+              "Create a database called `school`, then run `SHOW DATABASES;` and find yours in the list.",
           },
         ],
         practice:
-          "Install MySQL Community Server + Workbench, then create a database called `school`. If installation still fails after 30 minutes, switch to DB Fiddle (reading track) and note it in your reflection — don't lose the day to an installer.",
+          "Before you finish: write down, in your own words, what the difference is between the *server* you installed and the *database* you just created.",
       },
       {
         day: "Day 2",
@@ -49,15 +53,19 @@ export const unit1Week1: Week = {
             title: "How to create a TABLE",
             youtubeId: "XfrgCK6BX5w",
             length: "8:10",
+            practice:
+              "Create the `students` table with these columns: id, name, grade_level, favorite_subject. Then run `DESCRIBE students;` to check it matches what you intended.",
           },
           {
             title: "How to INSERT rows into a TABLE",
             youtubeId: "Cxilfg-M158",
             length: "5:54",
+            practice:
+              "INSERT at least 10 students — invent them, or use classmates with their permission. Typos will happen: read the error message slowly, it usually points at the exact spot.",
           },
         ],
         practice:
-          "Create the `students` table (id, name, grade_level, favorite_subject) and INSERT at least 10 students. Typos will happen — read the error message slowly; it usually points at the exact spot.",
+          "Before you finish: save everything you typed today into a file called `week1.sql`. You'll keep adding to it all week.",
       },
       {
         day: "Day 3",
@@ -67,15 +75,19 @@ export const unit1Week1: Week = {
             title: "How to SELECT data from a TABLE",
             youtubeId: "kUDznItqKbI",
             length: "5:01",
+            practice:
+              "Write two queries: every student, then only the students in one grade level. Predict how many rows each returns BEFORE you press run.",
           },
           {
             title: "Logical operators (AND, OR, NOT)",
             youtubeId: "lScJW5Qz_5k",
             length: "5:57",
+            practice:
+              "Write one query that combines TWO conditions with AND — for example, a grade level and a favorite subject. Then change the AND to an OR and explain to yourself why the result changed.",
           },
         ],
         practice:
-          "Write activity queries 1–3: all students, one grade level, and two conditions combined with AND. Try to predict what each query returns BEFORE you run it.",
+          "Before you finish: add today's queries to `week1.sql`, with a comment above each one saying what it answers.",
       },
       {
         day: "Day 4",
@@ -85,10 +97,12 @@ export const unit1Week1: Week = {
             title: "ORDER BY clause",
             youtubeId: "R-5F3BF8IeY",
             length: "2:37",
+            practice:
+              "Sort your students two different ways — by name, then by grade level. Notice what ASC and DESC change.",
           },
         ],
         practice:
-          "Write query 4 (ORDER BY), then do the twist: add your own column and write the query that answers a question about it. Save everything into your .sql file with a comment above each query.",
+          "Now the twist: add ONE column of your own invention to the table, then write a query that answers a real question about it — with the question itself written as a comment above the query.",
       },
       {
         day: "Day 5",
@@ -131,7 +145,7 @@ export const unit1Week1: Week = {
     deliverables: [
       "Your .sql file (all CREATE, INSERT, and SELECT statements)",
       "One screenshot of Workbench (or DB Fiddle) showing a query and its results",
-      "The reflection form at the bottom of this page — 2–3 sentences, honest answers help me help you",
+      "The self-check and the two-minute 'where are you at?' below",
     ],
   },
   selfCheck: [

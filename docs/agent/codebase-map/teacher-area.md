@@ -17,8 +17,17 @@ curriculum students see. Counts come from RLS-scoped queries; the total uses
 survives a refresh.
 
 **`/teacher/students`** — `app/teacher/students/page.tsx`: the add-a-student form, the **class
-list** table (email, name, Registered / Not yet, added date, Remove) and an **Accounts** table.
-See [`enrolment.md`](enrolment.md) for the mechanics.
+list** table (email, editable name, Registered / Not yet, added date, Remove) and an **Accounts**
+table. See [`enrolment.md`](enrolment.md) for the mechanics.
+
+- **Names are editable inline** (`EditableName.tsx` → `updateStudentName`). Names are optional
+  when adding someone, and students mistype their own, so the teacher needs to fix what everyone
+  sees. The action writes the class list via RLS *and* the account's profile + auth metadata via
+  the admin client — RLS lets a teacher read all profiles but update only their own.
+- **Registration status comes from auth**, not from `registered_at`. That stamp and
+  `profiles.email` are trigger-written, so an account created before the current trigger version
+  showed "Not yet" forever. The page unions profile emails with
+  `admin.auth.admin.listUsers()` and falls back to the stamp when there's no admin key.
 
 **`/teacher/lessons`** — `app/teacher/lessons/page.tsx`: releases the day the class is on. See
 [`lesson-release.md`](lesson-release.md).

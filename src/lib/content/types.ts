@@ -22,6 +22,12 @@ export type VideoAssignment = {
   youtubeId: string;
   /** Duration as shown on YouTube, e.g. "10:30" — lets students plan. */
   length: string;
+  /**
+   * What to do straight after *this* video, shown directly beneath it. Watching
+   * two videos then doing one lump of practice loses the first one — pair each
+   * video with the thing it enables.
+   */
+  practice?: string;
 };
 
 export type DayPlan = {
@@ -31,7 +37,10 @@ export type DayPlan = {
   focus: string;
   /** Keep total video time short — beginners need room to type along. */
   videos: VideoAssignment[];
-  /** What to actually DO after (or while) watching. Every day has practice. */
+  /**
+   * The day's closing task, shown after the videos and their per-video
+   * practice. On a no-video day this is the whole lesson.
+   */
   practice: string;
 };
 

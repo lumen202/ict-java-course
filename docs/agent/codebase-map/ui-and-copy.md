@@ -15,6 +15,10 @@
   - **Active state uses longest-match, not `startsWith`** — `activeHref()`. A plain prefix test
     lights up both "Reflections" (`/teacher`) and "Lessons" (`/teacher/lessons`) at once; that
     was a real bug.
+  - **Groups collapse** (chevron toggle, default open inside that section) and their child list
+    is `max-h-72 overflow-y-auto`. The student's Lessons group gains an entry per released day,
+    so without both it would grow without bound and push the rest of the rail off-screen.
+  - Child links are matched on `?day=`, since they share a pathname.
   - The drawer closes from each link's `onClick`, not an effect watching the pathname —
     setState-in-effect is rejected by the `react-hooks` lint rules.
 - `components/BackLink.tsx` — "up one level" link for pages the sidebar doesn't cover (week page,

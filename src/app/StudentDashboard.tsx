@@ -1,25 +1,23 @@
 import Link from "next/link";
 import { weeks } from "@/lib/content";
 import { WeekDoneBadge } from "@/components/WeekProgress";
-import { UnitOutline } from "@/components/UnitOutline";
 import { getCourseState, currentLesson } from "@/lib/release";
 import type { CurrentUser } from "@/lib/auth";
 
-// Student view: today's lesson first, everything else quiet. The full week is
-// deliberately not laid out here — the teacher releases one day at a time, and
-// showing four locked bullets per unit just invites skimming ahead.
+// Student view: today's lesson, and almost nothing else. Unit outlines and
+// "how a week works" explainers were removed as noise — the sidebar already
+// lists the released days, and anything a student doesn't need today is a
+// distraction from the thing they're meant to be doing now.
 export async function StudentDashboard({ user }: { user: CurrentUser }) {
   const state = await getCourseState();
   const lesson = currentLesson(state);
   const published = weeks.filter((w) => w.status === "available");
+  const earlier = published.filter((w) => w.slug !== lesson?.week.slug);
 
   return (
     <main className="mx-auto w-full max-w-3xl px-6 py-10">
       <header className="mb-8">
-        <p className="text-xs font-medium uppercase tracking-wide text-emerald-700 dark:text-emerald-400">
-          ICT · Java track
-        </p>
-        <h1 className="mt-1 text-2xl font-bold tracking-tight sm:text-3xl">
+        <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">
           Welcome back, {user.fullName.split(" ")[0]}
         </h1>
       </header>
@@ -30,7 +28,7 @@ export async function StudentDashboard({ user }: { user: CurrentUser }) {
             Today
           </h2>
           <Link
-            href={`/week/${lesson.week.slug}`}
+            href={`/week/${lesson.week.slug}#day-${lesson.dayNumber}`}
             className="block rounded-lg border border-emerald-300 dark:border-emerald-800 bg-emerald-50 dark:bg-emerald-950/30 p-6 transition-colors hover:border-emerald-500"
           >
             <div className="flex flex-wrap items-center justify-between gap-2">
@@ -51,9 +49,7 @@ export async function StudentDashboard({ user }: { user: CurrentUser }) {
               Start today&apos;s lesson →
             </p>
           </Link>
-          <p className="mt-2 text-xs text-zinc-500">
-            {lesson.week.unit} · {lesson.week.title}
-          </p>
+          <p className="mt-2 text-xs text-zinc-500">{lesson.week.title}</p>
         </section>
       ) : (
         <section className="mb-10 rounded-lg border border-dashed border-zinc-300 dark:border-zinc-700 p-6 text-sm text-zinc-600 dark:text-zinc-400">
@@ -61,67 +57,27 @@ export async function StudentDashboard({ user }: { user: CurrentUser }) {
         </section>
       )}
 
-      <section className="mb-10">
-        <h2 className="mb-1 text-xs font-semibold uppercase tracking-wide text-zinc-500">
-          Where this is going
-        </h2>
-        <p className="mb-4 text-sm text-zinc-600 dark:text-zinc-400 leading-relaxed">
-          Four units across the year. You don&apos;t need to look ahead — each day
-          opens when we reach it.
-        </p>
-        <UnitOutline currentWeekSlug={state.currentWeekSlug} />
-      </section>
-
-      {published.length > 1 && (
-        <section className="mb-10">
+      {earlier.length > 0 && (
+        <section>
           <h2 className="mb-3 text-xs font-semibold uppercase tracking-wide text-zinc-500">
             Earlier weeks
           </h2>
           <ul className="space-y-2">
-            {published
-              .filter((w) => w.slug !== lesson?.week.slug)
-              .map((w) => (
-                <li key={w.slug}>
-                  <Link
-                    href={`/week/${w.slug}`}
-                    className="flex flex-wrap items-center gap-2 rounded-lg border border-zinc-200 dark:border-zinc-800 px-4 py-3 text-sm hover:border-emerald-500"
-                  >
-                    <span aria-hidden="true">📗</span>
-                    <span className="font-medium">{w.title}</span>
-                    <WeekDoneBadge slug={w.slug} />
-                  </Link>
-                </li>
-              ))}
+            {earlier.map((w) => (
+              <li key={w.slug}>
+                <Link
+                  href={`/week/${w.slug}`}
+                  className="flex flex-wrap items-center gap-2 rounded-lg border border-zinc-200 dark:border-zinc-800 px-4 py-3 text-sm hover:border-emerald-500"
+                >
+                  <span aria-hidden="true">📗</span>
+                  <span className="font-medium">{w.title}</span>
+                  <WeekDoneBadge slug={w.slug} />
+                </Link>
+              </li>
+            ))}
           </ul>
         </section>
       )}
-
-      <section className="rounded-lg border border-zinc-200 dark:border-zinc-800 p-5">
-        <h2 className="mb-4 text-xs font-semibold uppercase tracking-wide text-zinc-500">
-          How a day works
-        </h2>
-        <ol className="grid gap-4 text-sm sm:grid-cols-2">
-          {[
-            ["Watch or read", "Same material either way — pick one and type along."],
-            ["Do the practice", "The part under the video. This is where it sticks."],
-            ["Check yourself", "Hidden-answer questions at the end of the week."],
-            ["Reflect", "Two minutes, and it's the part I actually read."],
-          ].map(([title, detail], i) => (
-            <li key={title} className="flex gap-3">
-              <span
-                aria-hidden="true"
-                className="grid h-6 w-6 shrink-0 place-items-center rounded-full bg-emerald-600 text-xs font-bold text-white"
-              >
-                {i + 1}
-              </span>
-              <span>
-                <span className="block font-medium">{title}</span>
-                <span className="text-zinc-600 dark:text-zinc-400 leading-relaxed">{detail}</span>
-              </span>
-            </li>
-          ))}
-        </ol>
-      </section>
     </main>
   );
 }

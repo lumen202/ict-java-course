@@ -7,6 +7,7 @@ HANDOFF file).
 
 | Date | Title | File |
 |---|---|---|
+| 2026-08-07 | Lessons isolated per day, reflection reframed around the student | [`2026-08-07-lesson-isolation-and-student-first-reflection.md`](2026-08-07-lesson-isolation-and-student-first-reflection.md) |
 | 2026-08-07 | Sidebar app shell replaces the top nav | [`2026-08-07-sidebar-app-shell.md`](2026-08-07-sidebar-app-shell.md) |
 | 2026-08-07 | Class list enrolment, day-by-day lesson release | [`2026-08-07-class-list-and-day-release.md`](2026-08-07-class-list-and-day-release.md) |
 | 2026-08-07 | Docs framework rebuilt on the `docs/agent/` model; dashboard split by role | [`2026-08-07-agent-docs-framework-and-role-dashboards.md`](2026-08-07-agent-docs-framework-and-role-dashboards.md) |

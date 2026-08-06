@@ -15,8 +15,11 @@ index.ts          weeks[] · roadmap[] · getWeek(slug)
 - `slug`, `unit`, `title`, `summary`, `objectives[]`, `status` (`available` | `coming-soon`)
 - `video` — **a day-by-day plan**, not one long video:
   - `title`, `playlistUrl`, `watchNotes[]` (how to watch actively; applies to every day)
-  - `days: DayPlan[]` — each `{ day, focus, videos: VideoAssignment[], practice }`, where a
-    `VideoAssignment` is `{ title, youtubeId, length }`
+  - `days: DayPlan[]` — each `{ day, focus, videos: VideoAssignment[], practice }`
+  - `VideoAssignment` is `{ title, youtubeId, length, practice? }`. **Give every video its own
+    `practice`**: it renders directly beneath that player, so the student does the thing the
+    video just taught before starting the next one. The day's own `practice` is the closing task
+    ("to finish the day"), or the entire lesson on a no-video day.
 - `reading[]` — `{ label, url, note? }`, a genuine text alternative covering the same material
 - `activity` — `{ title, goal, steps[], twist, deliverables[] }`
 - `selfCheck[]` — `{ question, answer }`
@@ -36,6 +39,10 @@ picks it up.
 - **Pace the video day-by-day.** These students have no prior foundation: ~10–20 minutes of video
   per day, always paired with `practice` that makes them type. Tell them to budget roughly 2× the
   video length in real time. A final day with `videos: []` (pure practice/wrap-up) works well.
+- **One task per video.** Two videos followed by a single lump of practice loses the first one.
+- **`activity.steps` are not rendered to students** — the days' practice covers the same ground.
+  Only `activity.twist` and `activity.deliverables` appear, on the final day. Write `steps` as
+  planning notes for yourself, or skip them.
 - **Both tracks must genuinely cover the same material** — at least one student struggles with
   video learning, so the reading track is an alternative, not a footnote.
 - **Every activity needs a real twist** that can't be satisfied by typing along with the

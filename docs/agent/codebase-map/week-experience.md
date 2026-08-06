@@ -1,24 +1,36 @@
-# The Week Page
+# The Lesson Page
 
-One generic template, `app/week/[slug]/page.tsx`, renders every week from its `Week` object (see
-[`course-content.md`](course-content.md)). `requireUser()` gates it; `generateMetadata()` gives
-each week its own `<title>`; unknown slugs call `notFound()` and land on the custom 404.
+`app/week/[slug]/page.tsx` renders **one day at a time**, not a whole week. The URL is
+`/week/<slug>?day=N`; without `?day` it shows the newest released day, which is "today" for the
+class. `requireUser()` gates it, and unknown slugs `notFound()`.
+
+`app/lessons/page.tsx` is the **index**: every released day, newest week first, with the current
+one dotted. The sidebar's "Lessons" points here, not into a day — without it there was no way
+back out of a lesson.
+
+**A lesson is the page.** The heading is the day's `focus`, with the week and day as a small
+label above it — not a week banner. Showing the whole week at once invited skimming ahead, which
+is the exact thing the release control exists to prevent.
 
 ## Section order
 
-1. **Objectives** — "by the end of this week you can…"
-2. **Pick your track** — video and reading, stacked (not side-by-side) so the player gets full
-   width:
-   - **Video track**: playlist name + link out, the global watch notes, then one card per day —
-     day chip, focus line, computed "N min of video" (or "no video — practice day"), the day's
-     embedded players in a 2-col grid, and a "✍️ Then do:" practice box.
-   - **Reading track**: labelled links with notes.
-3. **Activity** — goal, steps, the amber **twist** callout, deliverables.
-4. **Self-check** — `<SelfCheck>`, answers hidden behind a reveal button, nothing recorded.
-5. **Reflection** — `<ReflectionForm>`; everyone here is signed in, so it always renders.
-6. **`<MarkWeekDone>`** — the personal done toggle.
+1. **Header** — `Unit · Day N` label, the day's focus as `<h1>`, and the video-minutes line.
+2. **Day switcher** — pills for each released day (only when more than one). The sidebar does
+   this too; these keep it reachable on mobile, where the sidebar is behind a drawer.
+3. **The lesson** — the day's embedded players (2-col grid), the "✍️ Then do this" practice box,
+   and the week's watch notes.
+4. **Prev / next day** links, bounded by what's released.
+5. **`<details>` Reading track** — the text alternative, collapsed.
+6. **Final day only**: finish-the-activity (goal, the amber **twist**, what to turn in), the
+   self-check, the "Where are you at?" reflection, and `<MarkWeekDone>`.
 
-`totalMinutes()` in the page sums `"mm:ss"` lengths and rounds up.
+The activity's `steps` are **not rendered anywhere**: they say the same thing as the days'
+`practice`, which is what a student is actually following. Only the twist and the hand-in list
+survive at week level. Keep it that way — a "what you're building this week" block on every day
+duplicated the daily instruction and reintroduced the week framing lessons were split up to
+avoid.
+
+`totalMinutes()` sums `"mm:ss"` lengths and rounds up.
 
 ## Components involved
 
@@ -27,9 +39,12 @@ each week its own `<title>`; unknown slugs call `notFound()` and land on the cus
   is deliberately no thumbnail facade: that would need client state plus an `<img>` from
   `i.ytimg.com`, which trips `@next/next/no-img-element`.
 - `components/SelfCheck.tsx` — client, local reveal state only.
-- `components/ReflectionForm.tsx` — client. Takes `weekSlug` + `studentName`; there is **no name
-  field**, because identity comes from the session, so nobody can submit as someone else. POSTs
-  to `/api/reflections`.
+- `components/ReflectionForm.tsx` — client. **Its first job is the student's learning, not the
+  teacher's inbox.** Three inputs: a confidence choice (`Not yet` / `Getting there` / `Solid`),
+  where they got stuck and what they tried, and what they'll redo. On submit it returns a
+  **tailored plan** — rebuild-from-blank, revisit the specific day, or stretch further — plus the
+  week's reading links when confidence is low. Copy must never imply "wait for the teacher to
+  explain it"; the teacher is supervisory. No name field: identity comes from the session.
 - `components/WeekProgress.tsx` — client. `MarkWeekDone` (week page) and `WeekDoneBadge`
   (dashboard). **localStorage only** (`jch-done:<slug>`): a personal checklist, never sent to the
   teacher, so it doesn't create a surveillance signal. Reads go through `useSyncExternalStore`

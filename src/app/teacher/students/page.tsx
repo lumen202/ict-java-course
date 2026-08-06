@@ -1,7 +1,9 @@
 import type { Metadata } from "next";
 import { requireTeacher } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { AddStudentForm } from "../AddStudentForm";
+import { EditableName } from "../EditableName";
 import { RemoveStudentButton } from "../RemoveStudentButton";
 
 export const metadata: Metadata = { title: "Students" };
@@ -45,7 +47,27 @@ export default async function StudentsPage() {
 
   const classList = (allowed ?? []) as AllowedRow[];
   const people = (profiles ?? []) as ProfileRow[];
-  const registered = classList.filter((s) => s.registered_at).length;
+
+  // Registration status is derived from real accounts, not from the
+  // `registered_at` stamp alone: that stamp (and `profiles.email`) are written
+  // by database triggers, so anyone who signed up before those existed — or
+  // under an older version of them — would sit at "Not yet" forever despite
+  // having an account. Auth is the authority, so ask it directly when we can.
+  const accountEmails = new Set(
+    people.map((p) => (p.email ?? "").toLowerCase()).filter(Boolean),
+  );
+
+  const admin = createAdminClient();
+  if (admin) {
+    const { data: authUsers } = await admin.auth.admin.listUsers({ perPage: 1000 });
+    for (const u of authUsers?.users ?? []) {
+      if (u.email) accountEmails.add(u.email.toLowerCase());
+    }
+  }
+  const hasAccount = (row: AllowedRow) =>
+    Boolean(row.registered_at) || accountEmails.has(row.email.toLowerCase());
+
+  const registered = classList.filter(hasAccount).length;
 
   return (
     <main className="mx-auto w-full max-w-5xl px-6 py-10">
@@ -94,12 +116,14 @@ export default async function StudentsPage() {
                   <tr key={s.email}>
                     <td className="px-4 py-3 font-medium">{s.email}</td>
                     <td className="px-4 py-3 text-zinc-600 dark:text-zinc-400">
-                      {[s.first_name, s.last_name].filter(Boolean).join(" ") || (
-                        <span className="text-zinc-400">—</span>
-                      )}
+                      <EditableName
+                        email={s.email}
+                        firstName={s.first_name}
+                        lastName={s.last_name}
+                      />
                     </td>
                     <td className="px-4 py-3">
-                      {s.registered_at ? (
+                      {hasAccount(s) ? (
                         <span className="text-emerald-700 dark:text-emerald-400">
                           ✓ Registered
                         </span>
@@ -111,7 +135,7 @@ export default async function StudentsPage() {
                       {new Date(s.added_at).toLocaleDateString()}
                     </td>
                     <td className="px-4 py-3 text-right">
-                      {!s.registered_at && <RemoveStudentButton email={s.email} />}
+                      {!hasAccount(s) && <RemoveStudentButton email={s.email} />}
                     </td>
                   </tr>
                 ))}

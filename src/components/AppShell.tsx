@@ -1,4 +1,5 @@
 import { getCurrentUser } from "@/lib/auth";
+import { getCourseState, currentLesson, releasedDayCount } from "@/lib/release";
 import { Sidebar, type NavItem } from "@/components/Sidebar";
 
 // Decides the app frame on the server: signed-in users get the sidebar, and
@@ -20,7 +21,7 @@ export async function AppShell({ children }: { children: React.ReactNode }) {
           { href: "/teacher/students", label: "Students", icon: "👥" },
           { href: "/teacher", label: "Reflections", icon: "💬" },
         ]
-      : [{ href: "/", label: "Today", icon: "🏠" }];
+      : await studentNav();
 
   return (
     <div className="md:flex md:min-h-screen">
@@ -28,4 +29,35 @@ export async function AppShell({ children }: { children: React.ReactNode }) {
       <div className="min-w-0 flex-1">{children}</div>
     </div>
   );
+}
+
+/**
+ * Students get "Lessons" with one entry per released day, so the sidebar grows
+ * as the teacher opens the week — Day 1, then Day 2, and so on. Unreleased days
+ * never appear.
+ */
+async function studentNav(): Promise<NavItem[]> {
+  const state = await getCourseState();
+  const lesson = currentLesson(state);
+
+  if (!lesson) return [{ href: "/lessons", label: "Lessons", icon: "📚" }];
+
+  const released = releasedDayCount(lesson.week, state);
+  const days = lesson.week.video.days.slice(0, released).map((d, i) => ({
+    href: `/week/${lesson.week.slug}?day=${i + 1}`,
+    label: d.day,
+    hint: d.focus,
+  }));
+
+  // One entry: Lessons, pointing at the *list* (so there's always a way back
+  // out of a day), with the released days under it. No "Today" row and no
+  // week-title row — both were redundant once the days are the navigation.
+  return [
+    {
+      href: "/lessons",
+      label: "Lessons",
+      icon: "📚",
+      children: days,
+    },
+  ];
 }
