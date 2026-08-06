@@ -1,7 +1,7 @@
 // Content model for course weeks.
 // Every week page is rendered entirely from a `Week` object — no page-specific
 // JSX per week. To add a week, create a file in `weeks/` and register it in
-// `index.ts`. See src/lib/content/README.md.
+// `index.ts`. See docs/agent/codebase-map/course-content.md.
 
 export type ReadingItem = {
   label: string;

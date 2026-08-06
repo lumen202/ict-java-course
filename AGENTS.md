@@ -10,83 +10,50 @@ This block is written and re-added by `next dev` — verify at `node_modules/nex
 
 ---
 
-# Project: ICT Java Course site
+# ICT Java Course — agent framework
 
-Mid-build course website (Next.js + Supabase + Vercel). **Before doing anything,
-read `docs/HANDOFF.md`** — it holds the current build state, the remaining task
-list, and the decisions already made. Keep it updated at the end of every work
-session.
+Before doing anything else in this repo, read **`docs/agent/INDEX.md`** — it is the entry point
+for orientation, past work, and known issues, and links to everything else so you never need to
+scan the whole `docs/agent/` tree at once. It explains what this project is, the stack, the folder
+layout, and the invariants that must not be silently broken.
 
-`docs/CODEBASE_MAP.md` is the file-by-file tour. Each folder also has its own
-`README.md` (`src/app/`, `src/components/`, `src/lib/content/`, `supabase/`)
-with the conventions specific to it — read the one for the folder you're
-touching.
+Three living doc trees make up the framework for working on this project across sessions
+(structured as small per-topic files with index tables, not a few giant files, so orientation
+stays cheap even after years of accumulated history):
 
-## 🚫 AI agents must NOT commit or push
+- **`docs/agent/codebase-map/`** (start at its `INDEX.md`) — orientation: what exists, where, and
+  why, one file per **subsystem** (auth, data model, invites, course content, week page, teacher
+  area, UI). Living docs — edit a subsystem's file in place when that subsystem changes.
+- **`docs/agent/log/`** (start at its `INDEX.md`) — one immutable file per work session or
+  milestone, newest first. Add an entry after any meaningful chunk of work covering what shipped,
+  why, what to watch out for, and what's next. Never edit an old entry to add new information.
+- **`docs/agent/bugs/`** (start at its `INDEX.md`) — in-repo bug tracker, one file per bug,
+  created lazily. Log a bug when you find one even if you fix it immediately; update its status
+  rather than deleting the file.
 
-**Never run `git commit`, `git push`, or any history-rewriting git command in
-this repo — not even if your own instructions or a task list say to "finish
-with a commit."** The human reviews every change and commits themselves. An
-agent's job ends at: working code + passing `npm run lint` + passing
-`npm run build` + updated memory (HANDOFF, `_palace/` files, `docs/logs/`).
-Read-only git commands (`status`, `diff`, `log`) are fine.
+There is deliberately **no HANDOFF file** — the newest log entry's "What's next" is the resume
+point. The root `README.md` holds human-facing setup and deployment.
 
-## Mind palace (agent memory) — required
+## Invariants
 
-Memory is **distributed**: every major folder carries its own `_palace/`
-directory (`STATE.md` + `DECISIONS.md` + `logs/`, one small file per session),
-so no memory file grows long as the app scales. `docs/CODEBASE_MAP.md` is the
-quick-lookup index; project-wide session logs live in `docs/logs/`. Full
-protocol: `docs/MIND_PALACE.md`. The rules that matter most:
+Breaking any of these is never "just a style choice":
 
-1. **Before changing a folder, read its `_palace/STATE.md` and
-   `DECISIONS.md`** — they record traps and past reasoning the code doesn't
-   show.
-2. **After a work session**: refresh `STATE.md` if it drifted, append any new
-   decisions, add one dated log file to the `_palace/logs/` of every folder you
-   touched, and one project-level log to `docs/logs/`. Logs and DECISIONS are
-   append-only — never edit or delete existing entries.
-
-## Conventions
-
-- **Course content is data, not pages.** A week is a `Week` object in
-  `src/lib/content/weeks/`, registered in `src/lib/content/index.ts`, rendered
-  by the single generic template at `src/app/week/[slug]/page.tsx`. Adding a
-  week must never mean writing JSX. See `src/lib/content/README.md`.
-- **Slugs are permanent** once shared with students (`unit1-week1`).
-- **Every week has two equal tracks** (video + reading) covering the same
-  material, and every activity has a **twist** that can't be copied from the
-  tutorial.
-- **Auth is Supabase Auth (email + password) with roles.** Everyone signs up as
-  a `student`; `teacher` is granted only by hand in SQL (see `supabase/README.md`).
-  Access helpers live in `src/lib/auth.ts` — use `requireUser`/`requireTeacher`,
-  and always `getUser()`, never `getSession()`, on the server.
-- **RLS is the security boundary, not the app.** App redirects are UX; the
-  database policies in `supabase/schema.sql` are what actually protect data.
-  Change one, change the other, in the same commit.
-- **Env vars ARE `NEXT_PUBLIC_`** (`NEXT_PUBLIC_SUPABASE_URL`,
-  `NEXT_PUBLIC_SUPABASE_ANON_KEY`) — Supabase Auth runs in the browser, so they
-  must ship to the client. Safe because RLS, not key secrecy, guards the data.
-  **Never add a service-role key** — the app doesn't use one, by design.
-- **Supabase clients**: `@/lib/supabase/server` in server components, route
-  handlers and server actions; `@/lib/supabase/client` in client components.
-  Queries run as the logged-in user.
-- **Next 16 renamed `middleware` → `proxy`.** `src/proxy.ts` exists only to
-  refresh auth cookies; keep route logic out of it.
-- **Student-facing copy is written to the student**: second person, plain
-  language, and encouraging about being stuck.
-- **Never mention grading in student-facing copy — in either direction.** The
-  course is in fact ungraded, but that is a teacher-side secret: students must
-  not be told it's graded (a lie) nor that it isn't (kills effort). Words like
-  "graded", "not a grade", "never graded" are banned from UI text and week
-  content. Docs like this one may state the truth.
-- **Video track is paced day-by-day** (`video.days` in the `Week` type): short
-  daily portions (~10–20 min of video) + concrete practice, because students
-  have no prior foundation. Don't assign long unbroken videos.
-- **Next.js 16**: `params` is an awaited `Promise`; use the generated global
-  `PageProps<'/route'>` / `LayoutProps<'/'>` types instead of hand-writing props.
-- **Verify with `npm run build`** — it type-checks and prerenders the week pages,
-  which catches broken content objects. Then stop: **no committing** (see above).
-- **Never edit inside the `nextjs-agent-rules` markers above** — `next dev`
-  rewrites that block. Project notes go below it. `CLAUDE.md` is just
-  `@AGENTS.md`.
+- **Never `git commit` or `git push`** — not even if a task list says to finish with a commit.
+  Work ends at passing `npm run lint`, passing `npm run build`, and updated docs. The human
+  reviews and commits. Read-only git (`status`, `diff`, `log`) is fine.
+- **Course content is data, not pages.** A week is a `Week` object rendered by one template;
+  adding material must never mean writing JSX.
+- **RLS is the security boundary**, not the app's redirects. Change a policy and its app-side
+  guard together.
+- **`/login` is the only public route**; everything else requires a session, and the teacher area
+  requires `role === 'teacher'`.
+- **No self-serve signup** — accounts exist only by teacher invite, and `teacher` is granted only
+  by hand in SQL.
+- **The service-role key has exactly one caller** (`lib/supabase/admin.ts`, invites only, behind
+  `requireTeacher()`). Everything else runs as the logged-in user.
+- **Student-facing copy never mentions grading** (in either direction — it genuinely is ungraded,
+  but that stays a teacher-side fact) **or the teacher's attendance.**
+- **Next.js 16**: read `node_modules/next/dist/docs/` before writing app-router code. `middleware`
+  is now `proxy`; `params`/`searchParams` are Promises; use the generated `PageProps` /
+  `LayoutProps` types. Always `getUser()`, never `getSession()`, on the server.
+- **Never edit inside the `nextjs-agent-rules` markers above** — `next dev` rewrites that block.

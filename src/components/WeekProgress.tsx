@@ -3,7 +3,7 @@
 import { useSyncExternalStore } from "react";
 
 // Client-side week progress, stored in localStorage only — deliberately no
-// accounts (see docs/HANDOFF.md → Decisions). This is a personal checklist on
+// teacher visibility (docs/agent/codebase-map/week-experience.md). A checklist on
 // the student's own device, not data the teacher sees; the reflection form is
 // the teacher-facing signal.
 //

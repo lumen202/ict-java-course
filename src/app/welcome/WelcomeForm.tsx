@@ -3,6 +3,7 @@
 import { useActionState } from "react";
 import { useFormStatus } from "react-dom";
 import { completeSignup, type WelcomeState } from "./actions";
+import { PasswordField } from "@/components/PasswordField";
 
 const inputCls =
   "w-full rounded-md border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500";
@@ -70,35 +71,19 @@ export function WelcomeForm({ defaults }: { defaults: { first: string; middle: s
       </div>
 
       <div className="grid gap-4 sm:grid-cols-2">
-        <div>
-          <label htmlFor="password" className="block text-sm font-medium mb-1">
-            Choose a password
-          </label>
-          <input
-            id="password"
-            name="password"
-            type="password"
-            required
-            minLength={8}
-            autoComplete="new-password"
-            className={inputCls}
-          />
-          <p className="mt-1 text-xs text-zinc-500">At least 8 characters.</p>
-        </div>
-        <div>
-          <label htmlFor="confirmPassword" className="block text-sm font-medium mb-1">
-            Type it again
-          </label>
-          <input
-            id="confirmPassword"
-            name="confirmPassword"
-            type="password"
-            required
-            minLength={8}
-            autoComplete="new-password"
-            className={inputCls}
-          />
-        </div>
+        <PasswordField
+          name="password"
+          label="Choose a password"
+          hint="At least 8 characters."
+          minLength={8}
+          autoComplete="new-password"
+        />
+        <PasswordField
+          name="confirmPassword"
+          label="Type it again"
+          minLength={8}
+          autoComplete="new-password"
+        />
       </div>
 
       {state.error && <p className="text-sm text-red-600 dark:text-red-400">{state.error}</p>}

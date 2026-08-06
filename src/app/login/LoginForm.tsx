@@ -3,6 +3,7 @@
 import { useActionState } from "react";
 import { useFormStatus } from "react-dom";
 import { signIn, type AuthState } from "./actions";
+import { PasswordField } from "@/components/PasswordField";
 
 // Sign-in only. There is no self-serve signup: accounts are created by the
 // teacher sending an invite (see src/app/teacher/actions.ts), and the invited
@@ -51,19 +52,7 @@ export function LoginForm({ next, linkError }: { next: string; linkError?: strin
         />
       </div>
 
-      <div>
-        <label htmlFor="password" className="block text-sm font-medium mb-1">
-          Password
-        </label>
-        <input
-          id="password"
-          name="password"
-          type="password"
-          required
-          autoComplete="current-password"
-          className={inputCls}
-        />
-      </div>
+      <PasswordField name="password" label="Password" />
 
       {state.error && <p className="text-sm text-red-600 dark:text-red-400">{state.error}</p>}
 
