@@ -24,9 +24,21 @@ export const unit1Week2: Week = {
   summary: "One sentence a student reads before deciding to click.",
   objectives: ["I can …", "I can …"],
   video: {
-    title: "Video title (channel)",
-    url: "https://…",
-    watchNotes: ["Watch 0:00–14:30.", "Pause at 6:00 and type the query yourself."],
+    title: "Playlist name (channel)",
+    playlistUrl: "https://www.youtube.com/playlist?list=…",
+    watchNotes: ["One day at a time, in order.", "Pause and type the SQL yourself."],
+    days: [
+      {
+        day: "Day 1",
+        focus: "One line: what this day accomplishes",
+        videos: [
+          { title: "Video title", youtubeId: "oPV2sjMG53U", length: "10:30" },
+        ],
+        practice: "What to actually DO after watching — every day has practice.",
+      },
+      // …aim for ~10–20 min of video per day; a final day with videos: []
+      // (pure practice/wrap-up day) works well.
+    ],
   },
   reading: [
     { label: "SQLBolt — Lesson 4", url: "https://…", note: "Do the exercises, don't just read." },
@@ -59,8 +71,12 @@ That's it. The home page lists it, `/week/<slug>` renders it, and
 - **Both tracks must cover the same material.** At least one student struggles
   with video learning, so the reading track is a real alternative, not a
   footnote. Both feed the same activity.
-- **`watchNotes` should include timestamps** and at least one instruction to
-  stop and do something — passive watching is the failure mode.
+- **Pace the video track day-by-day.** These students have no prior
+  foundation: ~10–20 minutes of video per day, always paired with `practice`
+  that makes them type. Passive watching is the failure mode. Budget roughly
+  2× the video length as real time.
+- **Never mention grading in content — either direction.** See `AGENTS.md`:
+  the no-grading policy is a teacher-side secret.
 - **Every activity needs a real `twist`.** It must be impossible to satisfy by
   typing along with the tutorial. This is what makes "done" mean something when
   nothing is graded.

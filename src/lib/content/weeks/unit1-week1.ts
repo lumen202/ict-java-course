@@ -13,12 +13,90 @@ export const unit1Week1: Week = {
     "Write SELECT queries that filter rows with WHERE and sort them with ORDER BY",
   ],
   video: {
-    title: "Bro Code — SQL Full Course for free 🐬",
-    url: "https://www.youtube.com/watch?v=5OdVJbNCSso",
+    title: "Bro Code — MySQL tutorial for beginners 🐬",
+    playlistUrl:
+      "https://www.youtube.com/playlist?list=PLZPZq0r_RZOMskz6MdsMOgxzheIyjo-BZ",
     watchNotes: [
-      "Watch from the start through the sections on databases, tables, INSERT, SELECT, and WHERE (roughly the first hour). Stop there — the rest is for later weeks.",
+      "One day at a time, in order — each day is short on purpose. Don't binge ahead; the practice in between is where the learning happens.",
       "Do NOT just watch. Pause every few minutes and type the SQL yourself in Workbench. Watching without typing feels like learning but isn't.",
-      "Slowing the video to 0.75× and turning on captions is a smart move, not a weakness.",
+      "Slowing a video to 0.75× and turning on captions is a smart move, not a weakness.",
+      "Plan for about twice the video length per day — the minutes shown are watch time, and typing along takes at least as long again.",
+    ],
+    days: [
+      {
+        day: "Day 1",
+        focus: "Get MySQL installed and create your first database",
+        videos: [
+          {
+            title: "MySQL tutorial for beginners (intro + installation)",
+            youtubeId: "oPV2sjMG53U",
+            length: "10:30",
+          },
+          {
+            title: "How to create a DATABASE",
+            youtubeId: "9LQ9rGoGfYQ",
+            length: "4:01",
+          },
+        ],
+        practice:
+          "Install MySQL Community Server + Workbench, then create a database called `school`. If installation still fails after 30 minutes, switch to DB Fiddle (reading track) and note it in your reflection — don't lose the day to an installer.",
+      },
+      {
+        day: "Day 2",
+        focus: "Create your students table and put data in it",
+        videos: [
+          {
+            title: "How to create a TABLE",
+            youtubeId: "XfrgCK6BX5w",
+            length: "8:10",
+          },
+          {
+            title: "How to INSERT rows into a TABLE",
+            youtubeId: "Cxilfg-M158",
+            length: "5:54",
+          },
+        ],
+        practice:
+          "Create the `students` table (id, name, grade_level, favorite_subject) and INSERT at least 10 students. Typos will happen — read the error message slowly; it usually points at the exact spot.",
+      },
+      {
+        day: "Day 3",
+        focus: "Ask your data questions with SELECT and WHERE",
+        videos: [
+          {
+            title: "How to SELECT data from a TABLE",
+            youtubeId: "kUDznItqKbI",
+            length: "5:01",
+          },
+          {
+            title: "Logical operators (AND, OR, NOT)",
+            youtubeId: "lScJW5Qz_5k",
+            length: "5:57",
+          },
+        ],
+        practice:
+          "Write activity queries 1–3: all students, one grade level, and two conditions combined with AND. Try to predict what each query returns BEFORE you run it.",
+      },
+      {
+        day: "Day 4",
+        focus: "Sort your results, then make the data yours (the twist)",
+        videos: [
+          {
+            title: "ORDER BY clause",
+            youtubeId: "R-5F3BF8IeY",
+            length: "2:37",
+          },
+        ],
+        practice:
+          "Write query 4 (ORDER BY), then do the twist: add your own column and write the query that answers a question about it. Save everything into your .sql file with a comment above each query.",
+      },
+      {
+        day: "Day 5",
+        focus: "Wrap up — no new video today",
+        videos: [],
+        practice:
+          "Finish anything left over, take your Workbench screenshot, run through the self-check below, and send the reflection. Done early? Peek at the reading track's SQLBolt lessons for extra practice.",
+      },
     ],
   },
   reading: [

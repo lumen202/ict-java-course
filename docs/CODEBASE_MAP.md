@@ -1,8 +1,19 @@
 # Codebase map
 
-A file-by-file tour, so you can find things without reading the code. For setup
-and deployment see the root [`README.md`](../README.md); for current build state
-see [`HANDOFF.md`](HANDOFF.md).
+The **index**: a file-by-file tour so you can find things without reading the
+code. For setup and deployment see the root [`README.md`](../README.md); for
+current build state see [`HANDOFF.md`](HANDOFF.md); for per-folder memory
+(state, decisions, session logs) see the `_palace/` directory inside each
+folder — protocol in [`MIND_PALACE.md`](MIND_PALACE.md).
+
+| Area | How it works | Memory |
+|---|---|---|
+| `src/app/` | [README](../src/app/README.md) | [`_palace/`](../src/app/_palace/STATE.md) |
+| `src/components/` | [README](../src/components/README.md) | [`_palace/`](../src/components/_palace/STATE.md) |
+| `src/lib/` | [README](../src/lib/content/README.md) | [`_palace/`](../src/lib/_palace/STATE.md) |
+| `supabase/` | [README](../supabase/README.md) | [`_palace/`](../supabase/_palace/STATE.md) |
+| `docs/` | [MIND_PALACE.md](MIND_PALACE.md) | [`_palace/`](_palace/STATE.md) |
+| whole project | this file | [`logs/`](logs/) — one file per session |
 
 ## The one thing to understand first
 
@@ -61,9 +72,10 @@ See [`src/lib/content/README.md`](../src/lib/content/README.md) — how to add a
 
 | Path | Type | What it does |
 |---|---|---|
-| `layout.tsx` | server | Root layout, fonts, site metadata. |
-| `page.tsx` | server | Home: intro, "how a week works", available weeks from `weeks[]`, `roadmap[]`, footer link to `/teacher`. |
-| `week/[slug]/page.tsx` | server | The generic week template. `generateStaticParams()` prerenders every registered week; unknown slugs `notFound()`. |
+| `layout.tsx` | server | Root layout: fonts, title template, global `SiteHeader`/`SiteFooter`. |
+| `page.tsx` | server | Home: hero, course-arc cards, "how a week works", available weeks from `weeks[]`, roadmap timeline. |
+| `not-found.tsx` | server | Custom 404; unknown week slugs land here. |
+| `week/[slug]/page.tsx` | server | The generic week template. Embeds the video when `video.youtubeId` is set. `generateStaticParams()` prerenders every registered week; `generateMetadata()` sets per-week titles; unknown slugs `notFound()`. |
 | `teacher/page.tsx` | client | Passcode form → reflections list, newest first, filterable by week. |
 | `api/reflections/route.ts` | route | `POST` — validates and inserts a student reflection (anon key). |
 | `api/teacher/reflections/route.ts` | route | `POST` — checks passcode, returns all reflections (service-role key). |
@@ -74,8 +86,11 @@ See [`src/app/README.md`](../src/app/README.md).
 
 | File | What it is |
 |---|---|
+| `SiteHeader.tsx` / `SiteFooter.tsx` | Server. Global chrome, rendered in the root layout. |
+| `VideoEmbed.tsx` | Server. In-page YouTube player — lazy iframe, `youtube-nocookie.com`, zero client JS. |
 | `SelfCheck.tsx` | Client. Questions with answers hidden behind a reveal button. Nothing is recorded. |
 | `ReflectionForm.tsx` | Client. Posts to `/api/reflections`, handles success and error states. |
+| `WeekProgress.tsx` | Client. `MarkWeekDone` + `WeekDoneBadge` — localStorage-only personal checklist (`jch-done:<slug>`), never sent to the teacher. |
 
 See [`src/components/README.md`](../src/components/README.md).
 

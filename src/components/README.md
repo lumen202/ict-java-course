@@ -1,12 +1,15 @@
 # Components
 
-Shared React components. Both are **client components** (`"use client"`) because
-they hold interactive state; everything else in the app is a server component.
+Shared React components. Server components unless marked client.
 
-| File | What it does |
-|---|---|
-| `SelfCheck.tsx` | Renders `week.selfCheck` — each question's answer is hidden behind a reveal button. Purely local state, nothing is sent anywhere or recorded. |
-| `ReflectionForm.tsx` | The end-of-week form. Takes `weekSlug`, POSTs to `/api/reflections`, shows success and error states. |
+| File | Kind | What it does |
+|---|---|---|
+| `SiteHeader.tsx` | server | Sticky global nav — brand, Weeks, Teacher. Rendered in the root layout. |
+| `SiteFooter.tsx` | server | Global footer; carries the teacher link. Rendered in the root layout. |
+| `VideoEmbed.tsx` | server | In-page YouTube player: lazy iframe on the privacy-enhanced `youtube-nocookie.com` host. Zero client JS. |
+| `SelfCheck.tsx` | client | Renders `week.selfCheck` — each question's answer is hidden behind a reveal button. Purely local state, nothing is sent anywhere or recorded. |
+| `ReflectionForm.tsx` | client | The end-of-week form. Takes `weekSlug`, POSTs to `/api/reflections`, shows success and error states. |
+| `WeekProgress.tsx` | client | `MarkWeekDone` (week page toggle) + `WeekDoneBadge` (home card chip). localStorage only (`jch-done:<slug>`) — a personal checklist, never sent to the teacher. Reads via `useSyncExternalStore` so SSR/hydration stay consistent. |
 
 ## Conventions
 

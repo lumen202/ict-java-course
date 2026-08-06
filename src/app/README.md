@@ -6,9 +6,10 @@ differ from older versions.
 
 | Path | Rendering | Purpose |
 |---|---|---|
-| `layout.tsx` | server | Root layout: fonts, `metadata` (site title/description). |
-| `page.tsx` | static | Home. Lists available weeks from `weeks[]` and future ones from `roadmap[]`; footer links to `/teacher`. |
-| `week/[slug]/page.tsx` | SSG | The **generic** week template — renders any `Week`. `generateStaticParams()` prerenders every registered week; unknown slugs call `notFound()`. |
+| `layout.tsx` | server | Root layout: fonts, title template, global `<SiteHeader>`/`<SiteFooter>`. |
+| `page.tsx` | static | Home. Hero, course-arc cards, available weeks from `weeks[]`, roadmap timeline from `roadmap[]`. |
+| `not-found.tsx` | static | Custom 404 — also where unknown week slugs land. |
+| `week/[slug]/page.tsx` | SSG | The **generic** week template — renders any `Week`, embeds the video when `video.youtubeId` is set. `generateStaticParams()` prerenders every registered week; `generateMetadata()` sets per-week titles; unknown slugs call `notFound()`. |
 | `teacher/page.tsx` | client | Passcode form, then the reflections list (newest first, filterable by week). |
 | `api/reflections/route.ts` | dynamic | `POST` — student submits a reflection. Validates, then inserts with the anon key. |
 | `api/teacher/reflections/route.ts` | dynamic | `POST` — checks `passcode` against `TEACHER_PASSCODE`, then reads all rows with the service-role key. |
