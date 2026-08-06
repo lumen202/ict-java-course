@@ -37,7 +37,7 @@ export default async function TeacherPage({ searchParams }: PageProps<"/teacher"
     weekFilter === "all" ? reflections : reflections.filter((r) => r.week_slug === weekFilter);
 
   return (
-    <main className="mx-auto w-full max-w-5xl px-6 py-10">
+    <main className="mx-auto w-full max-w-7xl px-6 py-10 lg:px-10">
       <h1 className="text-2xl font-bold tracking-tight">Student reflections</h1>
       <header className="mt-1 mb-8 flex flex-wrap items-end justify-between gap-4">
         <p className="text-sm text-zinc-600 dark:text-zinc-400">
@@ -59,7 +59,7 @@ export default async function TeacherPage({ searchParams }: PageProps<"/teacher"
       ) : (
         <ul className="space-y-4">
           {visible.map((r) => (
-            <li key={r.id} className="rounded-lg border border-zinc-200 dark:border-zinc-800 p-5">
+            <li key={r.id} className="card p-5">
               <div className="flex flex-wrap items-baseline justify-between gap-2">
                 <p className="font-semibold">{r.student_name}</p>
                 <p className="text-xs text-zinc-500">

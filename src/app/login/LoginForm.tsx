@@ -10,7 +10,7 @@ import { PasswordField } from "@/components/PasswordField";
 // the teacher has added to the class list.
 
 const inputCls =
-  "w-full rounded-md border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500";
+  "input";
 
 function SubmitButton() {
   const { pending } = useFormStatus();
@@ -18,7 +18,7 @@ function SubmitButton() {
     <button
       type="submit"
       disabled={pending}
-      className="w-full rounded-md bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white px-4 py-2 text-sm font-medium"
+      className="btn-primary w-full"
     >
       {pending ? "Signing in…" : "Sign in"}
     </button>

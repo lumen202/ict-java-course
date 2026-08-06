@@ -19,6 +19,7 @@ export async function AppShell({ children }: { children: React.ReactNode }) {
           { href: "/", label: "Dashboard", icon: "🏠" },
           { href: "/teacher/lessons", label: "Lessons", icon: "📅" },
           { href: "/teacher/students", label: "Students", icon: "👥" },
+          { href: "/teacher/submissions", label: "Submissions", icon: "📤" },
           { href: "/teacher", label: "Reflections", icon: "💬" },
         ]
       : await studentNav();

@@ -14,12 +14,18 @@ is the exact thing the release control exists to prevent.
 
 ## Section order
 
-1. **Header** — `Unit · Day N` label, the day's focus as `<h1>`, and the video-minutes line.
+1. **Day hero** — unit label, a gradient Day-N tile, the day's focus as `<h1>`, and a subtitle
+   summarising video vs. hands-on load.
 2. **Day switcher** — pills for each released day (only when more than one). The sidebar does
    this too; these keep it reachable on mobile, where the sidebar is behind a drawer.
-3. **The lesson** — the day's embedded players (2-col grid), the "✍️ Then do this" practice box,
-   and the week's watch notes.
-4. **Prev / next day** links, bounded by what's released.
+3. **The gated timeline** (`components/LessonFlow.tsx`) — the day as ordered, numbered steps on
+   a connecting rail: `warmupGame` → each video with its "✍️ Now do this" practice (watch notes
+   collapse under the last video) → each `DayActivity` card (each with its own turn-in box) →
+   the day's `game` → the closing practice → the **day turn-in step** (✓ node). For students,
+   steps unlock one at a time (games on finish via `useFlowComplete`, boxes on save, videos via
+   a "done watching" button) with a 🔒 "up next" teaser; teachers see everything. Unlock state:
+   `jch-flow:<slug>:<day>` in localStorage, merged with server-known turn-ins.
+4. **Prev / next day** buttons, bounded by what's released.
 5. **`<details>` Reading track** — the text alternative, collapsed.
 6. **Final day only**: finish-the-activity (goal, the amber **twist**, what to turn in), the
    self-check, the "Where are you at?" reflection, and `<MarkWeekDone>`.
@@ -45,18 +51,43 @@ avoid.
   **tailored plan** — rebuild-from-blank, revisit the specific day, or stretch further — plus the
   week's reading links when confidence is low. Copy must never imply "wait for the teacher to
   explain it"; the teacher is supervisory. No name field: identity comes from the session.
+- `components/BossBattle.tsx` / `components/RowHunt.tsx` / `components/Quest.tsx` — client. The
+  playable mini-games (see [`course-content.md`](course-content.md)). BossBattle: RPG quiz with
+  boss HP, 3 hearts, and wrong-answer re-queueing, so a win means every concept was answered
+  correctly. RowHunt: click the rows that match a spoken query, then see it as real SQL. Quest:
+  real Workbench/file work as one-mission-at-a-time cards with a progress bar — checks retry
+  until right, `input` missions collect pasted work into the turn-in. All three auto-submit
+  their result (item = the game's `id`; replays overwrite) and signal the flow via
+  `useFlowComplete`.
 - `components/WeekProgress.tsx` — client. `MarkWeekDone` (week page) and `WeekDoneBadge`
   (dashboard). **localStorage only** (`jch-done:<slug>`): a personal checklist, never sent to the
   teacher, so it doesn't create a surveillance signal. Reads go through `useSyncExternalStore`
   with a `false` server snapshot — not setState-in-effect, which the `react-hooks` lint rules
   reject and which would cause hydration mismatches.
+- `components/SubmissionForm.tsx` — client. The **turn-in box**: a monospace textarea the
+  student pastes work into. Every `DayActivity` embeds one (item = the activity's `id`,
+  compact, "📤 Turn in this level", placeholder = the activity's `submit` text) and the day ends
+  with the closing box (item = `'day'`). One row per student/day/item (upsert), so boxes stay
+  editable after submitting — "Update my work". The page preloads all of the day's existing
+  submissions server-side so each box reopens with the student's work. Copy stresses "turn in
+  what you have" over polish; never imply the work is judged.
 
-## Submitting a reflection
+## Submitting work
 
-`app/api/reflections/route.ts` — the only API route. It:
+Two API routes, same shape and rules:
 
-1. requires a session (401 otherwise),
-2. validates `weekSlug` + `hardestPart` presence and 2000-char bounds,
-3. reads the display name from the **profile**, not the request body,
-4. inserts with `user_id = auth.uid()`, which RLS enforces independently,
-5. logs the real error server-side and returns a friendly one.
+- `app/api/reflections/route.ts` — the end-of-week reflection.
+- `app/api/submissions/route.ts` — the per-day turn-in. Also validates the slug/day against the
+  content registry and 20 000-char bound, and **upserts** on
+  `(user_id, week_slug, day_number)`.
+
+Both:
+
+1. require a session (401 otherwise),
+2. validate presence and length bounds,
+3. read the display name from the **profile**, not the request body,
+4. write with `user_id = auth.uid()`, which RLS enforces independently,
+5. log the real error server-side and return a friendly one.
+
+The teacher reads turn-ins at `/teacher/submissions` (see
+[`teacher-area.md`](teacher-area.md)).

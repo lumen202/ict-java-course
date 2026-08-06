@@ -100,7 +100,7 @@ export function ReflectionForm({
   if (status === "done" && confidence) {
     const advice = ADVICE[confidence];
     return (
-      <div className="rounded-lg border border-emerald-300 dark:border-emerald-800 bg-emerald-50 dark:bg-emerald-950/40 p-5">
+      <div className="card-accent p-5">
         <p className="font-semibold">{advice.title}</p>
         <ul className="mt-3 space-y-2 text-sm leading-relaxed">
           {advice.steps.map((s) => (
@@ -139,7 +139,7 @@ export function ReflectionForm({
   }
 
   const inputCls =
-    "w-full rounded-md border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500";
+    "input";
 
   return (
     <form onSubmit={submit} className="space-y-5">
@@ -154,10 +154,10 @@ export function ReflectionForm({
               type="button"
               onClick={() => setConfidence(l.value)}
               aria-pressed={confidence === l.value}
-              className={`rounded-lg border p-3 text-left transition-colors ${
+              className={`rounded-xl border p-3 text-left transition-all ${
                 confidence === l.value
-                  ? "border-emerald-500 bg-emerald-50 dark:bg-emerald-950/40"
-                  : "border-zinc-200 dark:border-zinc-800 hover:border-emerald-400"
+                  ? "border-emerald-500 bg-emerald-50 shadow-[0_4px_14px_-6px_rgb(16_185_129/0.5)] dark:bg-emerald-950/40"
+                  : "border-zinc-200 bg-white/60 hover:border-emerald-400 dark:border-zinc-800 dark:bg-zinc-900/40"
               }`}
             >
               <span className="block text-sm font-medium">{l.label}</span>
@@ -210,11 +210,7 @@ export function ReflectionForm({
         </p>
       )}
 
-      <button
-        type="submit"
-        disabled={status === "sending"}
-        className="rounded-md bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white px-4 py-2 text-sm font-medium"
-      >
+      <button type="submit" disabled={status === "sending"} className="btn-primary">
         {status === "sending" ? "Saving…" : "Save and see my next steps"}
       </button>
     </form>

@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import { requireTeacher } from "@/lib/auth";
 import { weeks } from "@/lib/content";
 import { getCourseState, currentLesson } from "@/lib/release";
@@ -16,14 +17,14 @@ export default async function LessonsPage() {
   const available = weeks.filter((w) => w.status === "available");
 
   return (
-    <main className="mx-auto w-full max-w-5xl px-6 py-10">
+    <main className="mx-auto w-full max-w-7xl px-6 py-10 lg:px-10">
       <h1 className="text-2xl font-bold tracking-tight">Lessons</h1>
       <p className="mt-1 text-sm text-zinc-600 dark:text-zinc-400">
         Control what the class can open today.
       </p>
 
 
-      <section className="mb-8 rounded-lg border border-emerald-300 dark:border-emerald-800 bg-emerald-50 dark:bg-emerald-950/30 p-5">
+      <section className="card-accent mb-8 p-5">
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div>
             <p className="text-xs font-semibold uppercase tracking-wide text-emerald-700 dark:text-emerald-400">
@@ -65,12 +66,16 @@ export default async function LessonsPage() {
             return (
               <div
                 key={w.slug}
-                className="rounded-lg border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900/50 p-5"
+                className="card p-5"
               >
                 <p className="text-xs font-medium uppercase tracking-wide text-zinc-500">
                   {w.unit}
                 </p>
-                <p className="font-semibold">{w.title}</p>
+                <p className="font-semibold">
+                  <Link href={`/week/${w.slug}`} className="hover:text-emerald-700 dark:hover:text-emerald-400 hover:underline">
+                    {w.title}
+                  </Link>
+                </p>
 
                 <ol className="mt-3 divide-y divide-zinc-200 dark:divide-zinc-800">
                   {w.video.days.map((d, i) => {
@@ -96,7 +101,14 @@ export default async function LessonsPage() {
                         </span>
 
                         <span className="min-w-0 flex-1 text-zinc-700 dark:text-zinc-300">
-                          {d.focus}
+                          {/* The row links to the lesson itself — reviewing a
+                              day before releasing it shouldn't need a detour. */}
+                          <Link
+                            href={`/week/${w.slug}?day=${dayNumber}`}
+                            className="hover:text-emerald-700 dark:hover:text-emerald-400 hover:underline"
+                          >
+                            {d.focus}
+                          </Link>
                           <span className="ml-2 text-xs text-zinc-500">
                             {d.videos.length === 0
                               ? "practice only"
@@ -124,10 +136,10 @@ export default async function LessonsPage() {
                             <input type="hidden" name="day" value={dayNumber} />
                             <button
                               type="submit"
-                              className={`rounded-md px-2.5 py-1 text-xs font-medium ${
+                              className={`rounded-lg px-2.5 py-1 text-xs font-semibold transition-all ${
                                 isOpen
                                   ? "border border-zinc-300 dark:border-zinc-700 hover:bg-zinc-100 dark:hover:bg-zinc-800"
-                                  : "bg-emerald-600 text-white hover:bg-emerald-700"
+                                  : "bg-linear-to-b from-emerald-500 to-emerald-600 text-white shadow-[0_2px_8px_-2px_rgb(16_185_129/0.6)] hover:from-emerald-400 hover:to-emerald-500"
                               }`}
                             >
                               {isOpen ? "Roll back to here" : "Release"}

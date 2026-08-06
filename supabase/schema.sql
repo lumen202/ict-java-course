@@ -186,13 +186,22 @@ begin
     raise exception 'email not on the class list';
   end if;
 
+  -- Names: prefer what the person typed at registration; fall back to the
+  -- class list's spelling (the teacher's own), so an account created without
+  -- name metadata still gets a real name instead of showing as an email.
   insert into public.profiles (id, email, first_name, middle_name, last_name, full_name)
   values (
     new.id,
     new.email,
-    coalesce(new.raw_user_meta_data ->> 'first_name', ''),
+    coalesce(
+      nullif(new.raw_user_meta_data ->> 'first_name', ''),
+      (select a.first_name from public.allowed_students a where lower(a.email) = lower(new.email)),
+      ''),
     coalesce(new.raw_user_meta_data ->> 'middle_name', ''),
-    coalesce(new.raw_user_meta_data ->> 'last_name', ''),
+    coalesce(
+      nullif(new.raw_user_meta_data ->> 'last_name', ''),
+      (select a.last_name from public.allowed_students a where lower(a.email) = lower(new.email)),
+      ''),
     coalesce(new.raw_user_meta_data ->> 'full_name', '')
   )
   on conflict (id) do nothing;
@@ -209,6 +218,26 @@ drop trigger if exists on_auth_user_created on auth.users;
 create trigger on_auth_user_created
   after insert on auth.users
   for each row execute function public.handle_new_user();
+
+-- Backfill 1: profiles.email is only written by the trigger at signup, so
+-- accounts predating that column have it null — which would silently break
+-- every email-keyed lookup below (and the teacher's name resolution).
+update public.profiles p
+set email = u.email
+from auth.users u
+where u.id = p.id
+  and coalesce(p.email, '') = '';
+
+-- Backfill 2: accounts created before the class-list fallback above have empty
+-- profile names even though the class list knows them. Copy the names across
+-- once; the sync_full_name trigger derives full_name. Idempotent — a profile
+-- with a name is never touched.
+update public.profiles p
+set first_name = a.first_name, last_name = a.last_name
+from public.allowed_students a
+where lower(a.email) = lower(p.email)
+  and coalesce(p.full_name, '') = ''
+  and (coalesce(a.first_name, '') <> '' or coalesce(a.last_name, '') <> '');
 
 -- ---------------------------------------------------------------------------
 -- course_state — what the class is working on right now
@@ -292,6 +321,67 @@ create policy "students read own reflections"
 drop policy if exists "teachers read all reflections" on public.reflections;
 create policy "teachers read all reflections"
   on public.reflections for select
+  to authenticated
+  using (public.is_teacher());
+
+-- ---------------------------------------------------------------------------
+-- submissions — each student's turned-in work for a lesson day
+-- ---------------------------------------------------------------------------
+-- One row per student per turn-in box, updatable: every activity has its own
+-- box (item = the activity's id) plus the day's closing box (item = 'day').
+-- Same ownership model as reflections: students write their own, teachers read
+-- everything.
+
+create table if not exists public.submissions (
+  id uuid primary key default gen_random_uuid(),
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  user_id uuid not null references auth.users(id) on delete cascade,
+  week_slug text not null,
+  day_number int not null check (day_number >= 1),
+  -- Which box on the day this belongs to: 'day' or an activity id.
+  item text not null default 'day',
+  -- Name snapshot at submit time, same as reflections.
+  student_name text not null,
+  content text not null
+);
+
+-- Early version had no `item` and a 3-column unique constraint — migrate.
+alter table public.submissions add column if not exists item text not null default 'day';
+alter table public.submissions drop constraint if exists submissions_user_id_week_slug_day_number_key;
+
+-- The upsert target (ON CONFLICT works against a unique index).
+create unique index if not exists submissions_owner_item_key
+  on public.submissions (user_id, week_slug, day_number, item);
+
+create index if not exists submissions_user_id_idx on public.submissions (user_id);
+create index if not exists submissions_week_day_idx on public.submissions (week_slug, day_number);
+
+alter table public.submissions enable row level security;
+
+drop policy if exists "students submit own work" on public.submissions;
+create policy "students submit own work"
+  on public.submissions for insert
+  to authenticated
+  with check (user_id = auth.uid());
+
+-- Resubmitting is allowed (and encouraged) — the unique key makes it an upsert.
+drop policy if exists "students update own work" on public.submissions;
+create policy "students update own work"
+  on public.submissions for update
+  to authenticated
+  using (user_id = auth.uid())
+  with check (user_id = auth.uid());
+
+drop policy if exists "students read own work" on public.submissions;
+create policy "students read own work"
+  on public.submissions for select
+  to authenticated
+  using (user_id = auth.uid());
+
+drop policy if exists "teachers read all submissions" on public.submissions;
+create policy "teachers read all submissions"
+  on public.submissions for select
   to authenticated
   using (public.is_teacher());
 

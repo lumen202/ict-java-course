@@ -29,7 +29,21 @@ table. See [`enrolment.md`](enrolment.md) for the mechanics.
   showed "Not yet" forever. The page unions profile emails with
   `admin.auth.admin.listUsers()` and falls back to the stamp when there's no admin key.
 
-**`/teacher/lessons`** — `app/teacher/lessons/page.tsx`: releases the day the class is on. See
+**`/teacher/submissions`** — turned-in work as a **three-level drill-down across pages**
+(deliberately not accordions — the teacher rejected inline expansion as clutter):
+`page.tsx` is a grid of student cards → `[studentId]/page.tsx` lists that student's days →
+the same route with `?week=…&day=…` shows the day's turn-ins oldest-first (the order the day
+was worked), each with an item chip and scrollable `<pre>`. Day rows show the lesson `focus`
+resolved from the content registry. Display names resolve via `lib/student-names.ts`:
+current profile `full_name` → the class list's name (`allowed_students`, teacher-readable) →
+the row's snapshot (which is the email for accounts that never had a name). The signup
+trigger also falls back to class-list names now, and `schema.sql` carries a one-off backfill
+for accounts created before that — so an email showing here means neither the profile nor
+the class list knows the name.
+
+**`/teacher/lessons`** — `app/teacher/lessons/page.tsx`: releases the day the class is on. Week
+titles and day rows **link into `/week/<slug>?day=N`** so the teacher can review the lesson
+itself before releasing it (the week page shows teachers all days regardless of release). See
 [`lesson-release.md`](lesson-release.md).
 
 Navigation is the sidebar only — the old `TeacherTabs` strip and the dashboard's duplicate

@@ -2,11 +2,19 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import type { Metadata } from "next";
 import { weeks, getWeek } from "@/lib/content";
+import type { DayActivity, DayGame } from "@/lib/content/types";
+import { LessonFlow, type FlowStep } from "@/components/LessonFlow";
+import { RowHunt } from "@/components/RowHunt";
+import { Quest } from "@/components/Quest";
+import { TypingGame } from "@/components/TypingGame";
 import { SelfCheck } from "@/components/SelfCheck";
 import { ReflectionForm } from "@/components/ReflectionForm";
+import { SubmissionForm } from "@/components/SubmissionForm";
+import { BossBattle } from "@/components/BossBattle";
 import { VideoEmbed } from "@/components/VideoEmbed";
 import { MarkWeekDone } from "@/components/WeekProgress";
 import { requireUser } from "@/lib/auth";
+import { createClient } from "@/lib/supabase/server";
 import { getCourseState, releasedDayCount } from "@/lib/release";
 
 export function generateStaticParams() {
@@ -22,10 +30,10 @@ export async function generateMetadata({
   return { title: week.title, description: week.summary };
 }
 
-// One day at a time. The sidebar lists the released days; clicking one lands
-// here with ?day=N and this page renders that day's lesson only. Everything
-// week-level (the build, self-check, reflection) sits below or waits for the
-// final day, so a student opening the page sees today's work and nothing else.
+// One day at a time, rendered as a guided timeline: warm-up, then each video
+// with its practice, then the activities, then the closing task, and finally
+// the turn-in box. The numbered rail makes "work through it in order" the
+// visible structure of the page, not a rule the student has to remember.
 export default async function WeekPage({ params, searchParams }: PageProps<"/week/[slug]">) {
   const { slug } = await params;
   const week = getWeek(slug);
@@ -41,9 +49,9 @@ export default async function WeekPage({ params, searchParams }: PageProps<"/wee
 
   if (released === 0) {
     return (
-      <main className="mx-auto max-w-3xl px-6 py-16">
+      <main className="mx-auto w-full max-w-4xl px-6 py-16">
         <h1 className="text-2xl font-bold tracking-tight">{week.title}</h1>
-        <p className="mt-4 rounded-lg border border-dashed border-zinc-300 dark:border-zinc-700 p-6 text-sm text-zinc-600 dark:text-zinc-400 leading-relaxed">
+        <p className="mt-4 rounded-2xl border border-dashed border-zinc-300 dark:border-zinc-700 p-6 text-sm text-zinc-600 dark:text-zinc-400 leading-relaxed">
           This week hasn&apos;t started yet. Your teacher opens it one day at a
           time — it&apos;ll appear in the sidebar when it&apos;s your turn.
         </p>
@@ -62,35 +70,197 @@ export default async function WeekPage({ params, searchParams }: PageProps<"/wee
   const prev = dayNumber > 1 ? dayNumber - 1 : null;
   const next = dayNumber < released ? dayNumber + 1 : null;
 
+  // The student's existing turn-ins for this day (one per activity plus the
+  // closing 'day' box), so each box reopens with their work in it. Errors
+  // (e.g. table not created yet) degrade to empty boxes.
+  const supabase = await createClient();
+  const { data: existingRows } = await supabase
+    .from("submissions")
+    .select("item, content, updated_at")
+    .eq("user_id", user.id)
+    .eq("week_slug", week.slug)
+    .eq("day_number", dayNumber);
+  const existingByItem = new Map(
+    (existingRows ?? []).map((r) => [r.item as string, r]),
+  );
+
+  const activityForm = (a: DayActivity) => {
+    const saved = existingByItem.get(a.id);
+    return (
+      <SubmissionForm
+        weekSlug={week.slug}
+        dayNumber={dayNumber}
+        item={a.id}
+        label="📤 Turn in this activity"
+        placeholder={a.submit ?? "Type or paste this activity's result here."}
+        rows={4}
+        initialContent={saved?.content ?? ""}
+        turnedInAt={saved?.updated_at ?? null}
+      />
+    );
+  };
+
+  const renderGame = (g: DayGame) =>
+    g.kind === "row-hunt" ? (
+      <RowHunt weekSlug={week.slug} dayNumber={dayNumber} game={g} />
+    ) : g.kind === "quest" ? (
+      <Quest weekSlug={week.slug} dayNumber={dayNumber} game={g} />
+    ) : g.kind === "typing" ? (
+      <TypingGame weekSlug={week.slug} dayNumber={dayNumber} game={g} />
+    ) : (
+      <BossBattle weekSlug={week.slug} dayNumber={dayNumber} game={g} />
+    );
+
+  // Assemble the day as ordered steps for the gated timeline. `manual` steps
+  // (videos, text cards) get a "continue" button; games and turn-in boxes
+  // unlock the next step by themselves when finished.
+  const steps: (FlowStep & { body: React.ReactNode })[] = [];
+
+  if (day.warmupGame) {
+    steps.push({
+      key: day.warmupGame.id,
+      title: day.warmupGame.title,
+      done: existingByItem.has(day.warmupGame.id),
+      body: renderGame(day.warmupGame),
+    });
+  }
+
+  if (day.warmup) {
+    steps.push({
+      key: day.warmup.id,
+      title: day.warmup.title,
+      done: existingByItem.has(day.warmup.id),
+      body: <ActivityCard activity={day.warmup} form={activityForm(day.warmup)} />,
+    });
+  }
+
+  for (const [i, v] of day.videos.entries()) {
+    steps.push({
+      key: v.youtubeId,
+      title: `Watch: ${v.title}`,
+      manual: true,
+      body: (
+        <div>
+          <p className="mb-2 text-sm font-medium">
+            {v.title}
+            <span className="ml-2 text-xs font-normal text-zinc-500">{v.length}</span>
+          </p>
+          <VideoEmbed youtubeId={v.youtubeId} title={v.title} />
+          {v.practice && (
+            <div className="card-accent mt-3 p-4">
+              <p className="text-sm font-semibold">✍️ Now do this</p>
+              <p className="mt-1 text-sm leading-relaxed">{v.practice}</p>
+            </div>
+          )}
+          {i === day.videos.length - 1 && week.video.watchNotes.length > 0 && (
+            <details className="mt-3">
+              <summary className="cursor-pointer text-xs font-medium text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300">
+                How to watch so it sticks
+              </summary>
+              <ul className="mt-2 space-y-1.5 text-xs text-zinc-500 leading-relaxed">
+                {week.video.watchNotes.map((n) => (
+                  <li key={n}>• {n}</li>
+                ))}
+              </ul>
+            </details>
+          )}
+        </div>
+      ),
+    });
+  }
+
+  for (const a of day.activities ?? []) {
+    steps.push({
+      key: a.id,
+      title: a.title,
+      done: existingByItem.has(a.id),
+      body:
+        "kind" in a ? renderGame(a) : <ActivityCard activity={a} form={activityForm(a)} />,
+    });
+  }
+
+  if (day.game) {
+    steps.push({
+      key: day.game.id,
+      title: day.game.title,
+      done: existingByItem.has(day.game.id),
+      body: renderGame(day.game),
+    });
+  }
+
+  if (day.practice) {
+    steps.push({
+      key: "closing",
+      title: "Finish the day",
+      manual: true,
+      body: (
+        <div className={day.videos.length > 0 ? "card p-4" : "card-accent p-4"}>
+          <p className="text-sm font-semibold">
+            {day.videos.length > 0 ? "🏁 To finish the day" : "✍️ Today's work"}
+          </p>
+          <p className="mt-1 text-sm leading-relaxed">{day.practice}</p>
+        </div>
+      ),
+    });
+  }
+
+  steps.push({
+    key: "turn-in",
+    title: "📤 Turn in today's work",
+    final: true,
+    done: existingByItem.has("day"),
+    body: (
+      <div className="card-accent p-5">
+        <p className="text-base font-semibold">📤 Turn in today&apos;s work</p>
+        <p className="mt-1 mb-4 text-sm text-zinc-600 dark:text-zinc-400 leading-relaxed">
+          This is the part that makes today count: your queries, your answers,
+          your questions — in your own words.
+        </p>
+        <SubmissionForm
+          weekSlug={week.slug}
+          dayNumber={dayNumber}
+          initialContent={existingByItem.get("day")?.content ?? ""}
+          turnedInAt={existingByItem.get("day")?.updated_at ?? null}
+        />
+      </div>
+    ),
+  });
+
   return (
-    <main className="mx-auto max-w-3xl px-6 py-10">
-      {/* The lesson is the page. The week is context, not the headline — a
-          student opening this should see today's topic, not a week banner. */}
-      <header className="mb-6">
-        <p className="text-xs font-medium uppercase tracking-wide text-emerald-700 dark:text-emerald-400">
-          {week.unit} · {day.day}
-        </p>
-        <h1 className="mt-1 text-2xl font-bold tracking-tight leading-snug">{day.focus}</h1>
-        <p className="mt-2 text-xs text-zinc-500">
-          {day.videos.length === 0
-            ? "No video today — practice only."
-            : `${totalMinutes(day.videos)} min of video, then the practice below.`}
-        </p>
+    <main className="mx-auto w-full max-w-5xl px-6 py-10 lg:px-10">
+      {/* Day hero: the lesson is the page, the week is context. */}
+      <header className="mb-8">
+        <p className="section-label text-emerald-700 dark:text-emerald-400">{week.unit}</p>
+        <div className="mt-3 flex items-start gap-4">
+          <span
+            aria-hidden="true"
+            className="grid h-14 w-14 shrink-0 place-items-center rounded-2xl bg-linear-to-br from-emerald-500 to-teal-600 text-white shadow-[inset_0_1px_0_rgb(255_255_255/0.25),0_8px_20px_-8px_rgb(16_185_129/0.7)]"
+          >
+            <span className="text-center leading-none">
+              <span className="block text-[9px] font-bold uppercase tracking-widest">Day</span>
+              <span className="block text-xl font-extrabold">{dayNumber}</span>
+            </span>
+          </span>
+          <div className="min-w-0">
+            <h1 className="text-2xl font-bold tracking-tight leading-snug">{day.focus}</h1>
+            <p className="mt-1 text-xs text-zinc-500">{daySubtitle(day)}</p>
+          </div>
+        </div>
       </header>
 
       {/* Day switcher — the sidebar does this too, but this keeps it reachable
           on mobile where the sidebar is behind a drawer. */}
       {released > 1 && (
-        <nav className="mb-8 flex flex-wrap gap-2">
+        <nav className="mb-10 flex flex-wrap gap-2">
           {Array.from({ length: released }, (_, i) => i + 1).map((n) => (
             <Link
               key={n}
               href={`/week/${week.slug}?day=${n}`}
               aria-current={n === dayNumber ? "page" : undefined}
-              className={`rounded-full px-3 py-1 text-xs font-semibold transition-colors ${
+              className={`rounded-full px-3.5 py-1.5 text-xs font-semibold transition-all ${
                 n === dayNumber
-                  ? "bg-emerald-600 text-white"
-                  : "bg-zinc-100 text-zinc-600 hover:bg-zinc-200 dark:bg-zinc-800 dark:text-zinc-400 dark:hover:bg-zinc-700"
+                  ? "bg-linear-to-r from-emerald-600 to-emerald-500 text-white shadow-[0_4px_12px_-4px_rgb(16_185_129/0.6)]"
+                  : "bg-zinc-900/5 text-zinc-600 hover:bg-zinc-900/10 dark:bg-white/5 dark:text-zinc-400 dark:hover:bg-white/10"
               }`}
             >
               Day {n}
@@ -99,66 +269,37 @@ export default async function WeekPage({ params, searchParams }: PageProps<"/wee
         </nav>
       )}
 
-      <section className="mb-10">
-        {/* One video per row, each followed by the task it enables. Two videos
-            side by side meant watching both and then trying to remember the
-            first one. */}
-        <div className="space-y-8">
-          {day.videos.map((v, i) => (
-            <div key={v.youtubeId}>
-              <p className="mb-2 text-sm font-medium">
-                <span className="mr-2 text-zinc-400">{i + 1}.</span>
-                {v.title}
-                <span className="ml-2 text-xs font-normal text-zinc-500">{v.length}</span>
-              </p>
-              <VideoEmbed youtubeId={v.youtubeId} title={v.title} />
-              {v.practice && (
-                <div className="mt-3 rounded-lg border border-emerald-300 dark:border-emerald-800 bg-emerald-50 dark:bg-emerald-950/30 p-4">
-                  <p className="text-sm font-semibold">✍️ Now do this</p>
-                  <p className="mt-1 text-sm leading-relaxed">{v.practice}</p>
-                </div>
-              )}
-            </div>
+      {/* The gated timeline: steps unlock one at a time for students (games on
+          finish, boxes on save, videos via "done watching"), so the day is a
+          path with a next thing to look forward to — not a page to skim.
+          Teachers see everything at once. */}
+      <section className="mb-12">
+        <LessonFlow
+          storageKey={`jch-flow:${week.slug}:${dayNumber}`}
+          gated={user.role !== "teacher"}
+          steps={steps.map(({ key, title, manual, done, final }) => ({
+            key,
+            title,
+            manual,
+            done,
+            final,
+          }))}
+        >
+          {steps.map((s) => (
+            <div key={s.key}>{s.body}</div>
           ))}
-        </div>
+        </LessonFlow>
 
-        {day.practice && (
-          <div
-            className={`rounded-lg border p-4 ${
-              day.videos.length > 0
-                ? "mt-8 border-zinc-200 dark:border-zinc-800"
-                : "mt-0 border-emerald-300 dark:border-emerald-800 bg-emerald-50 dark:bg-emerald-950/30"
-            }`}
-          >
-            <p className="text-sm font-semibold">
-              {day.videos.length > 0 ? "🏁 To finish the day" : "✍️ Today's work"}
-            </p>
-            <p className="mt-1 text-sm leading-relaxed">{day.practice}</p>
-          </div>
-        )}
-
-        <ul className="mt-4 space-y-1.5 text-xs text-zinc-500 leading-relaxed">
-          {week.video.watchNotes.map((n) => (
-            <li key={n}>• {n}</li>
-          ))}
-        </ul>
-
-        <div className="mt-6 flex justify-between text-sm">
+        <div className="mt-10 flex items-center justify-between">
           {prev ? (
-            <Link
-              href={`/week/${week.slug}?day=${prev}`}
-              className="text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-100"
-            >
+            <Link href={`/week/${week.slug}?day=${prev}`} className="btn-ghost">
               ← Day {prev}
             </Link>
           ) : (
             <span />
           )}
           {next && (
-            <Link
-              href={`/week/${week.slug}?day=${next}`}
-              className="font-medium text-emerald-700 dark:text-emerald-400 hover:underline"
-            >
+            <Link href={`/week/${week.slug}?day=${next}`} className="btn-primary">
               Day {next} →
             </Link>
           )}
@@ -166,7 +307,7 @@ export default async function WeekPage({ params, searchParams }: PageProps<"/wee
       </section>
 
       {/* Reading track — the alternative to today's video, always available */}
-      <details className="mb-6 rounded-lg border border-zinc-200 dark:border-zinc-800 p-4">
+      <details className="card mb-6 p-4">
         <summary className="cursor-pointer text-sm font-semibold">
           📖 Prefer reading? Same material, in text
         </summary>
@@ -191,11 +332,9 @@ export default async function WeekPage({ params, searchParams }: PageProps<"/wee
         </ul>
       </details>
 
-      {/* End-of-week work appears only once the final day is open. The week's
-          activity used to sit on every day as a "what you're building" block —
-          removed, because its steps are exactly what the daily practice already
-          says. What's left that a day can't cover is the twist and the
-          hand-in list, and both belong at the end. */}
+      {/* End-of-week work appears only once the final day is open. What a day
+          can't cover is the twist and the hand-in list, and both belong at the
+          end of the week. */}
       {isLastDay && dayNumber === released && (
         <>
           <section className="mb-10">
@@ -206,7 +345,7 @@ export default async function WeekPage({ params, searchParams }: PageProps<"/wee
               <span className="font-medium text-zinc-900 dark:text-zinc-100">The goal:</span>{" "}
               {week.activity.goal}
             </p>
-            <div className="rounded-lg border border-amber-300 dark:border-amber-800 bg-amber-50 dark:bg-amber-950/30 p-4">
+            <div className="rounded-2xl border border-amber-300/80 bg-linear-to-br from-amber-50/95 to-orange-50/60 dark:border-amber-800 dark:from-amber-950/40 dark:to-orange-950/20 p-4">
               <p className="text-sm font-semibold mb-1">⭐ Your twist (required)</p>
               <p className="text-sm leading-relaxed">{week.activity.twist}</p>
             </div>
@@ -223,7 +362,7 @@ export default async function WeekPage({ params, searchParams }: PageProps<"/wee
           <section className="mb-10">
             <h2 className="text-lg font-semibold mb-3">✅ Check yourself</h2>
             <p className="text-sm text-zinc-600 dark:text-zinc-400 mb-4">
-              Answer each one out loud or on paper <em>before</em> revealing the
+              Answer each one out loud or in your notes <em>before</em> revealing the
               answer. Four out of {week.selfCheck.length} means you&apos;re in good
               shape; fewer means go back a day, which is completely normal.
             </p>
@@ -248,6 +387,61 @@ export default async function WeekPage({ params, searchParams }: PageProps<"/wee
       )}
     </main>
   );
+}
+
+function ActivityCard({
+  activity,
+  form,
+}: {
+  activity: DayActivity;
+  form?: React.ReactNode;
+}) {
+  return (
+    <div className="rounded-2xl border border-sky-300/80 bg-linear-to-br from-sky-50/95 to-cyan-50/60 dark:border-sky-800/80 dark:from-sky-950/40 dark:to-cyan-950/20 p-5">
+      <p className="text-sm font-semibold">{activity.title}</p>
+      <ol className="mt-2.5 list-decimal pl-5 space-y-2 text-sm leading-relaxed marker:font-semibold marker:text-sky-600 dark:marker:text-sky-400">
+        {activity.steps.map((s) => (
+          <li key={s}>{s}</li>
+        ))}
+      </ol>
+      {activity.tip && (
+        <p className="mt-3 border-t border-sky-200/80 dark:border-sky-900 pt-3 text-xs text-zinc-600 dark:text-zinc-400 leading-relaxed">
+          💡 {activity.tip}
+        </p>
+      )}
+      {form && (
+        <div className="mt-4 border-t border-sky-200/80 dark:border-sky-900 pt-4">
+          {activity.submit && (
+            <p className="mb-2 text-xs text-zinc-600 dark:text-zinc-400 leading-relaxed">
+              {activity.submit}
+            </p>
+          )}
+          {form}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/** Hero subtitle: what this day holds beyond the videos. */
+function daySubtitle(day: {
+  videos: { length: string }[];
+  warmup?: unknown;
+  warmupGame?: unknown;
+  game?: unknown;
+  activities?: unknown[];
+}): string {
+  const hasActivities =
+    Boolean(day.warmup) ||
+    Boolean(day.warmupGame) ||
+    Boolean(day.game) ||
+    (day.activities?.length ?? 0) > 0;
+  if (day.videos.length === 0)
+    return hasActivities
+      ? "No video today — activities and practice only."
+      : "No video today — practice only.";
+  if (!hasActivities) return `${totalMinutes(day.videos)} min of video, then the practice below.`;
+  return `${totalMinutes(day.videos)} min of video plus games and hands-on work — each step unlocks the next.`;
 }
 
 /** Sum "mm:ss" video lengths, rounded up to whole minutes. */

@@ -11,7 +11,14 @@
   the teacher routes** — role filtering happens before render, not in CSS.
 - `components/Sidebar.tsx` — client (needs `usePathname` and the mobile drawer toggle). Fixed
   left rail on `md:` and up; below that a sticky top bar with a ☰ drawer. Brand at the top, the
-  user's name/role and Sign out at the bottom (a `<form action={signOut}>`).
+  user card (avatar initials, name/role) and Sign out at the bottom (a `<form action={signOut}>`).
+  - **The rail is dark in both themes** (`bg-zinc-950` + the emerald `railGlow`) — it carries the
+    brand identity, matching the login page's brand panel. Everything inside styles against dark
+    (`white/5` surfaces, `white/10` borders); don't add `dark:` variants there.
+  - **Whole-rail collapse**: the « / » buttons shrink it to an icon-only strip
+    (`jch-rail-collapsed` in localStorage, same `useSyncExternalStore` pattern as the groups).
+    The content column is `flex-1`, so it widens automatically. In collapsed mode the avatar
+    button *expands* the rail — it must never sign out directly.
   - **Active state uses longest-match, not `startsWith`** — `activeHref()`. A plain prefix test
     lights up both "Reflections" (`/teacher`) and "Lessons" (`/teacher/lessons`) at once; that
     was a real bug.
@@ -31,9 +38,16 @@ add per-page action buttons that duplicate a sidebar link.
 
 ## Styling
 
-Tailwind v4 utility classes inline. Emerald is the accent, zinc the neutral, and every colour
-carries a `dark:` variant. `globals.css` sets the light/dark background and foreground vars,
-smooth scrolling and an emerald selection colour.
+Tailwind v4 utility classes inline, **plus a small design system in `globals.css`**
+(`@layer components`): `.card`, `.card-accent`, `.btn-primary`, `.btn-ghost`, `.input`, `.chip`,
+`.section-label`. Repeated shapes must use these classes — that's what lets the whole site change
+look in one file. Emerald is the accent (gradients `emerald-500→teal-600` for brand tiles and
+primary buttons), zinc the neutral, and every colour outside the dark sidebar carries a `dark:`
+variant. The body has fixed radial emerald/teal glows behind everything; `globals.css` also sets
+the light/dark vars, smooth scrolling and the emerald selection colour.
+
+Main containers are wide so collapsing the sidebar visibly frees space: teacher pages
+`max-w-7xl`, dashboards/lists `max-w-5xl`, the lesson page `max-w-4xl` (reading width).
 
 ⚠️ `globals.css` originally hard-coded `font-family: Arial` from the scaffold, silently
 overriding the Geist fonts the layout loads. It now points at `var(--font-geist-sans)`. Don't

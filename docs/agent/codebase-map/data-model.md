@@ -15,15 +15,21 @@ immediately), invited people appear on the teacher's roster before they've accep
 |---|---|
 | `id` | PK, FK → `auth.users(id)`, cascade delete |
 | `created_at` | doubles as "invited on" |
-| `email` | copied from `auth.users` so the roster can show it without an admin query |
+| `email` | copied from `auth.users` so the roster can show it without an admin query. Written only at signup, so `schema.sql` carries an idempotent backfill — several teacher-side lookups join on it |
 | `first_name` / `middle_name` / `last_name` | middle optional |
-| `full_name` | **derived** by the `sync_full_name()` trigger — never write it directly |
+| `full_name` | **derived** by the `sync_full_name()` trigger — never write it directly. `handle_new_user()` fills the parts from signup metadata, falling back to the class list's name; `schema.sql` also backfills older empty profiles from the class list |
 | `role` | `user_role` enum: `student` (default) or `teacher` |
 | `onboarded_at` | null = invited but hasn't set a password yet |
 
 **`reflections`** — `id`, `created_at`, `user_id` (FK → auth.users), `week_slug`, `student_name`
 (name snapshot at submit time), `hardest_part`, `want_explained` (nullable). Indexed on `user_id`
 and `week_slug`.
+
+**`submissions`** — the turn-ins: `id`, `created_at`, `updated_at`, `user_id`, `week_slug`,
+`day_number`, `item` (`'day'` for the closing box, or a `DayActivity.id` — every activity has its
+own box), `student_name` (snapshot), `content` (the pasted work). The unique index on
+`(user_id, week_slug, day_number, item)` makes resubmission an upsert. Same RLS shape as
+reflections, plus a students-update-own policy so the upsert's conflict path works.
 
 ## Security model
 

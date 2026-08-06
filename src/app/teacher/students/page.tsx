@@ -70,14 +70,14 @@ export default async function StudentsPage() {
   const registered = classList.filter(hasAccount).length;
 
   return (
-    <main className="mx-auto w-full max-w-5xl px-6 py-10">
+    <main className="mx-auto w-full max-w-7xl px-6 py-10 lg:px-10">
       <h1 className="text-2xl font-bold tracking-tight">Students</h1>
       <p className="mt-1 text-sm text-zinc-600 dark:text-zinc-400">
         {classList.length} on the class list · {registered} have created an account
       </p>
 
 
-      <section className="mb-10 rounded-lg border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900/50 p-5">
+      <section className="card mb-10 p-5">
         <h2 className="text-sm font-semibold mb-1">Add a student</h2>
         <p className="mb-4 text-sm text-zinc-600 dark:text-zinc-400 leading-relaxed">
           Only emails on this list can create an account. Add the address, then
@@ -88,7 +88,7 @@ export default async function StudentsPage() {
       </section>
 
       {allowedError && (
-        <p className="mb-6 rounded-lg border border-red-300 dark:border-red-800 bg-red-50 dark:bg-red-950/40 p-4 text-sm">
+        <p className="mb-6 rounded-2xl border border-red-300 dark:border-red-800 bg-red-50 dark:bg-red-950/40 p-4 text-sm">
           Couldn&apos;t load the class list: {allowedError.message}
         </p>
       )}
@@ -96,11 +96,11 @@ export default async function StudentsPage() {
       <section className="mb-10">
         <h2 className="mb-3 text-sm font-semibold">Class list</h2>
         {classList.length === 0 ? (
-          <p className="rounded-lg border border-dashed border-zinc-300 dark:border-zinc-700 p-6 text-sm text-zinc-600 dark:text-zinc-400">
+          <p className="rounded-2xl border border-dashed border-zinc-300 dark:border-zinc-700 p-6 text-sm text-zinc-600 dark:text-zinc-400">
             Nobody yet — add your first student above.
           </p>
         ) : (
-          <div className="overflow-x-auto rounded-lg border border-zinc-200 dark:border-zinc-800">
+          <div className="card overflow-x-auto">
             <table className="w-full text-sm">
               <thead className="bg-zinc-50 dark:bg-zinc-900 text-left text-xs uppercase tracking-wide text-zinc-500">
                 <tr>
@@ -148,11 +148,11 @@ export default async function StudentsPage() {
       <section>
         <h2 className="mb-3 text-sm font-semibold">Accounts</h2>
         {people.length === 0 ? (
-          <p className="rounded-lg border border-dashed border-zinc-300 dark:border-zinc-700 p-6 text-sm text-zinc-600 dark:text-zinc-400">
+          <p className="rounded-2xl border border-dashed border-zinc-300 dark:border-zinc-700 p-6 text-sm text-zinc-600 dark:text-zinc-400">
             No accounts yet.
           </p>
         ) : (
-          <div className="overflow-x-auto rounded-lg border border-zinc-200 dark:border-zinc-800">
+          <div className="card overflow-x-auto">
             <table className="w-full text-sm">
               <thead className="bg-zinc-50 dark:bg-zinc-900 text-left text-xs uppercase tracking-wide text-zinc-500">
                 <tr>

@@ -7,6 +7,8 @@ HANDOFF file).
 
 | Date | Title | File |
 |---|---|---|
+| 2026-08-07 | UI redesign (structure), day turn-ins, content de-papered | [`2026-08-07-ui-redesign-and-day-submissions.md`](2026-08-07-ui-redesign-and-day-submissions.md) |
+| 2026-08-07 | Day activities fill the 5-hour session; Day 1 rebuilt as the model | [`2026-08-07-day-activities-fill-the-class-session.md`](2026-08-07-day-activities-fill-the-class-session.md) |
 | 2026-08-07 | Lessons isolated per day, reflection reframed around the student | [`2026-08-07-lesson-isolation-and-student-first-reflection.md`](2026-08-07-lesson-isolation-and-student-first-reflection.md) |
 | 2026-08-07 | Sidebar app shell replaces the top nav | [`2026-08-07-sidebar-app-shell.md`](2026-08-07-sidebar-app-shell.md) |
 | 2026-08-07 | Class list enrolment, day-by-day lesson release | [`2026-08-07-class-list-and-day-release.md`](2026-08-07-class-list-and-day-release.md) |

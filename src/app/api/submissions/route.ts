@@ -1,0 +1,83 @@
+import { NextResponse } from "next/server";
+import { createClient } from "@/lib/supabase/server";
+import { getWeek } from "@/lib/content";
+
+// POST /api/submissions — a signed-in student turns in (or revises) a day's
+// work. One row per student/week/day, upserted, so pressing the button twice
+// updates rather than duplicates. Ownership is enforced by RLS, same model as
+// reflections; the name comes from the profile, not the request body.
+export async function POST(request: Request) {
+  const supabase = await createClient();
+
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) {
+    return NextResponse.json(
+      { error: "Please sign in again — your session expired." },
+      { status: 401 },
+    );
+  }
+
+  let body: unknown;
+  try {
+    body = await request.json();
+  } catch {
+    return NextResponse.json({ error: "Invalid request." }, { status: 400 });
+  }
+
+  const { weekSlug, dayNumber, content, item } = (body ?? {}) as Record<string, unknown>;
+
+  const slug = typeof weekSlug === "string" ? weekSlug.trim() : "";
+  const day = typeof dayNumber === "number" && Number.isInteger(dayNumber) ? dayNumber : 0;
+  const text = typeof content === "string" ? content.trim() : "";
+  // Which box: 'day' (the closing turn-in) or an activity id from the content.
+  const box = typeof item === "string" && /^[a-z0-9-]{1,40}$/.test(item) ? item : "day";
+
+  const week = getWeek(slug);
+  if (!week || day < 1 || day > week.video.days.length) {
+    return NextResponse.json({ error: "That lesson doesn't exist." }, { status: 400 });
+  }
+  if (!text) {
+    return NextResponse.json(
+      { error: "Write or paste your work first — the box is empty." },
+      { status: 400 },
+    );
+  }
+  if (text.length > 20000) {
+    return NextResponse.json(
+      { error: "That's too long — trim it to the queries and answers that matter." },
+      { status: 400 },
+    );
+  }
+
+  const { data: profile } = await supabase
+    .from("profiles")
+    .select("full_name")
+    .eq("id", user.id)
+    .single();
+
+  const { error } = await supabase.from("submissions").upsert(
+    {
+      user_id: user.id,
+      week_slug: slug,
+      day_number: day,
+      item: box,
+      student_name: profile?.full_name || user.email || "Unknown",
+      content: text,
+      updated_at: new Date().toISOString(),
+    },
+    { onConflict: "user_id,week_slug,day_number,item" },
+  );
+
+  if (error) {
+    console.error("submission upsert failed:", error.message);
+    return NextResponse.json(
+      { error: "Couldn't save right now — try again in a minute." },
+      { status: 500 },
+    );
+  }
+
+  return NextResponse.json({ ok: true });
+}

@@ -2,10 +2,18 @@
 
 import { useRouter } from "next/navigation";
 
-// Week filter for the teacher view. The page itself is a server component, so
-// the filter travels in the URL (?week=…) — that also makes a filtered view
-// linkable and survives a refresh.
-export function WeekFilter({ weeks, current }: { weeks: string[]; current: string }) {
+// Week filter for the teacher views (reflections, submissions). The pages are
+// server components, so the filter travels in the URL (?week=…) — that also
+// makes a filtered view linkable and survives a refresh.
+export function WeekFilter({
+  weeks,
+  current,
+  basePath = "/teacher",
+}: {
+  weeks: string[];
+  current: string;
+  basePath?: string;
+}) {
   const router = useRouter();
 
   return (
@@ -18,9 +26,11 @@ export function WeekFilter({ weeks, current }: { weeks: string[]; current: strin
         value={current}
         onChange={(e) => {
           const value = e.target.value;
-          router.push(value === "all" ? "/teacher" : `/teacher?week=${encodeURIComponent(value)}`);
+          router.push(
+            value === "all" ? basePath : `${basePath}?week=${encodeURIComponent(value)}`,
+          );
         }}
-        className="rounded-md border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 px-3 py-2 text-sm"
+        className="input w-auto"
       >
         <option value="all">All weeks</option>
         {weeks.map((slug) => (

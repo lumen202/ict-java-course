@@ -42,7 +42,7 @@ export async function TeacherDashboard({ user }: { user: CurrentUser }) {
   ];
 
   return (
-    <main className="mx-auto w-full max-w-5xl px-6 py-10">
+    <main className="mx-auto w-full max-w-7xl px-6 py-10 lg:px-10">
       <header className="mb-8">
         <p className="text-xs font-medium uppercase tracking-wide text-emerald-700 dark:text-emerald-400">
           Teacher dashboard
@@ -54,19 +54,16 @@ export async function TeacherDashboard({ user }: { user: CurrentUser }) {
 
       <section className="mb-8 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         {stats.map((s) => (
-          <div
-            key={s.label}
-            className="rounded-lg border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900/50 p-4"
-          >
-            <p className="text-2xl font-bold tabular-nums">{s.value}</p>
-            <p className="text-sm font-medium">{s.label}</p>
+          <div key={s.label} className="card p-4">
+            <p className="text-3xl font-bold tabular-nums tracking-tight">{s.value}</p>
+            <p className="mt-1 text-sm font-medium">{s.label}</p>
             <p className="mt-0.5 text-xs text-zinc-500">{s.hint}</p>
           </div>
         ))}
       </section>
 
       {lesson && (
-        <section className="mb-8 rounded-lg border border-emerald-300 dark:border-emerald-800 bg-emerald-50 dark:bg-emerald-950/30 p-5">
+        <section className="card-accent mb-8 p-5">
           <p className="text-xs font-semibold uppercase tracking-wide text-emerald-700 dark:text-emerald-400">
             Class is on
           </p>
@@ -87,9 +84,7 @@ export async function TeacherDashboard({ user }: { user: CurrentUser }) {
 
       <section className="mb-10">
         <div className="mb-3 flex items-baseline justify-between gap-3">
-          <h2 className="text-xs font-semibold uppercase tracking-wide text-zinc-500">
-            Latest reflections
-          </h2>
+          <h2 className="section-label">Latest reflections</h2>
           {recent.length > 0 && (
             <Link href="/teacher" className="text-xs text-emerald-700 dark:text-emerald-400 hover:underline">
               See all →
@@ -97,16 +92,13 @@ export async function TeacherDashboard({ user }: { user: CurrentUser }) {
           )}
         </div>
         {recent.length === 0 ? (
-          <p className="rounded-lg border border-dashed border-zinc-300 dark:border-zinc-700 p-5 text-sm text-zinc-600 dark:text-zinc-400">
+          <p className="rounded-2xl border border-dashed border-zinc-300 dark:border-zinc-700 p-5 text-sm text-zinc-600 dark:text-zinc-400">
             No reflections yet. They appear here as students finish their weeks.
           </p>
         ) : (
           <ul className="space-y-2">
             {recent.map((r) => (
-              <li
-                key={r.id}
-                className="rounded-lg border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900/50 p-4"
-              >
+              <li key={r.id} className="card p-4">
                 <div className="flex flex-wrap items-baseline justify-between gap-2">
                   <p className="text-sm font-semibold">{r.student_name}</p>
                   <p className="text-xs text-zinc-500">
@@ -123,9 +115,7 @@ export async function TeacherDashboard({ user }: { user: CurrentUser }) {
       </section>
 
       <section>
-        <h2 className="mb-1 text-xs font-semibold uppercase tracking-wide text-zinc-500">
-          Curriculum
-        </h2>
+        <h2 className="section-label mb-1">Curriculum</h2>
         <p className="mb-5 text-sm text-zinc-600 dark:text-zinc-400">
           What students see. Open any published week to review it as they do.
         </p>

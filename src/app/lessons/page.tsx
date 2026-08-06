@@ -27,7 +27,7 @@ export default async function LessonsPage() {
     slug === state.currentWeekSlug && dayNumber === state.currentDay;
 
   return (
-    <main className="mx-auto w-full max-w-3xl px-6 py-10">
+    <main className="mx-auto w-full max-w-6xl px-6 py-10 lg:px-10">
       <h1 className="text-2xl font-bold tracking-tight">Lessons</h1>
       <p className="mt-1 mb-8 text-sm text-zinc-600 dark:text-zinc-400">
         Everything opened so far. Newest first — the green dot is where the class is now.
@@ -41,9 +41,7 @@ export default async function LessonsPage() {
         <div className="space-y-8">
           {groups.map(({ week, days }) => (
             <section key={week.slug}>
-              <h2 className="mb-1 text-xs font-semibold uppercase tracking-wide text-zinc-500">
-                {week.unit}
-              </h2>
+              <h2 className="section-label mb-1">{week.unit}</h2>
               <p className="mb-3 text-sm font-medium">{week.title}</p>
 
               <ul className="space-y-2">
@@ -54,17 +52,15 @@ export default async function LessonsPage() {
                     <li key={d.day}>
                       <Link
                         href={`/week/${week.slug}?day=${dayNumber}`}
-                        className={`flex items-start gap-3 rounded-lg border p-4 transition-colors ${
-                          now
-                            ? "border-emerald-300 dark:border-emerald-800 bg-emerald-50 dark:bg-emerald-950/30"
-                            : "border-zinc-200 dark:border-zinc-800 hover:border-emerald-500"
+                        className={`flex items-start gap-3 p-4 transition-transform hover:-translate-y-0.5 ${
+                          now ? "card-accent" : "card"
                         }`}
                       >
                         <span
-                          className={`shrink-0 rounded-full px-2.5 py-0.5 text-xs font-bold ${
+                          className={`chip shrink-0 ${
                             now
-                              ? "bg-emerald-600 text-white"
-                              : "bg-zinc-100 text-zinc-600 dark:bg-zinc-800 dark:text-zinc-400"
+                              ? "bg-emerald-600 text-white shadow-[0_2px_8px_-2px_rgb(16_185_129/0.6)]"
+                              : "bg-zinc-900/5 text-zinc-600 dark:bg-white/10 dark:text-zinc-400"
                           }`}
                         >
                           {d.day}

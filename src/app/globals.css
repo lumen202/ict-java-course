@@ -24,13 +24,86 @@ html {
 }
 
 body {
-  background: var(--background);
+  background-color: var(--background);
+  /* Soft emerald/teal glows behind everything — what keeps the app from
+     reading as a flat gray page. Fixed so it doesn't scroll with content. */
+  background-image:
+    radial-gradient(56rem 36rem at 88% -12%, rgb(16 185 129 / 0.09), transparent 60%),
+    radial-gradient(48rem 32rem at -12% 35%, rgb(20 184 166 / 0.07), transparent 55%);
+  background-attachment: fixed;
   color: var(--foreground);
   /* Geist is loaded in layout.tsx via next/font — use it (was Arial). */
   font-family: var(--font-geist-sans), system-ui, sans-serif;
+}
+
+@media (prefers-color-scheme: dark) {
+  body {
+    background-image:
+      radial-gradient(56rem 36rem at 88% -12%, rgb(16 185 129 / 0.1), transparent 60%),
+      radial-gradient(48rem 32rem at -12% 35%, rgb(20 184 166 / 0.07), transparent 55%);
+  }
 }
 
 ::selection {
   background: #10b981; /* emerald-500 */
   color: #ffffff;
 }
+
+/* ---------------------------------------------------------------------------
+   Shared component classes. The app is styled with inline utilities, but the
+   handful of shapes repeated on every page (cards, buttons, inputs, chips)
+   live here so the whole site changes look in one place.
+   --------------------------------------------------------------------------- */
+@layer components {
+  /* Base surface: soft border, faint lift, slight glass. */
+  .card {
+    @apply rounded-2xl border border-zinc-200/90 bg-white/80 shadow-[0_1px_2px_rgb(0_0_0/0.03),0_12px_32px_-18px_rgb(0_0_0/0.14)] backdrop-blur-[2px] dark:border-zinc-800 dark:bg-zinc-900/60 dark:shadow-none;
+  }
+
+  /* Emerald-tinted surface for "this is the thing to do now" blocks. */
+  .card-accent {
+    @apply rounded-2xl border border-emerald-300/80 bg-linear-to-br from-emerald-50/95 to-teal-50/70 shadow-[0_12px_32px_-18px_rgb(16_185_129/0.35)] dark:border-emerald-800/80 dark:from-emerald-950/40 dark:to-teal-950/20 dark:shadow-none;
+  }
+
+  .btn-primary {
+    @apply inline-flex items-center justify-center gap-2 rounded-xl bg-linear-to-b from-emerald-500 to-emerald-600 px-4 py-2 text-sm font-semibold text-white shadow-[inset_0_1px_0_rgb(255_255_255/0.2),0_4px_14px_-4px_rgb(16_185_129/0.55)] transition-all hover:from-emerald-400 hover:to-emerald-500 active:scale-[0.98] disabled:pointer-events-none disabled:opacity-50;
+  }
+
+  .btn-ghost {
+    @apply inline-flex items-center justify-center gap-2 rounded-xl border border-zinc-300 bg-white/60 px-4 py-2 text-sm font-medium text-zinc-700 transition-colors hover:bg-zinc-100 dark:border-zinc-700 dark:bg-zinc-900/40 dark:text-zinc-300 dark:hover:bg-zinc-800 disabled:pointer-events-none disabled:opacity-50;
+  }
+
+  .input {
+    @apply w-full rounded-xl border border-zinc-300 bg-white/90 px-3.5 py-2.5 text-sm shadow-[inset_0_1px_2px_rgb(0_0_0/0.03)] transition placeholder:text-zinc-400 focus:border-emerald-400 focus:outline-none focus:ring-4 focus:ring-emerald-500/15 dark:border-zinc-700 dark:bg-zinc-900/80 dark:placeholder:text-zinc-500 dark:focus:border-emerald-600;
+  }
+
+  .chip {
+    @apply inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-bold;
+  }
+
+  .section-label {
+    @apply text-xs font-semibold uppercase tracking-wider text-zinc-500;
+  }
+}
+
+/* Battle effects for the mini-games (BossBattle). Re-triggered by remounting
+   the element with a changing key. */
+@keyframes hit-shake {
+  0%, 100% { transform: translateX(0); }
+  20% { transform: translateX(-8px) rotate(-3deg); }
+  40% { transform: translateX(8px) rotate(3deg); }
+  60% { transform: translateX(-5px); }
+  80% { transform: translateX(5px); }
+}
+@keyframes boss-loom {
+  0% { transform: scale(1); }
+  40% { transform: scale(1.3) rotate(-6deg); }
+  100% { transform: scale(1); }
+}
+@keyframes float-up {
+  from { opacity: 1; transform: translateY(0); }
+  to { opacity: 0; transform: translateY(-32px); }
+}
+.anim-hit { animation: hit-shake 0.45s ease; }
+.anim-loom { animation: boss-loom 0.5s ease; }
+.anim-float { animation: float-up 0.9s ease forwards; }

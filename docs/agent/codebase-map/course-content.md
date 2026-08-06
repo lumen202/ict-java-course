@@ -15,11 +15,41 @@ index.ts          weeks[] · roadmap[] · getWeek(slug)
 - `slug`, `unit`, `title`, `summary`, `objectives[]`, `status` (`available` | `coming-soon`)
 - `video` — **a day-by-day plan**, not one long video:
   - `title`, `playlistUrl`, `watchNotes[]` (how to watch actively; applies to every day)
-  - `days: DayPlan[]` — each `{ day, focus, videos: VideoAssignment[], practice }`
+  - `days: DayPlan[]` — each `{ day, focus, warmup?, videos: VideoAssignment[], activities?, practice }`
   - `VideoAssignment` is `{ title, youtubeId, length, practice? }`. **Give every video its own
     `practice`**: it renders directly beneath that player, so the student does the thing the
     video just taught before starting the next one. The day's own `practice` is the closing task
     ("to finish the day"), or the entire lesson on a no-video day.
+  - `warmup` / `activities[]` are `DayActivity`: `{ id, title, steps[], tip?, submit? }`,
+    rendered as numbered-step cards on the day's timeline — warmup before the videos, activities
+    after them, closing `practice` last, day turn-in box always at the end. These fill the class
+    session: a class day is **~5 hours**, and 15 minutes of video with two blurbs is a thin day.
+    Hard content rules from the teacher: **everything is computer-based** (no paper — files,
+    notes apps, spreadsheets); **designed for self-learning** — no "ask/interview a classmate"
+    steps; **plain language, no game-flavored prose** ("level", "boss", points-in-text) — the
+    teacher explicitly rejected gamified wording; real interactivity belongs in `game`;
+    **every activity has its own turn-in** (`submit` says what to paste; `id` keys the saved
+    work — never change it once students have submitted); and no time estimates on activities.
+    See week 1 day 1 for the reference shape.
+  - `warmupGame` / `game` are `DayGame` — **playable mini-games**, the interactivity the
+    teacher asked for (actual games, not gamified prose). Four kinds — the fourth is
+    `kind: "typing"` (`components/TypingGame.tsx` — fill-in-the-blank SQL escalating to whole
+    commands from memory; `{braces}` in `template` mark what the student types). The others:
+    `kind: "row-hunt"` (`components/RowHunt.tsx` — a table on screen, queries asked in words,
+    answered by clicking matching rows, real SQL revealed after each round; ideal as the
+    warm-up), `kind: "boss-battle"` (`components/BossBattle.tsx` — quiz RPG with boss HP,
+    3 hearts, wrong answers re-queued; ideal as the day's finale), and `kind: "quest"`
+    (`components/Quest.tsx` — real work in Workbench/files broken into missions shown **one at
+    a time**, each cleared by a quick check (retry until right) or a paste box that lands in
+    the turn-in). `activities[]` accepts games alongside plain `DayActivity` cards — **prefer
+    quests over step-list activities**; the teacher flagged that students with low reading
+    comprehension drown in multi-step text blocks. Results auto-save as turn-ins under the
+    game's `id`. Give every day games tailored around that day's videos.
+  - **Days are gated** (`components/LessonFlow.tsx`): students see steps one at a time — games
+    unlock the next step on finish, activities on turning in, videos via a "done watching"
+    button — with a 🔒 "up next" teaser. Teachers see the whole day. Progress is
+    localStorage + server-known turn-ins, so it survives reloads and follows submissions
+    across browsers.
 - `reading[]` — `{ label, url, note? }`, a genuine text alternative covering the same material
 - `activity` — `{ title, goal, steps[], twist, deliverables[] }`
 - `selfCheck[]` — `{ question, answer }`
