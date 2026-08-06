@@ -32,6 +32,12 @@
   register). A real `Link` to a known destination rather than `router.back()`, since history can
   point anywhere.
 - `app/not-found.tsx` — custom 404; unknown week slugs land here.
+- `app/icon.svg` — the browser-tab icon: the same emerald→teal gradient tile and coffee cup as
+  the sidebar brand mark. Drawn as **paths, not an emoji**, so it renders identically on every
+  platform, and kept bold because it's read at 16px. The stock `create-next-app` `favicon.ico`
+  was deleted — having both would let the generic one win in some browsers. Next.js emits
+  `<link rel="icon" type="image/svg+xml">` from this file automatically; there is no manual
+  `<head>` markup.
 
 There is no top nav, no footer, and no teacher tab strip — the sidebar replaced all three. Don't
 add per-page action buttons that duplicate a sidebar link.
