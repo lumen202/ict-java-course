@@ -170,8 +170,161 @@ export type TypingGame = {
   rounds: TypingRound[];
 };
 
+/**
+ * One mission inside the Workbench simulator. Each step draws a scene (what
+ * the fake Workbench shows) and names the one hotspot that clears it.
+ */
+export type WorkbenchSimStep = {
+  /** What to do, in words: "Click the refresh icon next to SCHEMAS." */
+  task: string;
+  /**
+   * Hotspot that clears the step: "run-all" | "run-cursor" |
+   * "schemas-refresh" | "output-panel" | "result-grid" | "editor" |
+   * `schema:<name>` (an item in the SCHEMAS panel).
+   */
+  target: string;
+  /** Extra nudge shown after two wrong clicks. */
+  hint?: string;
+  /** Shown after the correct click — teach what the thing is for. */
+  explain: string;
+  /** SQL shown in the editor during this step (author a cursor marker inline if needed). */
+  editor?: string;
+  /** Items in the SCHEMAS panel. Defaults to ["sys"]. */
+  schemas?: string[];
+  /** Lines in the Output panel: green (ok) or red circles, like Workbench. */
+  output?: { ok: boolean; text: string }[];
+  /** Rows in the result grid, when a SELECT "ran". */
+  result?: { columns: string[]; rows: string[][] };
+};
+
+/**
+ * A clickable mock of MySQL Workbench: missions like "click the bolt that
+ * runs only the statement under the cursor", cleared by clicking the right
+ * part of the window. Builds tool familiarity before (or without) the real
+ * install — wrong clicks explain what was clicked instead. Rendered by
+ * `components/WorkbenchSim.tsx`.
+ */
+export type WorkbenchSimGame = {
+  kind: "workbench-sim";
+  /** Stable slug — keys the auto-saved result. Never change once live. */
+  id: string;
+  title: string;
+  intro: string;
+  steps: WorkbenchSimStep[];
+};
+
+export type ConsoleTask = {
+  /** The goal in words: "Show every student in grade 9." */
+  goal: string;
+  /**
+   * A canonical statement that does the job. The student's run is judged by
+   * its EFFECT — the result it returns and/or what it changed — never by its
+   * spelling, so any statement with the same outcome clears the task. If this
+   * statement produces an ERROR, the task is cleared by hitting the same
+   * error — that's how "break it on purpose" labs work here.
+   */
+  solution: string;
+  /** Extra nudge shown after two runs that didn't clear the task. */
+  hint?: string;
+  /** Shown when the task clears. */
+  explain?: string;
+};
+
+/** A table pre-existing in the console's starting state. */
+export type ConsoleTableSetup = {
+  name: string;
+  /** type: "INT" | "VARCHAR(n)" | "DATE" — same syntax the student types. */
+  columns: { name: string; type: string }[];
+  rows: string[][];
+};
+
+/**
+ * An in-page mini DB Fiddle: a tiny MySQL engine (`lib/minisql.ts`) runs
+ * whatever the student types — CREATE/DROP/SHOW DATABASE, USE, CREATE/DROP
+ * TABLE, DESCRIBE, INSERT, SELECT with WHERE/AND/OR/NOT/ORDER BY, ALTER TABLE
+ * ADD COLUMN, UPDATE (with Workbench's safe-update mode emulated) — and
+ * answers with a result grid or a real MySQL-style error (unknown column,
+ * syntax error near X, column count mismatch…). Tasks are checked by
+ * comparing effects against `solution`, so every correct spelling wins and
+ * expected-error labs work. Rendered by `components/SqlConsole.tsx`.
+ */
+export type SqlConsoleGame = {
+  kind: "sql-console";
+  /** Stable slug — keys the auto-saved result. Never change once live. */
+  id: string;
+  title: string;
+  intro: string;
+  /** Starting state. Omit for a completely empty server. */
+  setup?: {
+    /** Databases (and their tables) that already exist. */
+    databases?: { name: string; tables?: ConsoleTableSetup[] }[];
+    /** Database pre-selected as if `USE` had been run. */
+    use?: string;
+    /** Workbench-style safe update mode. Defaults to true. */
+    safeUpdates?: boolean;
+  };
+  tasks: ConsoleTask[];
+};
+
+export type OrderRound = {
+  /** What the assembled lines accomplish, in words. */
+  prompt: string;
+  /** The lines in CORRECT order — they're shown shuffled. */
+  lines: string[];
+  /** Shown after the round is assembled correctly. */
+  explain?: string;
+};
+
+/**
+ * An arrange-the-lines game: shuffled SQL statements (or the lines of one
+ * statement) are clicked into the right order. Teaches sequence and structure
+ * — file order, clause order — which typing games can't. Rendered by
+ * `components/OrderGame.tsx`.
+ */
+export type OrderGame = {
+  kind: "order";
+  /** Stable slug — keys the auto-saved result. Never change once live. */
+  id: string;
+  title: string;
+  intro: string;
+  rounds: OrderRound[];
+};
+
+export type AnswerSheetItem = {
+  /** The question, exactly as the student should answer it. */
+  question: string;
+  /** Optional helper line under the question ("this one may need two queries…"). */
+  note?: string;
+};
+
+/**
+ * An in-site answer sheet: questions shown one at a time, each answered by
+ * filling the same set of labeled boxes (e.g. prediction → the SQL run → the
+ * real answer). Replaces "make a .txt answer sheet" busywork — everything is
+ * typed here and lands in the turn-in as one document. Rendered by
+ * `components/AnswerSheet.tsx`.
+ */
+export type AnswerSheetGame = {
+  kind: "answer-sheet";
+  /** Stable slug — keys the auto-saved result. Never change once live. */
+  id: string;
+  title: string;
+  intro: string;
+  /** Labels of the boxes every question gets, in order. Keep to 2–3. */
+  fields: string[];
+  items: AnswerSheetItem[];
+};
+
 /** A playable mini-game. Results auto-save as turn-ins under the game's id. */
-export type DayGame = BossBattleGame | RowHuntGame | QuestGame | TypingGame;
+export type DayGame =
+  | BossBattleGame
+  | RowHuntGame
+  | QuestGame
+  | TypingGame
+  | WorkbenchSimGame
+  | SqlConsoleGame
+  | OrderGame
+  | AnswerSheetGame;
 
 export type DayPlan = {
   /** "Day 1", "Day 2", … */

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { BossBattleGame } from "@/lib/content/types";
 import { useFlowComplete } from "@/components/LessonFlow";
 import { GameModal } from "@/components/GameModal";
@@ -9,6 +9,9 @@ import { GameModal } from "@/components/GameModal";
 // "Enter the arena" opens the fight in a full-screen modal, so a long battle
 // never depends on the page's height — the arena (boss, HP, hearts) stays
 // pinned while the questions scroll under it.
+//
+// Closing the modal (✕ / Escape) PAUSES the battle — state is kept and the
+// card offers "Return to the battle" — so there is no are-you-sure dialog.
 //
 // Each correct answer lands a hit; a wrong answer costs a heart AND sends the
 // question back into the queue, so a win means every concept was eventually
@@ -32,6 +35,7 @@ export function BossBattle({
 }) {
   const total = game.questions.length;
   const [phase, setPhase] = useState<Phase>("intro");
+  const [open, setOpen] = useState(false);
   const [queue, setQueue] = useState<number[]>(() => game.questions.map((_, i) => i));
   const [hearts, setHearts] = useState(MAX_HEARTS);
   const [firstTryHits, setFirstTryHits] = useState(0);
@@ -49,6 +53,17 @@ export function BossBattle({
   const finished = phase === "won" || phase === "lost";
   const lastHit = phase === "feedback" && picked === current?.answer;
 
+  // The body scrolls; without this, a long question leaves the NEXT one
+  // opened mid-scroll with its prompt hidden above the fold.
+  const bodyRef = useRef<HTMLDivElement>(null);
+  const feedbackRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (phase === "question") bodyRef.current?.scrollTo({ top: 0 });
+    if (phase === "feedback") {
+      feedbackRef.current?.scrollIntoView({ block: "nearest", behavior: "smooth" });
+    }
+  }, [phase, currentIndex]);
+
   function start() {
     setQueue(game.questions.map((_, i) => i));
     setHearts(MAX_HEARTS);
@@ -57,16 +72,7 @@ export function BossBattle({
     setPicked(null);
     setSaved(false);
     setPhase("question");
-  }
-
-  function requestClose() {
-    if (
-      inBattle &&
-      !window.confirm("Leave the battle? This fight starts over next time.")
-    ) {
-      return;
-    }
-    setPhase("intro");
+    setOpen(true);
   }
 
   function choose(i: number) {
@@ -139,17 +145,32 @@ export function BossBattle({
           {total} questions · {MAX_HEARTS} hearts · a wrong answer sends the
           question back for later
         </p>
-        {lastResult && (
+        {inBattle && !open && (
+          <p className="mx-auto mt-3 max-w-md rounded-xl border border-violet-200 dark:border-violet-900 bg-white/70 dark:bg-zinc-900/40 p-2.5 text-sm font-medium">
+            ⚔️ Battle paused — {total - bossHp}/{total} hits landed,{" "}
+            {hearts} heart{hearts === 1 ? "" : "s"} left. The {game.boss.name}{" "}
+            is waiting.
+          </p>
+        )}
+        {!inBattle && lastResult && (
           <p className="mx-auto mt-3 max-w-md rounded-xl border border-violet-200 dark:border-violet-900 bg-white/70 dark:bg-zinc-900/40 p-2.5 text-sm font-medium">
             {lastResult}
           </p>
         )}
-        <button type="button" onClick={start} className="btn-primary mt-4">
-          {lastResult ? "⚔️ Fight again" : "⚔️ Enter the arena"}
+        <button
+          type="button"
+          onClick={() => (inBattle ? setOpen(true) : start())}
+          className="btn-primary mt-4"
+        >
+          {inBattle
+            ? "⚔️ Return to the battle"
+            : lastResult
+              ? "⚔️ Fight again"
+              : "⚔️ Enter the arena"}
         </button>
       </div>
 
-      <GameModal open={inBattle || finished} onClose={requestClose} label={game.title}>
+      <GameModal open={open} onClose={() => setOpen(false)} label={game.title}>
         {/* Arena — pinned, always dark whatever the theme. */}
         <div
           className="shrink-0 bg-zinc-950 p-5 text-white"
@@ -216,7 +237,7 @@ export function BossBattle({
 
         {/* Questions — the only part that scrolls. */}
         {inBattle && current && (
-          <div className="min-h-0 flex-1 overflow-y-auto bg-white p-5 dark:bg-zinc-900">
+          <div ref={bodyRef} className="min-h-0 flex-1 overflow-y-auto bg-white p-5 dark:bg-zinc-900">
             <p className="text-sm font-medium leading-relaxed">{current.prompt}</p>
             {current.code && (
               <pre className="mt-2 overflow-x-auto rounded-xl bg-zinc-900/[0.06] dark:bg-white/10 p-3 font-mono text-xs whitespace-pre-wrap break-words">
@@ -249,7 +270,10 @@ export function BossBattle({
             </div>
 
             {phase === "feedback" && picked !== null && (
-              <div className="mt-3 rounded-xl border border-violet-200 dark:border-violet-900 bg-violet-50/60 dark:bg-violet-950/30 p-3">
+              <div
+                ref={feedbackRef}
+                className="mt-3 rounded-xl border border-violet-200 dark:border-violet-900 bg-violet-50/60 dark:bg-violet-950/30 p-3"
+              >
                 <p className="text-sm font-semibold">
                   {lastHit
                     ? `🗡️ Direct hit! ${game.boss.name} staggers.`
@@ -290,7 +314,7 @@ export function BossBattle({
               <button type="button" onClick={start} className="btn-primary">
                 {phase === "won" ? "⚔️ Rematch for a perfect run" : "⚔️ Rematch"}
               </button>
-              <button type="button" onClick={() => setPhase("intro")} className="btn-ghost">
+              <button type="button" onClick={() => setOpen(false)} className="btn-ghost">
                 Back to the lesson
               </button>
             </div>

@@ -7,6 +7,10 @@ import { LessonFlow, type FlowStep } from "@/components/LessonFlow";
 import { RowHunt } from "@/components/RowHunt";
 import { Quest } from "@/components/Quest";
 import { TypingGame } from "@/components/TypingGame";
+import { WorkbenchSim } from "@/components/WorkbenchSim";
+import { SqlConsole } from "@/components/SqlConsole";
+import { OrderGame } from "@/components/OrderGame";
+import { AnswerSheet } from "@/components/AnswerSheet";
 import { SelfCheck } from "@/components/SelfCheck";
 import { ReflectionForm } from "@/components/ReflectionForm";
 import { SubmissionForm } from "@/components/SubmissionForm";
@@ -107,6 +111,14 @@ export default async function WeekPage({ params, searchParams }: PageProps<"/wee
       <Quest weekSlug={week.slug} dayNumber={dayNumber} game={g} />
     ) : g.kind === "typing" ? (
       <TypingGame weekSlug={week.slug} dayNumber={dayNumber} game={g} />
+    ) : g.kind === "workbench-sim" ? (
+      <WorkbenchSim weekSlug={week.slug} dayNumber={dayNumber} game={g} />
+    ) : g.kind === "sql-console" ? (
+      <SqlConsole weekSlug={week.slug} dayNumber={dayNumber} game={g} />
+    ) : g.kind === "order" ? (
+      <OrderGame weekSlug={week.slug} dayNumber={dayNumber} game={g} />
+    ) : g.kind === "answer-sheet" ? (
+      <AnswerSheet weekSlug={week.slug} dayNumber={dayNumber} game={g} />
     ) : (
       <BossBattle weekSlug={week.slug} dayNumber={dayNumber} game={g} />
     );
