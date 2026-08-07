@@ -16,6 +16,22 @@ export type SelfCheckItem = {
   answer: string;
 };
 
+/**
+ * A practice instruction. A plain string for a one-line task; the object form
+ * when the task is a sequence — steps render as a numbered do-this-then-this
+ * list, which students follow far more reliably than a paragraph.
+ */
+export type Practice =
+  | string
+  | {
+      /** Optional framing line shown above the steps. */
+      intro?: string;
+      /** The steps, in order. Each one action, imperative. */
+      steps: string[];
+      /** Optional muted aside under the steps — fallback plan, outlook, encouragement. */
+      note?: string;
+    };
+
 export type VideoAssignment = {
   title: string;
   /** YouTube video ID (the `v=` param) — rendered as an in-page player. */
@@ -27,7 +43,7 @@ export type VideoAssignment = {
    * two videos then doing one lump of practice loses the first one — pair each
    * video with the thing it enables.
    */
-  practice?: string;
+  practice?: Practice;
 };
 
 export type DayActivity = {
@@ -362,7 +378,7 @@ export type DayPlan = {
    * The day's closing task, shown after everything else. On a no-video day
    * this is the whole lesson.
    */
-  practice: string;
+  practice: Practice;
 };
 
 export type Activity = {

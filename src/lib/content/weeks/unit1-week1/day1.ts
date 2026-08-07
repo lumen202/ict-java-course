@@ -72,15 +72,27 @@ export const day1: DayPlan = {
       title: "MySQL tutorial for beginners (intro + installation)",
       youtubeId: "oPV2sjMG53U",
       length: "10:30",
-      practice:
-        "Install MySQL Community Server and MySQL Workbench, then open Workbench and connect to your local server. While the installer downloads, play a memory round: close your warm-up file and try to recite its columns from memory, then open it and check. If MySQL still won't install after 30 minutes, switch to DB Fiddle (reading track) and carry on — don't lose the day to an installer.",
+      practice: {
+        steps: [
+          "Install MySQL Community Server and MySQL Workbench.",
+          "While the installer downloads, play a memory round: close your warm-up file, try to recite its columns from memory, then open it and check.",
+          "Open Workbench and connect to your local server.",
+        ],
+        note: "Slow internet or an installer that keeps fighting you? No problem — switch to DB Fiddle (reading track) for today and carry on; you can finish the install at home. Don't lose the day to an installer.",
+      },
     },
     {
       title: "How to create a DATABASE",
       youtubeId: "9LQ9rGoGfYQ",
       length: "4:01",
-      practice:
-        "Create a database called `school`, run `SHOW DATABASES;` and find yours in the list. Then create a second one called `sandbox`, find it too, and remove it with `DROP DATABASE sandbox;`. Creating and deleting your own things is how you prove the server does what YOU tell it.",
+      practice: {
+        steps: [
+          "Create a database called `school`, run `SHOW DATABASES;` and find yours in the list.",
+          "Create a second one called `sandbox` and find it too.",
+          "Remove it with `DROP DATABASE sandbox;`.",
+        ],
+        note: "Creating and deleting your own things is how you prove the server does what YOU tell it.",
+      },
     },
   ],
   activities: [
@@ -564,6 +576,14 @@ export const day1: DayPlan = {
       },
     ],
   },
-  practice:
-    "Exit ticket — type three things into the turn-in box below: (1) the difference between the *server* you installed and the *database* you created, in your own words; (2) the most surprising thing you saw today; (3) one question you still have — bring it tomorrow. Then paste in the SQL you ran today (your Workbench history has it all). Tonight's secret weapon: explain out loud what a database is — to someone at home, or just to yourself. Saying it in your own words is the strongest way to keep it.",
+  practice: {
+    intro: "Exit ticket — type these into the turn-in box below:",
+    steps: [
+      "The difference between the *server* you installed and the *database* you created, in your own words.",
+      "The most surprising thing you saw today.",
+      "One question you still have — bring it tomorrow.",
+      "Then paste in the SQL you ran today (your Workbench history has it all).",
+    ],
+    note: "Tonight's secret weapon: explain out loud what a database is — to someone at home, or just to yourself. Saying it in your own words is the strongest way to keep it.",
+  },
 };

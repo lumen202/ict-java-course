@@ -83,15 +83,29 @@ export const day3: DayPlan = {
       title: "How to SELECT data from a TABLE",
       youtubeId: "kUDznItqKbI",
       length: "5:01",
-      practice:
-        "Three queries against YOUR students table, and predict the row count out loud before each run: (1) everyone, (2) only the name column for everyone, (3) everyone in one grade level. If a prediction was wrong, don't move on until you know why — that gap is the actual lesson.",
+      practice: {
+        intro:
+          "Three queries against YOUR students table — predict the row count out loud before each run:",
+        steps: [
+          "Everyone.",
+          "Only the name column for everyone.",
+          "Everyone in one grade level.",
+        ],
+        note: "If a prediction was wrong, don't move on until you know why — that gap is the actual lesson.",
+      },
     },
     {
       title: "Logical operators (AND, OR, NOT)",
       youtubeId: "lScJW5Qz_5k",
       length: "5:57",
-      practice:
-        "Write ONE query with two conditions joined by AND, run it, then change only the AND to OR and run it again. Say out loud why the second result is bigger. AND narrows, OR widens — feel the difference on your own data before you read another word.",
+      practice: {
+        steps: [
+          "Write ONE query with two conditions joined by AND, and run it.",
+          "Change only the AND to OR and run it again.",
+          "Say out loud why the second result is bigger.",
+        ],
+        note: "AND narrows, OR widens — feel the difference on your own data before you read another word.",
+      },
     },
   ],
   activities: [
@@ -589,6 +603,13 @@ export const day3: DayPlan = {
       },
     ],
   },
-  practice:
-    "Exit ticket — type three things into the turn-in box below: (1) the difference between what SELECT picks and what WHERE picks, in your own words; (2) the query you're proudest of today and what it answers; (3) one question you still have. Your `week1.sql` already grew in the lab — those question-comments above each query are how Friday-you will understand Wednesday-you.",
+  practice: {
+    intro: "Exit ticket — type these into the turn-in box below:",
+    steps: [
+      "The difference between what SELECT picks and what WHERE picks, in your own words.",
+      "The query you're proudest of today and what it answers.",
+      "One question you still have.",
+    ],
+    note: "Your `week1.sql` already grew in the lab — those question-comments above each query are how Friday-you will understand Wednesday-you.",
+  },
 };

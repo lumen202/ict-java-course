@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { weeks } from "@/lib/content";
 import { WeekDoneBadge } from "@/components/WeekProgress";
-import { getCourseState, currentLesson } from "@/lib/release";
+import { getCourseState, currentLesson, isWeekOpen } from "@/lib/release";
 import type { CurrentUser } from "@/lib/auth";
 
 // Student view: today's lesson, and almost nothing else. Unit outlines and
@@ -11,8 +11,15 @@ import type { CurrentUser } from "@/lib/auth";
 export async function StudentDashboard({ user }: { user: CurrentUser }) {
   const state = await getCourseState();
   const lesson = currentLesson(state);
-  const published = weeks.filter((w) => w.status === "available");
-  const earlier = published.filter((w) => w.slug !== lesson?.week.slug);
+  // Only weeks the teacher has actually opened. Content `status` says a week
+  // is written, not that the class has reached it — filtering on it alone
+  // previewed future weeks' titles on the dashboard.
+  const earlier = weeks.filter(
+    (w) =>
+      w.status === "available" &&
+      w.slug !== lesson?.week.slug &&
+      isWeekOpen(w, state),
+  );
 
   return (
     <main className="mx-auto w-full max-w-6xl px-6 py-10 lg:px-10">

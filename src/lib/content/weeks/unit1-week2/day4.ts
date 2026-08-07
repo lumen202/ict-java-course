@@ -68,8 +68,14 @@ export const day4: DayPlan = {
       title: "AUTO_INCREMENT is awesome",
       youtubeId: "ALht4W2QxqY",
       length: "3:55",
-      practice:
-        "Type along in a sandbox. The video also moves the counter with ALTER TABLE … AUTO_INCREMENT = 1000; — do that too and insert a row to see it land at 1000. Then the key move: insert three rows into your practice table naming ONLY the non-id columns, and SELECT to watch the server hand out 1, 2, 3 by itself.",
+      practice: {
+        intro: "Type along in a sandbox.",
+        steps: [
+          "The video moves the counter with ALTER TABLE … AUTO_INCREMENT = 1000; — do that too, and insert a row to see it land at 1000.",
+          "Then the key move: insert three rows into your practice table naming ONLY the non-id columns.",
+          "SELECT to watch the server hand out 1, 2, 3 by itself.",
+        ],
+      },
     },
   ],
   activities: [
@@ -477,6 +483,14 @@ export const day4: DayPlan = {
       },
     ],
   },
-  practice:
-    "Exit ticket — type three things into the turn-in box below: (1) the machine's three laws in your own words; (2) why a deleted id never coming back protects old records; (3) one question you still have. Paste today's SQL. Tomorrow: no new commands at all — you assemble the whole week into week2.sql, rebuild what deserves rebuilding, and face the Warden.",
+  practice: {
+    intro: "Exit ticket — type these into the turn-in box below:",
+    steps: [
+      "The machine's three laws in your own words.",
+      "Why a deleted id never coming back protects old records.",
+      "One question you still have.",
+      "Paste today's SQL.",
+    ],
+    note: "Tomorrow: no new commands at all — you assemble the whole week into week2.sql, rebuild what deserves rebuilding, and face the Warden.",
+  },
 };

@@ -83,8 +83,16 @@ export const day4: DayPlan = {
       title: "ORDER BY clause",
       youtubeId: "R-5F3BF8IeY",
       length: "2:37",
-      practice:
-        "Short video, so do all four straight away on your own table: sort by name A–Z, sort by name Z–A, sort by grade_level lowest first, sort by grade_level highest first. Then combine what you know — one query with a WHERE and an ORDER BY together — and notice that WHERE always comes before ORDER BY.",
+      practice: {
+        intro: "Short video, so do all four straight away on your own table:",
+        steps: [
+          "Sort by name A–Z.",
+          "Sort by name Z–A.",
+          "Sort by grade_level lowest first.",
+          "Sort by grade_level highest first.",
+          "Then combine what you know — one query with a WHERE and an ORDER BY together — and notice that WHERE always comes before ORDER BY.",
+        ],
+      },
     },
   ],
   activities: [
@@ -659,6 +667,13 @@ export const day4: DayPlan = {
       },
     ],
   },
-  practice:
-    "Exit ticket — type three things into the turn-in box below: (1) the difference between WHERE and ORDER BY, in your own words; (2) the column you invented and why you chose it; (3) one question you still have. Your `week1.sql` now holds four days of work. Tomorrow there's no new material: it's your file, a final boss, and proof that you can do this.",
+  practice: {
+    intro: "Exit ticket — type these into the turn-in box below:",
+    steps: [
+      "The difference between WHERE and ORDER BY, in your own words.",
+      "The column you invented and why you chose it.",
+      "One question you still have.",
+    ],
+    note: "Your `week1.sql` now holds four days of work. Tomorrow there's no new material: it's your file, a final boss, and proof that you can do this.",
+  },
 };

@@ -59,7 +59,9 @@ count when `role === "teacher"`, so a week can be reviewed before it's opened.
     here" jumps straight there — same effect, one step.
 - **Student dashboard** — a single "Today" card with the day's focus, linking
   straight to `?day=N`. Nothing else: the unit outline and "how a week works"
-  blocks were removed as noise.
+  blocks were removed as noise. "Earlier weeks" filters by `isWeekOpen()`, not
+  content `status` — status alone previewed written-but-unreleased week titles
+  (BUG-006).
 - **`/lessons`** — the index of everything released, newest week first, current
   day dotted. The sidebar's Lessons entry points here.
 - **Week page** — one released day at a time (`?day=N`), defaulting to the

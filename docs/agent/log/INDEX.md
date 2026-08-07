@@ -7,6 +7,7 @@ HANDOFF file).
 
 | Date | Title | File |
 |---|---|---|
+| 2026-08-07 | Dashboard no longer previews unreleased weeks (BUG-006); practice instructions restructured as numbered steps | [`2026-08-07-dashboard-release-leak-and-practice-block-restyle.md`](2026-08-07-dashboard-release-leak-and-practice-block-restyle.md) |
 | 2026-08-07 | Week 2 shipped (UPDATE/DELETE, PRIMARY KEY, AUTO_INCREMENT); content files split per day; release list rebuilt to scale | [`2026-08-07-week2-and-per-day-content-files.md`](2026-08-07-week2-and-per-day-content-files.md) |
 | 2026-08-07 | 4 new game engines (mini DB Fiddle, Workbench sim, order, answer sheet); all games modal; pre-boss real labs | [`2026-08-07-minisql-console-sim-and-order-games.md`](2026-08-07-minisql-console-sim-and-order-games.md) |
 | 2026-08-07 | Week 1 days 2–5 expanded to full sessions; format-per-lesson rule | [`2026-08-07-week1-days-2-5-expanded.md`](2026-08-07-week1-days-2-5-expanded.md) |

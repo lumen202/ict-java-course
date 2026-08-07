@@ -11,6 +11,7 @@ empty for long stretches; that's fine.
 | BUG-003 | Invite links dead-ended because the token arrives in the URL fragment | fixed | [`BUG-003-invite-links-dead-ended-on-fragment-tokens.md`](BUG-003-invite-links-dead-ended-on-fragment-tokens.md) |
 | BUG-004 | Registration told students to check an email that never arrived | fixed | [`BUG-004-registration-waited-on-undeliverable-confirmation-email.md`](BUG-004-registration-waited-on-undeliverable-confirmation-email.md) |
 | BUG-005 | Names and registration status were wrong because trigger-written columns were empty | fixed | [`BUG-005-trigger-written-fields-unreliable.md`](BUG-005-trigger-written-fields-unreliable.md) |
+| BUG-006 | Student dashboard listed weeks the teacher hadn't released | fixed | [`BUG-006-dashboard-listed-unreleased-weeks.md`](BUG-006-dashboard-listed-unreleased-weeks.md) |
 
 **To file a bug:** create `BUG-NNN-short-slug.md` here (sequential ID, never reused, even for
 invalidated bugs) with:

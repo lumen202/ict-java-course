@@ -70,15 +70,28 @@ export const day2: DayPlan = {
       title: "How to create a TABLE",
       youtubeId: "XfrgCK6BX5w",
       length: "8:10",
-      practice:
-        "Type along with the video, then on your own: run `USE school;` so MySQL knows which database you mean, and create a table called `students` with four columns — id INT, name VARCHAR(50), grade_level INT, favorite_subject VARCHAR(50). Run `DESCRIBE students;` and read the result: every rule you just wrote is listed back to you. If it came out wrong, `DROP TABLE students;` and build it again — nothing is precious yet.",
+      practice: {
+        intro: "Type along with the video, then on your own:",
+        steps: [
+          "Run `USE school;` so MySQL knows which database you mean.",
+          "Create a table called `students` with four columns — id INT, name VARCHAR(50), grade_level INT, favorite_subject VARCHAR(50).",
+          "Run `DESCRIBE students;` and read the result: every rule you just wrote is listed back to you.",
+        ],
+        note: "If it came out wrong, `DROP TABLE students;` and build it again — nothing is precious yet.",
+      },
     },
     {
       title: "How to INSERT rows into a TABLE",
       youtubeId: "Cxilfg-M158",
       length: "5:54",
-      practice:
-        "Add three students, one INSERT at a time, checking with `SELECT * FROM students;` after each. Watch what the quotes do: text values get them, numbers don't. Three is enough for now — the quest below takes you to ten.",
+      practice: {
+        steps: [
+          "Add three students, one INSERT at a time.",
+          "Check with `SELECT * FROM students;` after each one.",
+          "Watch what the quotes do: text values get them, numbers don't.",
+        ],
+        note: "Three is enough for now — the quest below takes you to ten.",
+      },
     },
   ],
   activities: [
@@ -623,6 +636,13 @@ export const day2: DayPlan = {
       },
     ],
   },
-  practice:
-    "Exit ticket — type three things into the turn-in box below: (1) what a column TYPE is, in your own words, and why the table is fussy about it; (2) the error you hit most today and what fixed it; (3) one question you still have. Then paste in everything you typed today — and double-check the Day 2 section of your `week1.sql` from the lab has all of it.",
+  practice: {
+    intro: "Exit ticket — type these into the turn-in box below:",
+    steps: [
+      "What a column TYPE is, in your own words, and why the table is fussy about it.",
+      "The error you hit most today and what fixed it.",
+      "One question you still have.",
+      "Then paste in everything you typed today — and double-check the Day 2 section of your `week1.sql` from the lab has all of it.",
+    ],
+  },
 };

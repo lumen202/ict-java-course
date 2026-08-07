@@ -516,6 +516,14 @@ export const day2: DayPlan = {
       },
     ],
   },
-  practice:
-    "Exit ticket — type three things into the turn-in box below: (1) DELETE vs DROP, in your own words, including what 'empty is not gone' means; (2) the preview ritual and why the counts matter; (3) one question you still have. Paste today's SQL too. And chew on this overnight: when you deleted Marco's double signup, only the id could tell the two Marcos apart — but NOTHING in your table actually forces ids to be unique. Tomorrow we fix that hole for good.",
+  practice: {
+    intro: "Exit ticket — type these into the turn-in box below:",
+    steps: [
+      "DELETE vs DROP, in your own words, including what 'empty is not gone' means.",
+      "The preview ritual and why the counts matter.",
+      "One question you still have.",
+      "Paste today's SQL too.",
+    ],
+    note: "Chew on this overnight: when you deleted Marco's double signup, only the id could tell the two Marcos apart — but NOTHING in your table actually forces ids to be unique. Tomorrow we fix that hole for good.",
+  },
 };

@@ -2,7 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import type { Metadata } from "next";
 import { weeks, getWeek } from "@/lib/content";
-import type { DayActivity, DayGame } from "@/lib/content/types";
+import type { DayActivity, DayGame, Practice } from "@/lib/content/types";
 import { LessonFlow, type FlowStep } from "@/components/LessonFlow";
 import { RowHunt } from "@/components/RowHunt";
 import { Quest } from "@/components/Quest";
@@ -159,9 +159,11 @@ export default async function WeekPage({ params, searchParams }: PageProps<"/wee
           </p>
           <VideoEmbed youtubeId={v.youtubeId} title={v.title} />
           {v.practice && (
-            <div className="card-accent mt-3 p-4">
-              <p className="text-sm font-semibold">✍️ Now do this</p>
-              <p className="mt-1 text-sm leading-relaxed">{v.practice}</p>
+            <div className="mt-4 border-l-2 border-emerald-500/70 pl-4 text-zinc-700 dark:text-zinc-300">
+              <p className="section-label text-emerald-700 dark:text-emerald-400">
+                ✍️ Now do this
+              </p>
+              <PracticeContent practice={v.practice} />
             </div>
           )}
           {i === day.videos.length - 1 && week.video.watchNotes.length > 0 && (
@@ -210,7 +212,7 @@ export default async function WeekPage({ params, searchParams }: PageProps<"/wee
           <p className="text-sm font-semibold">
             {day.videos.length > 0 ? "🏁 To finish the day" : "✍️ Today's work"}
           </p>
-          <p className="mt-1 text-sm leading-relaxed">{day.practice}</p>
+          <PracticeContent practice={day.practice} />
         </div>
       ),
     });
@@ -398,6 +400,30 @@ export default async function WeekPage({ params, searchParams }: PageProps<"/wee
         </>
       )}
     </main>
+  );
+}
+
+/** A practice instruction: a sentence, or an intro + numbered steps + aside. */
+function PracticeContent({ practice }: { practice: Practice }) {
+  if (typeof practice === "string") {
+    return <p className="mt-1.5 text-sm leading-relaxed">{practice}</p>;
+  }
+  return (
+    <>
+      {practice.intro && (
+        <p className="mt-1.5 text-sm leading-relaxed">{practice.intro}</p>
+      )}
+      <ol className="mt-2 list-decimal pl-5 space-y-1.5 text-sm leading-relaxed marker:font-semibold marker:text-emerald-600 dark:marker:text-emerald-400">
+        {practice.steps.map((s) => (
+          <li key={s}>{s}</li>
+        ))}
+      </ol>
+      {practice.note && (
+        <p className="mt-2.5 text-xs text-zinc-500 leading-relaxed">
+          💡 {practice.note}
+        </p>
+      )}
+    </>
   );
 }
 

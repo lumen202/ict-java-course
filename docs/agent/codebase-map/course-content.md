@@ -33,6 +33,12 @@ about the split.
     `practice`**: it renders directly beneath that player, so the student does the thing the
     video just taught before starting the next one. The day's own `practice` is the closing task
     ("to finish the day"), or the entire lesson on a no-video day.
+  - `practice` (both kinds) is a `Practice`: a plain string for a one-liner, or
+    `{ intro?, steps[], note? }` — steps render as a numbered list, `note` as a muted 💡 aside
+    (fallback plan, outlook). **Prefer the steps form for anything sequential**: a paragraph of
+    "do X, then Y, then Z" was the teacher-flagged wall-of-text this shape replaced. Notes must
+    never set hard time limits ("after 30 minutes") — condition-based fallbacks only, so a
+    slow-internet day doesn't read as failure.
   - `warmup` / `activities[]` are `DayActivity`: `{ id, title, steps[], tip?, submit? }`,
     rendered as numbered-step cards on the day's timeline — warmup before the videos, activities
     after them, closing `practice` last, day turn-in box always at the end. These fill the class

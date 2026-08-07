@@ -71,8 +71,16 @@ export const day1: DayPlan = {
       title: "How to UPDATE and DELETE data from a TABLE",
       youtubeId: "OB2leB2iZ6U",
       length: "3:32",
-      practice:
-        "Short video, two commands. Today is the UPDATE half — resist the urge to delete anything until tomorrow. In your own Workbench: change ONE value in your students table (a favorite_subject, a grade). Before you run it, say out loud how many rows should change, then check the rows-affected count against your prediction. If Workbench refuses with a safe-update complaint, that's tonight's mini server topic — read the message and keep going.",
+      practice: {
+        intro:
+          "Short video, two commands. Today is the UPDATE half — resist the urge to delete anything until tomorrow. In your own Workbench:",
+        steps: [
+          "Write an UPDATE that changes ONE value in your students table (a favorite_subject, a grade).",
+          "Before you run it, say out loud how many rows should change.",
+          "Run it, then check the rows-affected count against your prediction.",
+        ],
+        note: "If Workbench refuses with a safe-update complaint, that's tonight's mini server topic — read the message and keep going.",
+      },
     },
   ],
   activities: [
@@ -507,6 +515,14 @@ export const day1: DayPlan = {
       },
     ],
   },
-  practice:
-    "Exit ticket — type three things into the turn-in box below: (1) the two parts of every UPDATE and which one deserves more thought, in your own words; (2) what '0 row(s) affected' means and why it's sneaky; (3) one question you still have. Then paste the SQL you ran today. Your week2.sql should already hold the Day 1 section from the lab — tomorrow the other careful verb: DELETE.",
+  practice: {
+    intro: "Exit ticket — type these into the turn-in box below:",
+    steps: [
+      "The two parts of every UPDATE and which one deserves more thought, in your own words.",
+      "What '0 row(s) affected' means and why it's sneaky.",
+      "One question you still have.",
+      "Then paste the SQL you ran today.",
+    ],
+    note: "Your week2.sql should already hold the Day 1 section from the lab — tomorrow the other careful verb: DELETE.",
+  },
 };

@@ -69,8 +69,15 @@ export const day3: DayPlan = {
       title: "PRIMARY KEYS are easy",
       youtubeId: "620DzFVz41o",
       length: "5:25",
-      practice:
-        "Type along in your own Workbench, in a sandbox database. (The video's table uses a DECIMAL column — fine in real Workbench; just know the mini servers on this page only speak INT, VARCHAR and DATE.) After the video: insert two rows with the SAME id into your practice table and read Error 1062 out loud, twice. That message is the sound of a promise being kept.",
+      practice: {
+        intro:
+          "Type along in your own Workbench, in a sandbox database. Then, after the video:",
+        steps: [
+          "Insert two rows with the SAME id into your practice table.",
+          "Read Error 1062 out loud, twice — that message is the sound of a promise being kept.",
+        ],
+        note: "The video's table uses a DECIMAL column — fine in real Workbench; just know the mini servers on this page only speak INT, VARCHAR and DATE.",
+      },
     },
   ],
   activities: [
@@ -509,6 +516,14 @@ export const day3: DayPlan = {
       },
     ],
   },
-  practice:
-    "Exit ticket — type three things into the turn-in box below: (1) the two promises of a PRIMARY KEY and who enforces them, in your own words; (2) the strangest moment of today's cleanup-then-lock sequence and why it happened; (3) one question you still have. Paste today's SQL. One thorn remains: you're still choosing id numbers BY HAND — you gave Paolo 4 and Ana 5 yourself. Tomorrow the server takes over the counting, and you never type an id again.",
+  practice: {
+    intro: "Exit ticket — type these into the turn-in box below:",
+    steps: [
+      "The two promises of a PRIMARY KEY and who enforces them, in your own words.",
+      "The strangest moment of today's cleanup-then-lock sequence and why it happened.",
+      "One question you still have.",
+      "Paste today's SQL.",
+    ],
+    note: "One thorn remains: you're still choosing id numbers BY HAND — you gave Paolo 4 and Ana 5 yourself. Tomorrow the server takes over the counting, and you never type an id again.",
+  },
 };

@@ -423,6 +423,13 @@ export const day5: DayPlan = {
       },
     ],
   },
-  practice:
-    "Last three things. (1) Paste your complete week2.sql into the turn-in box below — every UPDATE, DELETE, ALTER and INSERT, with the comment above each. (2) Work through the self-check further down the page, answering each out loud before revealing the answer. (3) Send the two-minute reflection — it's how you get a plan back for next week. Done early? The SQLBolt lessons in the reading track cover this exact week in the browser — the best extra reps there are.",
+  practice: {
+    intro: "Last three things.",
+    steps: [
+      "Paste your complete week2.sql into the turn-in box below — every UPDATE, DELETE, ALTER and INSERT, with the comment above each.",
+      "Work through the self-check further down the page, answering each out loud before revealing the answer.",
+      "Send the two-minute reflection — it's how you get a plan back for next week.",
+    ],
+    note: "Done early? The SQLBolt lessons in the reading track cover this exact week in the browser — the best extra reps there are.",
+  },
 };
