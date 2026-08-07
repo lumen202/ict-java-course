@@ -41,7 +41,7 @@ tokens and increase the odds of drifting on stale details.
 - **Course content is data, not pages.** Adding a week must never mean writing JSX.
 - **Student-facing copy never mentions grading** (in either direction) **or the teacher's
   attendance.** See [`codebase-map/ui-and-copy.md`](codebase-map/ui-and-copy.md).
-- **The service-role key has exactly one caller** (invites). Everything else runs as the
-  logged-in user.
+- **The service-role key never leaves `lib/supabase/admin.ts`** (invites, registration's
+  create-user path, roster name fixes). Everything else runs as the logged-in user.
 - **Next.js 16**: read `node_modules/next/dist/docs/` before writing app-router code. `middleware`
   is now `proxy`; `params`/`searchParams` are Promises.

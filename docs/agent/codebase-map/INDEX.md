@@ -15,7 +15,7 @@ Table of contents only. Open just the row you need.
 | Layout, theming, and the copy rules | [`ui-and-copy.md`](ui-and-copy.md) | current |
 | Deployment + environment | covered in [`overview.md`](overview.md) and root `README.md` | current |
 | Rate limiting / abuse controls | `rate-limiting.md` | not yet built |
-| Week 2+ content | `course-content.md` covers how; content itself unwritten | not yet built |
+| Week 3+ content | `course-content.md` covers how; weeks 1–2 are written, week 3 is not | not yet built |
 
 When a "not yet built" row is implemented, replace the status with `current` and fill in the
 file — don't leave stub files for systems that don't exist yet.

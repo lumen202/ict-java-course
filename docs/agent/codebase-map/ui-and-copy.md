@@ -46,14 +46,16 @@ add per-page action buttons that duplicate a sidebar link.
 
 Tailwind v4 utility classes inline, **plus a small design system in `globals.css`**
 (`@layer components`): `.card`, `.card-accent`, `.btn-primary`, `.btn-ghost`, `.input`, `.chip`,
-`.section-label`. Repeated shapes must use these classes — that's what lets the whole site change
-look in one file. Emerald is the accent (gradients `emerald-500→teal-600` for brand tiles and
+`.section-label`, plus the game animation utilities (`.anim-hit`, `.anim-loom`, `.anim-float`
+and their `@keyframes`). Repeated shapes must use these classes — that's what lets the whole
+site change look in one file. Emerald is the accent (gradients `emerald-500→teal-600` for brand tiles and
 primary buttons), zinc the neutral, and every colour outside the dark sidebar carries a `dark:`
 variant. The body has fixed radial emerald/teal glows behind everything; `globals.css` also sets
 the light/dark vars, smooth scrolling and the emerald selection colour.
 
-Main containers are wide so collapsing the sidebar visibly frees space: teacher pages
-`max-w-7xl`, dashboards/lists `max-w-5xl`, the lesson page `max-w-4xl` (reading width).
+Main containers are wide so collapsing the sidebar visibly frees space: the teacher dashboard
+`max-w-7xl`, the student dashboard and `/lessons` `max-w-6xl`, the week page body `max-w-5xl`
+(its not-yet-released stub `max-w-4xl`).
 
 ⚠️ `globals.css` originally hard-coded `font-family: Arial` from the scaffold, silently
 overriding the Geist fonts the layout loads. It now points at `var(--font-geist-sans)`. Don't
@@ -63,10 +65,10 @@ reintroduce a literal font stack there.
 
 `app/page.tsx` is a thin switch on role → `StudentDashboard` or `TeacherDashboard`.
 
-- **Student**: one **Today** card (the released day's focus), then `components/UnitOutline.tsx` —
-  four quiet rows, one per unit, marking where the class is. It deliberately does **not** list
-  locked weeks: a wall of 🔒 rows is noise that invites skimming ahead. Then earlier weeks, then
-  "how a day works".
+- **Student**: one **Today** card (the released day's focus, linking to `?day=N`), then
+  "Earlier weeks" — filtered by `isWeekOpen()`, never content `status` alone (BUG-006). Nothing
+  else: the unit outline and "how a week works" blocks were removed as noise, and locked weeks
+  are never listed — a wall of 🔒 rows invites skimming ahead.
 - **Teacher**: stat cards, a "Class is on …" card linking to the release control, the newest
   reflections, and `components/CurriculumList.tsx` (the full unit/week breakdown, which is still
   useful when reviewing).
@@ -84,8 +86,9 @@ it is already in the class.
    person", "self-paced because…". The site should read as the normal way the course runs.
 
 Before shipping student-facing text:
-`grep -rniE "grade|not a grade|in person|i'm there" src/` — `grade_level` (a SQL column in week 1's
-content) is the only expected hit.
+`grep -rniE "grade|not a grade|in person|i'm there" src/` — the only expected hits are
+`grade_level` (a SQL column in week 1's content) and two "degrade" substring matches in code
+comments/copy.
 
 Other copy conventions: second person, plain language, encouraging about being stuck, and error
 messages that say what to do next rather than surfacing raw error strings.

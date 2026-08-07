@@ -30,8 +30,15 @@ RLS: any signed-in user may `SELECT`; only teachers may `UPDATE`.
 `currentLesson(state)` resolves the state into `{ week, day, dayNumber }` for
 the dashboards. `isWeekOpen()` is the boolean form.
 
-**Teachers bypass all of this** — `week/[slug]/page.tsx` passes the full day
-count when `role === "teacher"`, so a week can be reviewed before it's opened.
+**Teachers bypass all of this** — `week/[slug]/page.tsx` and `/lessons` both
+pass the full day count when `role === "teacher"`, so a week can be reviewed
+before it's opened (the sidebar bypasses differently: teachers get a fixed nav
+list, never `studentNav()`).
+
+Release gating decides which **days** are visible. Which **steps inside a day**
+are unlocked is a separate mechanism — `components/LessonFlow.tsx` unlocks
+steps from the student's own turn-ins (teachers ungated); see
+[`week-experience.md`](week-experience.md).
 
 ## Surfaces
 
@@ -73,6 +80,15 @@ count when `role === "teacher"`, so a week can be reviewed before it's opened.
   meaning nothing released. `currentLesson()` returns null for it; a naive
   `day - 1` would silently resolve to day 1 and re-expose the lesson you just
   took back.
+- A **missing** `course_state` row is not "nothing released":
+  `getCourseState()` falls back to `weeks[0]` day **1** (and coerces a null
+  `current_day` to 1). Day 0 only exists as an explicit row value — and at 0
+  the release list has no current row, so the "Take back" affordance
+  disappears until a day is released again.
+- **Releasing a day of an earlier week moves the whole class back.** Every
+  non-current week's rows render a Release button, and `releaseDay` overwrites
+  `current_week_slug` along with `current_day`. That's the "roll back to a past
+  week" path, but it's easy to hit by accident from a collapsed list.
 - Releasing is `revalidatePath("/", "layout")`, so every student's dashboard and
   week page pick it up on their next navigation. Nothing is pushed live.
 - If `weeks[]` is reordered, "earlier/later" changes meaning. Append new weeks;

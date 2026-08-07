@@ -45,12 +45,15 @@ Breaking any of these is never "just a style choice":
   adding material must never mean writing JSX.
 - **RLS is the security boundary**, not the app's redirects. Change a policy and its app-side
   guard together.
-- **`/login` is the only public route**; everything else requires a session, and the teacher area
-  requires `role === 'teacher'`.
-- **No self-serve signup** — accounts exist only by teacher invite, and `teacher` is granted only
-  by hand in SQL.
-- **The service-role key has exactly one caller** (`lib/supabase/admin.ts`, invites only, behind
-  `requireTeacher()`). Everything else runs as the logged-in user.
+- **Public routes are `/login`, `/register`, and `/auth/confirm`**; everything else requires a
+  session, and the teacher area requires `role === 'teacher'`.
+- **No open signup** — an account can only be created for an email on the teacher's class list
+  (self-registration at `/register` or emailed invite; the `handle_new_user()` trigger is the
+  gate), and `teacher` is granted only by hand in SQL.
+- **The service-role key never leaves `lib/supabase/admin.ts`** and is never used to read course
+  data. Its three callers: invite sending and `updateStudentName` (behind `requireTeacher()`),
+  and `register()`'s create-user path (trigger-gated). Everything else runs as the logged-in
+  user.
 - **Student-facing copy never mentions grading** (in either direction — it genuinely is ungraded,
   but that stays a teacher-side fact) **or the teacher's attendance.**
 - **Next.js 16**: read `node_modules/next/dist/docs/` before writing app-router code. `middleware`

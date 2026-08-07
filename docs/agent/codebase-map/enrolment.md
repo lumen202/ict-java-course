@@ -25,6 +25,10 @@ Supabase auth API directly, so the open `/register` page is safe.
 One exemption: if no teacher exists yet, the first account is allowed through
 (bootstrap). After that, everyone needs to be on the list.
 
+`addStudent` also stores the optional first/last name on the class-list row;
+`handle_new_user()` falls back to those when the signup itself carries no name,
+so an invited student's roster name survives even a bare registration.
+
 ## Files
 
 | Path | Role |
@@ -32,11 +36,12 @@ One exemption: if no teacher exists yet, the first account is allowed through
 | `app/register/` | public self-registration — `page.tsx`, `RegisterForm.tsx`, `actions.ts` |
 | `app/teacher/students/page.tsx` | class list + accounts tables |
 | `app/teacher/AddStudentForm.tsx` | add an email, optionally email an invite |
-| `app/teacher/RemoveStudentButton.tsx` | offered only for people who haven't registered |
-| `app/teacher/actions.ts` | `addStudent`, `removeStudent` |
-| `app/auth/confirm/route.ts` | verifies emailed tokens → `/welcome` |
+| `app/teacher/RemoveStudentButton.tsx` | offered only for people without an account |
+| `app/teacher/EditableName.tsx` | inline name editing on the roster → `updateStudentName` |
+| `app/teacher/actions.ts` | enrolment actions `addStudent`, `removeStudent`, `updateStudentName` (the file also holds the non-enrolment actions `releaseDay`, `undoRelease`, `deleteSubmission`, `resetStudentDay`) |
+| `app/auth/confirm/` | a **page** (+ `HashSession.tsx`) verifying emailed tokens → `/welcome` |
 | `app/welcome/` | invited user sets password + name, stamps `onboarded_at` |
-| `lib/supabase/admin.ts` | service-role client, **only** for `inviteUserByEmail` |
+| `lib/supabase/admin.ts` | service-role client — `inviteUserByEmail`, `register()`'s `createUser`, and `updateStudentName`'s profile/auth writes |
 
 ## The register link carries the email
 
@@ -79,8 +84,10 @@ Project Settings → Auth → SMTP.
 ## Removing someone
 
 `removeStudent` only deletes the class-list row — it does **not** disable an
-account that already exists, which is why the Remove button is hidden once
-`registered_at` is set. Delete real accounts in the Supabase dashboard.
+account that already exists, which is why the Remove button is hidden once the
+row has an account (a `registered_at` stamp *or* a matching `profiles` email —
+the stamp alone can lag for accounts created before the current trigger).
+Delete real accounts in the Supabase dashboard.
 
 ## Invite links: three shapes, all handled
 
