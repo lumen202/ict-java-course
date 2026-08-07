@@ -15,7 +15,7 @@ weeks/
 index.ts               weeks[] · roadmap[] · getWeek(slug)
 ```
 
-**One file per day, not per week.** A finished day runs 450–670 lines, so a
+**One file per day, not per week.** A finished day runs ~430–670 lines, so a
 five-day week in one file was ~3,000 lines and every edit meant scrolling past
 four irrelevant days. Each `dayN.ts` exports `const dayN: DayPlan`, and the
 week's `index.ts` imports them and lists them in `days: [...]` — array order is
@@ -65,7 +65,8 @@ about the split.
     - `kind: "sql-console"` (`components/SqlConsole.tsx`) — **the in-page mini DB Fiddle**: a
       tiny real MySQL engine (`lib/minisql.ts`, unit-tested by hand-run smoke tests) executes
       the weeks 1–2 command set — CREATE/DROP/SHOW DATABASES, USE, CREATE/DROP TABLE,
-      DESCRIBE, INSERT (with or without a column list), SELECT + WHERE/AND/OR/NOT/ORDER BY,
+      SHOW TABLES, DESCRIBE (and its `DESC` alias), INSERT (with or without a column list),
+      SELECT + WHERE/AND/OR/NOT/ORDER BY,
       ALTER TABLE (ADD COLUMN · ADD [CONSTRAINT] PRIMARY KEY · AUTO_INCREMENT = n), UPDATE,
       DELETE, PRIMARY KEY / AUTO_INCREMENT, SET SQL_SAFE_UPDATES — with genuine MySQL error
       codes/wording. Tasks carry a canonical `solution` and are judged **by effect** (state +
@@ -90,8 +91,10 @@ about the split.
       for structured Q&A.
 
     **All eight kinds share one shell contract** (`components/GameModal.tsx`): the timeline
-    shows a compact `GameDoor` card (tone + emoji + pitch + one button) and play happens in
-    the full-screen `GameModal` (`GameModalHeader`/`GameModalBody`). Closing the modal
+    shows a compact door card and play happens in the full-screen `GameModal`. Seven kinds
+    use the shared `GameDoor`/`GameModalHeader`/`GameModalBody`; `boss-battle` hand-rolls its
+    violet door card and its own pinned arena header, but honors the same contract. Closing
+    the modal
     (✕/Escape) always means **pause, never reset** — state (including typed quest/sheet
     inputs and the console's server) is kept, the door card shows a "paused at…" status and
     offers Continue — which is why **nothing student-facing ever asks "are you sure?"**, and
@@ -122,7 +125,7 @@ flip. The rule of thumb: **match the format to what the video actually taught.**
 
 | What the video taught | Use | Why |
 |---|---|---|
-| A concept the student has no words for yet (rows, filtering, sorting) | `row-hunt` as `warmupGame`, *before* the video | They do the thing by hand first, then meet its name. Every week-1 day opens this way. |
+| A concept the student has no words for yet (rows, filtering, sorting) | `row-hunt` as `warmupGame`, *before* the video | They do the thing by hand first, then meet its name. Days 1–4 of both weeks open this way; each Day 5 warms up with a `typing` recap instead. |
 | Commands to actually run — the tightest video companion there is | `sql-console` | The in-page mini DB Fiddle runs their SQL for real, checked by effect not spelling. **First choice** whenever the video taught runnable commands. |
 | Errors and failure modes | `sql-console` with error-`solution` tasks | Run the broken command, see the REAL error message, matched by error code. Replaced week 1's multiple-choice "break it" quests. |
 | The tool's own UI (panels, buttons, where things live) | `workbench-sim` | Click the mock window's real places; wrong clicks teach too. Rehearses Workbench before the install — and covers the DB Fiddle-fallback student. |
@@ -140,10 +143,11 @@ student's own `school` database lives only in their real Workbench, so the day's
 (their table, their rows, their twist) still happens in a quest against the real tool. Rehearse
 in-page, then do it for real.
 
-**The pre-boss real lab (teacher's hard rule).** The LAST item in `activities[]`, immediately
-before the day's boss battle, is always a `quest` with id `real-lab` done on the student's own
-computer — real Workbench (or DB Fiddle) plus their growing `weekN.sql` file — so every day
-ends with a tangible artifact that exists off this site, not just in-page play. The in-page
+**The pre-boss real lab (teacher's hard rule).** On days 1–4, the LAST item in `activities[]`,
+immediately before the day's boss battle, is a `quest` with id `real-lab` done on the student's
+own computer — real Workbench (or DB Fiddle) plus their growing `weekN.sql` file — so the day
+ends with a tangible artifact that exists off this site, not just in-page play. (Each Day 5 is
+the exception: a wrap-up day whose activities end with the `self-audit` checklist instead.) The in-page
 games rehearse; the lab produces the real output; the boss then quizzes a day the student has
 actually done twice. Week 2 keeps the shape and lets it pay off: its Day 3 lab makes the
 student lock their real table, which is what finally makes Workbench's safe-update mode accept
@@ -166,7 +170,8 @@ Two structural constraints when planning a day:
   closing, turn-in) is the shape that fills a 5-hour session. Week 1 Day 1 and Day 2 are the
   reference.
 
-A running artifact ties the week together: the cheat-sheet quest recurs every day and grows, and
+A running artifact ties the week together: the cheat-sheet quest recurs on days 1–4 and grows
+(Day 5 has none — the wrap-up day assembles the file instead), and
 each day's turn-in ends with the same three-part exit ticket (in your own words / what surprised
 you or broke / one open question). The `.sql` file is per-week (`week1.sql`, `week2.sql`) and
 each one continues the last: week 2's file opens with `USE school;` rather than
@@ -177,7 +182,8 @@ on files.
 **Ids repeat across weeks, and that's fine.** Turn-ins are keyed by
 (`week_slug`, `day_number`, `item`), so week 2 reuses `warmup`, `real-lab`, `cheat-sheet`,
 `answer-sheet` and `self-audit` without colliding with week 1's. Ids must stay unique *within a
-day*, and must never change once students have submitted.
+day*, must match `/^[a-z0-9-]{1,40}$/` (the submissions API silently records anything else
+under `"day"`), and must never change once students have submitted.
 
 ## Adding a week
 
@@ -188,15 +194,21 @@ day*, and must never change once students have submitted.
 4. If the week teaches SQL the console can't run yet, **extend `lib/minisql.ts` first** and
    re-run a smoke test — content that a console can't execute is content that can't be shipped.
 
-Nothing else changes: the dashboard lists it, `/week/<slug>` renders it, the teacher's Lessons
-page gains its release row, and `releasedDayCount()` keeps it closed to students until the
-teacher releases a day of it (`lib/release.ts` compares week positions in `weeks[]`).
+Nothing else changes: `/week/<slug>` renders it, the teacher's Lessons page gains its release
+row, and `releasedDayCount()` keeps it closed to students until the teacher releases a day of
+it (`lib/release.ts` compares week positions in `weeks[]`). Students see nothing of it —
+including its dashboard listing — until that first release (BUG-006: every student-facing week
+list filters through `isWeekOpen`, never content `status` alone).
 
 **Validate every console task before shipping.** Run each `sql-console` game's `solution`
 sequence through the engine in order (a scratch `tsx` script that mirrors `SqlConsole.execute`:
 run on a clone, commit on success, keep prior state on error) and check the reported output
 against the story the `explain` text tells. A 1064 means the engine can't parse the solution;
 any other error code should be one the task deliberately teaches.
+
+⚠️ Tooling gotcha: `lib/minisql.ts` contains a literal NUL byte, so `grep`/`rg` treat the file
+as binary and skip it unless given `-a` / `--text`. Don't conclude a symbol "isn't there"
+because a search over that file came back empty.
 
 ## Content rules
 
@@ -227,10 +239,11 @@ The unit's video track is Bro Code's **"MySQL tutorial for beginners"** playlist
   commands change data, so the hours go into careful practice, not watching. Days 2 and 5 have
   `videos: []`.
 
-Remaining videos, roughly mapped for future weeks: constraints (#9–12) and FOREIGN KEYS (#15) for
-week 3; joins (#16), functions (#17), wildcards (#19), LIMIT (#21), UNIONS (#22), SELF JOINS (#23)
-and GROUP BY (#27) thereafter. Views/indexes/subqueries/procedures/triggers (#24–26, #30–31) are
-later-unit material.
+Remaining videos, roughly mapped for future weeks: joins (#16) for week 3 (the shipped
+`roadmap[]` in `content/index.ts` is the authority — currently "Week 3 — Joins", "Week 4 —
+JDBC"), with constraints (#9–12), FOREIGN KEYS (#15), functions (#17), wildcards (#19), LIMIT
+(#21), UNIONS (#22), SELF JOINS (#23) and GROUP BY (#27) folded in where they fit.
+Views/indexes/subqueries/procedures/triggers (#24–26, #30–31) are later-unit material.
 
 Note when authoring from these videos: the PRIMARY KEY video's example table uses a `DECIMAL`
 column. Real Workbench is fine with it; the mini console only knows INT / VARCHAR(n) / DATE, so
