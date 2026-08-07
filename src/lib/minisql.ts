@@ -1,17 +1,27 @@
-// A tiny in-memory MySQL, just big enough for week-1 SQL: CREATE/DROP/SHOW
-// DATABASES, USE, SHOW TABLES, CREATE/DROP TABLE, DESCRIBE, INSERT, SELECT
-// (WHERE with AND/OR/NOT and comparisons, ORDER BY multi-column ASC/DESC),
-// ALTER TABLE ADD COLUMN, UPDATE with Workbench's safe-update mode, and
-// SET SQL_SAFE_UPDATES. Errors mimic real MySQL codes and wording, because
-// learning to read those messages is part of the curriculum.
+// A tiny in-memory MySQL, just big enough for the course's SQL. Week 1:
+// CREATE/DROP/SHOW DATABASES, USE, SHOW TABLES, CREATE/DROP TABLE, DESCRIBE,
+// INSERT, SELECT (WHERE with AND/OR/NOT and comparisons, ORDER BY
+// multi-column ASC/DESC), ALTER TABLE ADD COLUMN, UPDATE with Workbench's
+// safe-update mode, and SET SQL_SAFE_UPDATES. Week 2: DELETE FROM (also
+// behind safe-update mode), PRIMARY KEY and AUTO_INCREMENT (column-level or
+// table-level in CREATE TABLE, via ALTER TABLE ADD [CONSTRAINT] PRIMARY KEY,
+// and ALTER TABLE t AUTO_INCREMENT = n), and INSERT with a column list
+// (`INSERT INTO t (a, b) VALUES …`). Errors mimic real MySQL codes and
+// wording, because learning to read those messages is part of the curriculum.
 //
 // Used by `components/SqlConsole.tsx` (the in-page mini DB Fiddle). Pure and
 // dependency-free: state in, effects out. Values are stored as strings
 // (or null for SQL NULL); column types validate on the way in, like MySQL
 // in strict mode.
 
-export type MiniColumn = { name: string; type: string };
-export type MiniTable = { name: string; columns: MiniColumn[]; rows: (string | null)[][] };
+export type MiniColumn = { name: string; type: string; pk?: boolean; autoInc?: boolean };
+export type MiniTable = {
+  name: string;
+  columns: MiniColumn[];
+  rows: (string | null)[][];
+  /** Next AUTO_INCREMENT value. Present only when a column has autoInc. */
+  autoIncNext?: number;
+};
 export type MiniDb = { name: string; tables: MiniTable[] };
 export type MiniState = {
   databases: MiniDb[];
@@ -214,18 +224,33 @@ function parseUnary(c: Cursor): Expr {
 // ------------------------------------------------------------- state utils
 
 export function createState(setup?: {
-  databases?: { name: string; tables?: { name: string; columns: { name: string; type: string }[]; rows: string[][] }[] }[];
+  databases?: {
+    name: string;
+    tables?: {
+      name: string;
+      columns: { name: string; type: string; pk?: boolean; autoInc?: boolean }[];
+      rows: (string | null)[][];
+    }[];
+  }[];
   use?: string;
   safeUpdates?: boolean;
 }): MiniState {
   return {
     databases: (setup?.databases ?? []).map((d) => ({
       name: d.name,
-      tables: (d.tables ?? []).map((t) => ({
-        name: t.name,
-        columns: t.columns.map((col) => ({ ...col })),
-        rows: t.rows.map((r) => [...r] as (string | null)[]),
-      })),
+      tables: (d.tables ?? []).map((t) => {
+        const table: MiniTable = {
+          name: t.name,
+          columns: t.columns.map((col) => ({ ...col })),
+          rows: t.rows.map((r) => [...r] as (string | null)[]),
+        };
+        const ai = table.columns.findIndex((col) => col.autoInc);
+        if (ai !== -1) {
+          const max = Math.max(0, ...table.rows.map((r) => Number(r[ai] ?? 0)));
+          table.autoIncNext = max + 1;
+        }
+        return table;
+      }),
     })),
     current: setup?.use ?? null,
     safeUpdates: setup?.safeUpdates ?? true,
@@ -240,6 +265,7 @@ export function cloneState(s: MiniState): MiniState {
         name: t.name,
         columns: t.columns.map((col) => ({ ...col })),
         rows: t.rows.map((r) => [...r]),
+        ...(t.autoIncNext !== undefined ? { autoIncNext: t.autoIncNext } : {}),
       })),
     })),
     current: s.current,
@@ -256,8 +282,14 @@ function normalizeState(s: MiniState): string {
         .sort((a, b) => a.name.localeCompare(b.name))
         .map((t) => ({
           name: t.name.toLowerCase(),
-          columns: t.columns.map((col) => ({ name: col.name.toLowerCase(), type: col.type.toUpperCase() })),
+          columns: t.columns.map((col) => ({
+            name: col.name.toLowerCase(),
+            type: col.type.toUpperCase(),
+            pk: col.pk ?? false,
+            autoInc: col.autoInc ?? false,
+          })),
           rows: t.rows,
+          autoIncNext: t.autoIncNext ?? null,
         })),
     }));
   return JSON.stringify({ dbs, current: s.current?.toLowerCase() ?? null, safe: s.safeUpdates });
@@ -349,6 +381,22 @@ function coerce(col: MiniColumn, val: { t: "str" | "num" | "word"; v: string }, 
   return val.v;
 }
 
+/** Index of the PRIMARY KEY column, or -1. */
+function pkIndex(t: MiniTable): number {
+  return t.columns.findIndex((col) => col.pk);
+}
+
+/** Enforce the PRIMARY KEY rules for one candidate value against a set of rows. */
+function checkPkValue(t: MiniTable, pi: number, value: string | null, against: (string | null)[][]) {
+  const col = t.columns[pi];
+  if (value === null) {
+    throw new MiniSqlError(1048, `Error 1048: Column '${col.name}' cannot be null`);
+  }
+  if (against.some((r) => r[pi] !== null && r[pi] === value)) {
+    throw new MiniSqlError(1062, `Error 1062: Duplicate entry '${value}' for key '${t.name}.PRIMARY'`);
+  }
+}
+
 function parseColumnType(c: Cursor): string {
   const base = c.ident().toUpperCase();
   if (base === "INT") return "INT";
@@ -422,7 +470,7 @@ export function runStatement(state: MiniState, sql: string): StatementOk {
   const head = first.v.toUpperCase();
 
   // Misspelled keywords get the real-MySQL treatment: syntax error near it.
-  const KNOWN = ["CREATE", "DROP", "SHOW", "USE", "DESCRIBE", "DESC", "INSERT", "SELECT", "ALTER", "UPDATE", "SET"];
+  const KNOWN = ["CREATE", "DROP", "SHOW", "USE", "DESCRIBE", "DESC", "INSERT", "SELECT", "ALTER", "UPDATE", "DELETE", "SET"];
   if (!KNOWN.includes(head)) c.fail(first);
   c.next();
 
@@ -448,17 +496,60 @@ export function runStatement(state: MiniState, sql: string): StatementOk {
         }
         c.expectPunc("(");
         const columns: MiniColumn[] = [];
+        let tablePk: string | null = null;
         for (;;) {
-          const colName = c.ident();
-          const type = parseColumnType(c);
-          columns.push({ name: colName, type });
+          if (c.atWord("PRIMARY")) {
+            // Table-level constraint: PRIMARY KEY (col)
+            c.next();
+            c.expectWord("KEY");
+            c.expectPunc("(");
+            tablePk = c.ident();
+            c.expectPunc(")");
+          } else {
+            const colName = c.ident();
+            const type = parseColumnType(c);
+            const col: MiniColumn = { name: colName, type };
+            for (;;) {
+              if (c.takeWord("PRIMARY")) {
+                c.expectWord("KEY");
+                col.pk = true;
+                continue;
+              }
+              if (c.takeWord("AUTO_INCREMENT")) {
+                col.autoInc = true;
+                continue;
+              }
+              break;
+            }
+            columns.push(col);
+          }
           const t = c.next();
           if (!t || t.t !== "punc") throw synErr(t);
           if (t.v === ")") break;
           if (t.v !== ",") throw synErr(t);
         }
         end(c);
-        db.tables.push({ name, columns, rows: [] });
+        if (tablePk !== null) {
+          const col = columns.find((x) => x.name.toLowerCase() === tablePk!.toLowerCase());
+          if (!col) throw new MiniSqlError(1072, `Error 1072: Key column '${tablePk}' doesn't exist in table`);
+          col.pk = true;
+        }
+        if (columns.filter((x) => x.pk).length > 1) {
+          throw new MiniSqlError(1068, "Error 1068: Multiple primary key defined");
+        }
+        const autoCol = columns.find((x) => x.autoInc);
+        if (autoCol && !autoCol.pk) {
+          throw new MiniSqlError(
+            1075,
+            "Error 1075: Incorrect table definition; there can be only one auto column and it must be defined as a key",
+          );
+        }
+        if (autoCol && !isIntType(autoCol.type)) {
+          throw new MiniSqlError(1063, `Error 1063: Incorrect column specifier for column '${autoCol.name}'`);
+        }
+        const table: MiniTable = { name, columns, rows: [] };
+        if (autoCol) table.autoIncNext = 1;
+        db.tables.push(table);
         return { message: "Query OK, 0 rows affected" };
       }
       c.fail();
@@ -536,7 +627,14 @@ export function runStatement(state: MiniState, sql: string): StatementOk {
         message: `${t.columns.length} row(s) returned`,
         result: {
           columns: ["Field", "Type", "Null", "Key", "Default", "Extra"],
-          rows: t.columns.map((col) => [col.name, col.type.toLowerCase(), "YES", "", null, ""]),
+          rows: t.columns.map((col) => [
+            col.name,
+            col.type.toLowerCase(),
+            col.pk ? "NO" : "YES",
+            col.pk ? "PRI" : "",
+            null,
+            col.autoInc ? "auto_increment" : "",
+          ]),
           ordered: true,
         },
       };
@@ -546,7 +644,24 @@ export function runStatement(state: MiniState, sql: string): StatementOk {
       c.expectWord("INTO");
       const name = c.ident();
       const t = findTable(state, name);
+      // Optional column list: INSERT INTO t (a, b) VALUES …
+      let target: number[] | null = null;
+      if (c.peek()?.t === "punc" && c.peek()?.v === "(") {
+        c.next();
+        target = [];
+        for (;;) {
+          const colName = c.ident();
+          const i = t.columns.findIndex((col) => col.name.toLowerCase() === colName.toLowerCase());
+          if (i === -1) throw new MiniSqlError(1054, `Error 1054: Unknown column '${colName}' in 'field list'`);
+          target.push(i);
+          const p = c.next();
+          if (!p || p.t !== "punc") throw synErr(p);
+          if (p.v === ")") break;
+          if (p.v !== ",") throw synErr(p);
+        }
+      }
       c.expectWord("VALUES");
+      const pi = pkIndex(t);
       const newRows: (string | null)[][] = [];
       for (;;) {
         c.expectPunc("(");
@@ -561,10 +676,35 @@ export function runStatement(state: MiniState, sql: string): StatementOk {
           if (p.v !== ",") throw synErr(p);
         }
         const rowNum = newRows.length + 1;
-        if (vals.length !== t.columns.length) {
+        const expected = target ? target.length : t.columns.length;
+        if (vals.length !== expected) {
           throw new MiniSqlError(1136, `Error 1136: Column count doesn't match value count at row ${rowNum}`);
         }
-        newRows.push(vals.map((v, i) => coerce(t.columns[i], v, rowNum)));
+        // Build the full row: listed columns get their value, the rest get
+        // NULL — or the next AUTO_INCREMENT value for the auto column.
+        const row: (string | null)[] = new Array(t.columns.length).fill(null);
+        const provided: boolean[] = new Array(t.columns.length).fill(false);
+        (target ?? t.columns.map((_, i) => i)).forEach((ci, vi) => {
+          row[ci] = coerce(t.columns[ci], vals[vi], rowNum);
+          provided[ci] = true;
+        });
+        for (let ci = 0; ci < t.columns.length; ci++) {
+          const col = t.columns[ci];
+          if (col.autoInc && (row[ci] === null || !provided[ci])) {
+            row[ci] = String(t.autoIncNext ?? 1);
+            t.autoIncNext = (t.autoIncNext ?? 1) + 1;
+          } else if (col.pk && !provided[ci]) {
+            throw new MiniSqlError(1364, `Error 1364: Field '${col.name}' doesn't have a default value`);
+          }
+        }
+        if (pi !== -1) {
+          checkPkValue(t, pi, row[pi], [...t.rows, ...newRows]);
+          if (t.columns[pi].autoInc) {
+            const v = Number(row[pi]);
+            if (v >= (t.autoIncNext ?? 1)) t.autoIncNext = v + 1;
+          }
+        }
+        newRows.push(row);
         const p = c.peek();
         if (p?.t === "punc" && p.v === ",") {
           c.next();
@@ -658,7 +798,53 @@ export function runStatement(state: MiniState, sql: string): StatementOk {
       c.expectWord("TABLE");
       const name = c.ident();
       const t = findTable(state, name);
+      // ALTER TABLE t AUTO_INCREMENT = n — moves the counter (never backwards
+      // past existing data, like InnoDB).
+      if (c.takeWord("AUTO_INCREMENT")) {
+        const eq = c.next();
+        if (!eq || eq.t !== "op" || eq.v !== "=") c.fail(eq);
+        const v = c.next();
+        if (!v || v.t !== "num" || !/^\d+$/.test(v.v)) c.fail(v);
+        end(c);
+        const ai = t.columns.findIndex((col) => col.autoInc);
+        if (ai !== -1) {
+          const max = Math.max(0, ...t.rows.map((r) => Number(r[ai] ?? 0)));
+          t.autoIncNext = Math.max(Number((v as Tok).v), max + 1);
+        }
+        return { message: "Query OK, 0 rows affected" };
+      }
       c.expectWord("ADD");
+      // ALTER TABLE t ADD [CONSTRAINT] PRIMARY KEY (col)
+      if (c.atWord("CONSTRAINT", "PRIMARY")) {
+        c.takeWord("CONSTRAINT");
+        c.expectWord("PRIMARY");
+        c.expectWord("KEY");
+        c.expectPunc("(");
+        const keyCol = c.ident();
+        c.expectPunc(")");
+        end(c);
+        if (pkIndex(t) !== -1) {
+          throw new MiniSqlError(1068, "Error 1068: Multiple primary key defined");
+        }
+        const i = t.columns.findIndex((col) => col.name.toLowerCase() === keyCol.toLowerCase());
+        if (i === -1) throw new MiniSqlError(1072, `Error 1072: Key column '${keyCol}' doesn't exist in table`);
+        // Duplicates are reported before NULLs so a cleanup proceeds one
+        // problem at a time — the Day 3 lab leans on this order.
+        const seen = new Set<string>();
+        for (const r of t.rows) {
+          const v = r[i];
+          if (v === null) continue;
+          if (seen.has(v)) {
+            throw new MiniSqlError(1062, `Error 1062: Duplicate entry '${v}' for key '${t.name}.PRIMARY'`);
+          }
+          seen.add(v);
+        }
+        if (t.rows.some((r) => r[i] === null)) {
+          throw new MiniSqlError(1138, "Error 1138: Invalid use of NULL value");
+        }
+        t.columns[i].pk = true;
+        return { message: `Query OK, ${t.rows.length} row(s) affected` };
+      }
       c.takeWord("COLUMN");
       const colName = c.ident();
       const type = parseColumnType(c);
@@ -703,13 +889,45 @@ export function runStatement(state: MiniState, sql: string): StatementOk {
       }
       // Coerce once up front so a bad value can't leave a half-updated table.
       const coerced = sets.map((s) => ({ i: s.i, v: coerce(t.columns[s.i], s.val, 1) }));
-      let affected = 0;
-      for (const r of t.rows) {
-        if (where && !evalExpr(where, t, r)) continue;
-        for (const s of coerced) r[s.i] = s.v;
-        affected++;
+      const matching = t.rows.filter((r) => (where ? evalExpr(where, t, r) : true));
+      // PRIMARY KEY rules checked before anything changes, so an error can't
+      // half-update the table.
+      const pi = pkIndex(t);
+      const pkSet = pi === -1 ? undefined : coerced.find((s) => s.i === pi);
+      if (pkSet) {
+        if (pkSet.v === null) {
+          throw new MiniSqlError(1048, `Error 1048: Column '${t.columns[pi].name}' cannot be null`);
+        }
+        // Every matching row would get the same value, so 2+ matches always
+        // collide; one match collides only with a different row holding it.
+        if (matching.length > 1 || t.rows.some((r) => !matching.includes(r) && r[pi] === pkSet.v)) {
+          throw new MiniSqlError(1062, `Error 1062: Duplicate entry '${pkSet.v}' for key '${t.name}.PRIMARY'`);
+        }
       }
-      return { message: `Query OK, ${affected} row(s) affected` };
+      for (const r of matching) {
+        for (const s of coerced) r[s.i] = s.v;
+      }
+      return { message: `Query OK, ${matching.length} row(s) affected` };
+    }
+
+    case "DELETE": {
+      c.expectWord("FROM");
+      const name = c.ident();
+      const t = findTable(state, name);
+      let where: Expr | undefined;
+      if (c.takeWord("WHERE")) where = parseExpr(c);
+      end(c);
+      if (!where && state.safeUpdates) {
+        throw new MiniSqlError(
+          1175,
+          "Error 1175: You are using safe update mode and you tried to update a table without a WHERE that uses a KEY column. To disable safe mode: SET SQL_SAFE_UPDATES = 0;",
+        );
+      }
+      const before = t.rows.length;
+      t.rows = t.rows.filter((r) => (where ? !evalExpr(where, t, r) : false));
+      // Note: the AUTO_INCREMENT counter deliberately does NOT reset — the
+      // "ghost of deleted rows" is a week-2 teaching point.
+      return { message: `Query OK, ${before - t.rows.length} row(s) affected` };
     }
 
     case "SET": {

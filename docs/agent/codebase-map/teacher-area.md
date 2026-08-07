@@ -44,10 +44,12 @@ trigger also falls back to class-list names now, and `schema.sql` carries a one-
 for accounts created before that — so an email showing here means neither the profile nor
 the class list knows the name.
 
-**`/teacher/lessons`** — `app/teacher/lessons/page.tsx`: releases the day the class is on. Week
-titles and day rows **link into `/week/<slug>?day=N`** so the teacher can review the lesson
-itself before releasing it (the week page shows teachers all days regardless of release). See
-[`lesson-release.md`](lesson-release.md).
+**`/teacher/lessons`** — `app/teacher/lessons/page.tsx` (a thin server wrapper) +
+`components/LessonReleaseList.tsx`: releases the day the class is on. Weeks are collapsible
+cards with a filter box, a jump-to-week menu and expand/collapse-all, because the list grows by
+five rows a week. Week links and day rows **link into `/week/<slug>?day=N`** so the teacher can
+review the lesson itself before releasing it (the week page shows teachers all days regardless
+of release). See [`lesson-release.md`](lesson-release.md).
 
 Navigation is the sidebar only — the old `TeacherTabs` strip and the dashboard's duplicate
 "Add a student" / "All reflections" buttons were removed once the sidebar carried those links.

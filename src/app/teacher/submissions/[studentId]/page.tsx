@@ -84,6 +84,7 @@ export default async function StudentSubmissionsPage({
           <input type="hidden" name="day" value={dayNumber} />
           <ConfirmButton
             className="btn-ghost text-sm"
+            confirmLabel="Yes, hand it back"
             message={`Hand back all of Day ${dayNumber} to ${name}?\n\nEvery turn-in for this day is deleted and they redo the whole day. This can't be undone.`}
           >
             ↩ Hand back the whole day

@@ -233,16 +233,24 @@ export type ConsoleTask = {
 /** A table pre-existing in the console's starting state. */
 export type ConsoleTableSetup = {
   name: string;
-  /** type: "INT" | "VARCHAR(n)" | "DATE" — same syntax the student types. */
-  columns: { name: string; type: string }[];
-  rows: string[][];
+  /**
+   * type: "INT" | "VARCHAR(n)" | "DATE" — same syntax the student types.
+   * `pk` marks the PRIMARY KEY column; `autoInc` additionally makes it
+   * AUTO_INCREMENT (allowed on the pk column only — the engine's counter
+   * starts just past the largest seeded value).
+   */
+  columns: { name: string; type: string; pk?: boolean; autoInc?: boolean }[];
+  /** null seeds a SQL NULL — used to stage "add the key, hit 1138" labs. */
+  rows: (string | null)[][];
 };
 
 /**
  * An in-page mini DB Fiddle: a tiny MySQL engine (`lib/minisql.ts`) runs
  * whatever the student types — CREATE/DROP/SHOW DATABASE, USE, CREATE/DROP
- * TABLE, DESCRIBE, INSERT, SELECT with WHERE/AND/OR/NOT/ORDER BY, ALTER TABLE
- * ADD COLUMN, UPDATE (with Workbench's safe-update mode emulated) — and
+ * TABLE, DESCRIBE, INSERT (with or without a column list), SELECT with
+ * WHERE/AND/OR/NOT/ORDER BY, ALTER TABLE (ADD COLUMN, ADD PRIMARY KEY,
+ * AUTO_INCREMENT = n), UPDATE and DELETE (both behind Workbench's emulated
+ * safe-update mode), PRIMARY KEY / AUTO_INCREMENT — and
  * answers with a result grid or a real MySQL-style error (unknown column,
  * syntax error near X, column count mismatch…). Tasks are checked by
  * comparing effects against `solution`, so every correct spelling wins and

@@ -35,15 +35,28 @@ count when `role === "teacher"`, so a week can be reviewed before it's opened.
 
 ## Surfaces
 
-- **`/teacher/lessons`** — the control. Shows what the class is on, a week + day
-  selector (`ReleaseControls`, a client component so the day list re-renders on
-  week change), and every day of every published week with its focus line, so
-  the teacher can see what they're about to release.
-  - **Releasing is reversible.** "↩ Take back a day" (`undoRelease`) decrements
+- **`/teacher/lessons`** — the control. A banner says what the class is on, then
+  `components/LessonReleaseList.tsx` lists every published week as a collapsible
+  card, each day showing its focus line and video count so the teacher can see
+  what they're about to release. Every day carries its own button; the separate
+  week+day picker that used to sit above the list (`ReleaseControls`) was
+  removed as redundant, since the list already names every day.
+  - **Built to stay usable as the course grows.** Five days per week means a
+    flat list becomes a long scroll by the end of a unit, so: weeks collapse
+    (only the week the class is on starts open), a filter box matches days by
+    focus text or label, and a jump menu scrolls to any week. Filtering
+    force-expands the weeks that matched — a hit hidden inside a collapsed card
+    would defeat the search.
+  - It is a Client Component **only** for that interaction. The release controls
+    are still plain `<form action={releaseDay}>` Server Actions imported from
+    `app/teacher/actions.ts` (a dedicated `"use server"` file, which is what
+    makes importing them into a client component legal), so releasing works
+    before and without hydration.
+  - **Releasing is reversible.** "↩ Take back" (`undoRelease`) decrements
     `current_day`, floored at 0; students lose that day on their next
     navigation, and submitted reflections are never touched. Opening the wrong
-    day shouldn't need a database edit to undo. The day selector can also jump
-    backwards directly — same effect, one step.
+    day shouldn't need a database edit to undo. Any earlier day's "Roll back to
+    here" jumps straight there — same effect, one step.
 - **Student dashboard** — a single "Today" card with the day's focus, linking
   straight to `?day=N`. Nothing else: the unit outline and "how a week works"
   blocks were removed as noise.

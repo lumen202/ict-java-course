@@ -1,8 +1,9 @@
 import type { Week } from "./types";
 import { unit1Week1 } from "./weeks/unit1-week1";
+import { unit1Week2 } from "./weeks/unit1-week2";
 
 // Order here = display order on the home page.
-export const weeks: Week[] = [unit1Week1];
+export const weeks: Week[] = [unit1Week1, unit1Week2];
 
 // Roadmap shown on the home page for weeks that don't exist yet.
 // When a week is built, remove its entry here and add the real Week above.
@@ -10,7 +11,6 @@ export const roadmap: { unit: string; items: string[] }[] = [
   {
     unit: "Unit 1 · Databases & SQL",
     items: [
-      "Week 2 — UPDATE, DELETE, and primary keys",
       "Week 3 — Joins: connecting tables together",
       "Week 4 — JDBC: talking to MySQL from Java",
     ],
