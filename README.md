@@ -29,14 +29,20 @@ practiced through in-browser games that run real SQL.**
 
 ## 🧪 Try it without an account
 
-Press **Explore the demo** on the sign-in page. You get a private classroom of
-your own — released lessons, playable SQL games, and one click to switch to the
-teacher side and release a day or read the turned-in work. Nothing you do there
-touches the real class, and it's deleted when you leave (24 hours at the
-outside).
+Go to **`/demo`**. You get a private classroom of your own — released lessons,
+playable SQL games, and one click to switch to the teacher side and release a
+day or read the turned-in work. Nothing you do there touches the real class, and
+it's deleted when you leave (24 hours at the outside).
 
-Locally it needs `SUPABASE_SERVICE_ROLE_KEY` set; without it the button doesn't
-appear. Set `DEMO_MODE=off` to hide it on the real classroom deployment.
+The route is **linked from nowhere in the app** — the class signs in at `/login`
+and is never offered a sandbox they could mistake for their own course. The URL
+is the handout.
+
+| Setting | Effect |
+|---|---|
+| `SUPABASE_SERVICE_ROLE_KEY` | required — creating the throwaway accounts is an auth-admin call. Without it `/demo` 404s |
+| `DEMO_KEY=<string>` | locks the route to `/demo?key=<string>`; anything else 404s. Use this on the real classroom deployment |
+| `DEMO_MODE=off` | disables the demo entirely |
 
 ## ✨ What it does
 

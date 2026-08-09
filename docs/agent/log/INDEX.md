@@ -7,6 +7,7 @@ HANDOFF file).
 
 | Date | Title | File |
 |---|---|---|
+| 2026-08-10 | Loading feedback (skeletons, pending buttons, link hints); demo moved to the unlisted `/demo`; BUG-007 | [`2026-08-10-loading-feedback-unlisted-demo-and-bug-007.md`](2026-08-10-loading-feedback-unlisted-demo-and-bug-007.md) |
 | 2026-08-10 | Demo mode — public "try it" classroom, throwaway accounts, teacher policies rescoped by cohort | [`2026-08-10-demo-mode-cohort-isolation.md`](2026-08-10-demo-mode-cohort-isolation.md) |
 | 2026-08-07 | Full docs audit — codebase map re-synced to code, stale invariants updated, README rewritten (portfolio-facing; fixed wrong signup setup step) | [`2026-08-07-docs-audit-sync-and-readme-refresh.md`](2026-08-07-docs-audit-sync-and-readme-refresh.md) |
 | 2026-08-07 | Dashboard no longer previews unreleased weeks (BUG-006); practice instructions restructured as numbered steps | [`2026-08-07-dashboard-release-leak-and-practice-block-restyle.md`](2026-08-07-dashboard-release-leak-and-practice-block-restyle.md) |

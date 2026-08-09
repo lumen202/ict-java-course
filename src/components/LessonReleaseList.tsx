@@ -3,6 +3,7 @@
 import { useEffect, useId, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { releaseDay, undoRelease } from "@/app/teacher/actions";
+import { PendingButton } from "@/components/PendingButton";
 
 // The teacher's release list. The course gains a week at a time and every week
 // is five days, so by the end of a unit a flat list is a long scroll to reach
@@ -348,17 +349,17 @@ export default function LessonReleaseList({ weeks }: { weeks: ReleaseWeek[] }) {
 
                         {isCurrent ? (
                           <form action={undoRelease} className="shrink-0">
-                            <button
-                              type="submit"
+                            <PendingButton
+                              pendingLabel="Taking back…"
                               title={
                                 w.currentDay > 1
                                   ? `Roll back to Day ${w.currentDay - 1}`
                                   : "Close the week — students see nothing"
                               }
-                              className="rounded-md border border-amber-400 dark:border-amber-700 px-2.5 py-1 text-xs font-medium hover:bg-amber-50 dark:hover:bg-amber-950/40"
+                              className="rounded-md border border-amber-400 dark:border-amber-700 px-2.5 py-1 text-xs font-medium hover:bg-amber-50 dark:hover:bg-amber-950/40 disabled:opacity-60"
                             >
                               ↩ Take back
-                            </button>
+                            </PendingButton>
                           </form>
                         ) : (
                           <form action={releaseDay} className="shrink-0">
@@ -368,16 +369,16 @@ export default function LessonReleaseList({ weeks }: { weeks: ReleaseWeek[] }) {
                               value={w.slug}
                             />
                             <input type="hidden" name="day" value={dayNumber} />
-                            <button
-                              type="submit"
-                              className={`rounded-lg px-2.5 py-1 text-xs font-semibold transition-all ${
+                            <PendingButton
+                              pendingLabel={isOpen ? "Rolling back…" : "Releasing…"}
+                              className={`rounded-lg px-2.5 py-1 text-xs font-semibold transition-all disabled:opacity-60 ${
                                 isOpen
                                   ? "border border-zinc-300 dark:border-zinc-700 hover:bg-zinc-100 dark:hover:bg-zinc-800"
                                   : "bg-linear-to-b from-emerald-500 to-emerald-600 text-white shadow-[0_2px_8px_-2px_rgb(16_185_129/0.6)] hover:from-emerald-400 hover:to-emerald-500"
                               }`}
                             >
                               {isOpen ? "Roll back to here" : "Release"}
-                            </button>
+                            </PendingButton>
                           </form>
                         )}
                       </li>

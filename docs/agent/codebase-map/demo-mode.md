@@ -1,10 +1,20 @@
-# Demo Mode — the public "try it" classroom
+# Demo Mode — the unlisted "try it" classroom
 
-Anyone can press **Explore the demo** on `/login` and land inside a working
-classroom without being on the class list. It exists so the project can be shown
-to people who will never have an account — and it is the one place the app
-creates accounts for strangers, so the isolation is worth understanding before
-touching anything here.
+`/demo` drops anyone into a working classroom without being on the class list.
+It exists so the project can be shown to people who will never have an account —
+and it is the one place the app creates accounts for strangers, so the isolation
+is worth understanding before touching anything here.
+
+**The route is linked from nowhere.** `/login` deliberately has no demo button:
+the class must not be offered a sandbox they could mistake for their own course,
+or a way to lose their session mid-lesson. The URL is the handout — a CV, a
+portfolio page, a reply to someone who asked to see the project. The page is
+`noindex`, and it 404s (rather than explaining itself) when the demo is off or
+the key is wrong. If someone already signed in for real reaches it, they get a
+"this would sign you out" card instead of the button.
+
+`DEMO_KEY` is the second lock: set it and the only way in is `/demo?key=<value>`.
+Use it on the deployment the class actually uses.
 
 ## The shape: one visitor = one cohort
 
@@ -62,7 +72,8 @@ Three consequences worth remembering:
 |---|---|
 | `lib/demo.ts` | cohort/email helpers, the seeded cast and work samples, `seedCohort`, `sweepExpiredCohorts`, `destroyCohort` |
 | `app/demo/actions.ts` | `startDemo`, `switchDemoRole`, `exitDemo` — the only callers of the admin client for demo accounts |
-| `app/login/DemoButton.tsx` | the button + pending state (building a cohort takes a few seconds) |
+| `app/demo/page.tsx` | the unlisted landing page: key check, `noindex`, already-signed-in guard |
+| `app/demo/StartDemoForm.tsx` | the button + pending state (building a cohort takes a few seconds) |
 | `components/DemoBanner.tsx` | the persistent banner: which role you are, switch, exit |
 | `lib/auth.ts` | `CurrentUser.demoCohort`, `currentDemoCohort()`; `getCurrentUser` is now `cache()`d |
 | `lib/release.ts` | `getCourseState()` reads `demo_course_state` for a demo session |
@@ -93,9 +104,9 @@ cohort.
 
 ## Turning it off
 
-`demoEnabled()` requires `SUPABASE_SERVICE_ROLE_KEY` and `DEMO_MODE !== "off"`.
-Without the key the button doesn't render at all. Set `DEMO_MODE=off` on an
-instance that has the key but is the real classroom.
+`demoEnabled()` requires `SUPABASE_SERVICE_ROLE_KEY` and `DEMO_MODE !== "off"`;
+`demoKeyAccepted()` additionally checks `?key=` against `DEMO_KEY` when that's
+set. Either failing makes `/demo` a 404. `DEMO_MODE=off` disables it outright.
 
 ## Gotchas
 

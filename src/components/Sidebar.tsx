@@ -1,9 +1,11 @@
 "use client";
 
 import Link from "next/link";
+import { useLinkStatus } from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
 import { useMemo, useState, useSyncExternalStore } from "react";
 import { signOut } from "@/app/login/actions";
+import { PendingButton } from "@/components/PendingButton";
 
 // App shell navigation. Client-side only because it needs the current path for
 // active state and a toggle for the mobile drawer — the *contents* are decided
@@ -122,6 +124,29 @@ function activeHref(pathname: string, items: NavItem[]): string | null {
   return best;
 }
 
+/**
+ * A dot that appears on the link you just clicked while its page is still
+ * coming. Must be rendered *inside* a <Link> — that's how useLinkStatus finds
+ * which navigation to report on.
+ *
+ * Every route here is server-rendered on demand, so a click can outlast the
+ * frame it happens in; the route-level loading.tsx skeletons answer the click
+ * in the content column, and this answers it in the rail. The `.link-hint`
+ * class (globals.css) reserves the space always and only fades the dot in
+ * after 150ms, so a fast navigation shows nothing rather than a flicker.
+ */
+function LinkHint() {
+  const { pending } = useLinkStatus();
+  return (
+    <span
+      aria-hidden="true"
+      className={`link-hint h-1.5 w-1.5 shrink-0 rounded-full bg-emerald-400 ${
+        pending ? "is-pending" : ""
+      }`}
+    />
+  );
+}
+
 function NavLinks({ items, onNavigate }: { items: NavItem[]; onNavigate?: () => void }) {
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -175,6 +200,7 @@ function NavLinks({ items, onNavigate }: { items: NavItem[]; onNavigate?: () => 
                 >
                   {item.label}
                 </span>
+                <LinkHint />
               </Link>
 
               {hasChildren && (
@@ -245,6 +271,7 @@ function NavLinks({ items, onNavigate }: { items: NavItem[]; onNavigate?: () => 
                             Today
                           </span>
                         )}
+                        <LinkHint />
                       </Link>
                     </li>
                   );
@@ -337,12 +364,12 @@ function UserBlock({ name, role }: { name: string; role: string }) {
         </span>
       </div>
       <form action={signOut} className="mt-3">
-        <button
-          type="submit"
-          className="w-full rounded-lg border border-white/10 bg-white/5 px-3 py-1.5 text-xs font-medium text-zinc-300 transition-colors hover:bg-white/10 hover:text-white"
+        <PendingButton
+          pendingLabel="Signing out…"
+          className="w-full rounded-lg border border-white/10 bg-white/5 px-3 py-1.5 text-xs font-medium text-zinc-300 transition-colors hover:bg-white/10 hover:text-white disabled:opacity-60"
         >
           Sign out
-        </button>
+        </PendingButton>
       </form>
     </div>
   );

@@ -36,6 +36,21 @@ export function demoEnabled(): boolean {
   return Boolean(process.env.SUPABASE_SERVICE_ROLE_KEY) && process.env.DEMO_MODE !== "off";
 }
 
+/**
+ * Whether this request may see `/demo` at all.
+ *
+ * The route is unlinked from everywhere students go, which is most of the
+ * protection — nobody in the class is handed a path to it. `DEMO_KEY` adds a
+ * second lock for the deployment the class actually uses: set it, and the only
+ * way in is `/demo?key=<value>`, which is what goes on a CV or a portfolio
+ * page. Unset, `/demo` is open to anyone who knows the path.
+ */
+export function demoKeyAccepted(key: string | undefined): boolean {
+  const expected = process.env.DEMO_KEY;
+  if (!expected) return true;
+  return key === expected;
+}
+
 export type DemoSlot = "teacher" | "student" | "peer1" | "peer2" | "peer3";
 
 export function demoEmail(cohort: string, slot: DemoSlot): string {

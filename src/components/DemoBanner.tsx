@@ -1,5 +1,6 @@
 import { switchDemoRole, exitDemo } from "@/app/demo/actions";
 import { DEMO_TTL_HOURS } from "@/lib/demo";
+import { PendingButton } from "@/components/PendingButton";
 
 // Shown on every page of a demo session. Two jobs: make it unmistakable that
 // this is a sandbox (so nobody mistakes the seeded classmates for real
@@ -23,21 +24,24 @@ export function DemoBanner({ role }: { role: "student" | "teacher" }) {
       </span>
 
       <span className="ml-auto flex items-center gap-2">
+        {/* Switching signs you into the other account and redirects — a full
+            server round-trip, so it must announce itself or the click reads as
+            a no-op. */}
         <form action={switchDemoRole}>
-          <button
-            type="submit"
-            className="rounded-lg border border-emerald-400/40 bg-emerald-500/15 px-3 py-1 font-semibold text-emerald-100 transition-colors hover:bg-emerald-500/30"
+          <PendingButton
+            pendingLabel={`Switching to ${other}…`}
+            className="rounded-lg border border-emerald-400/40 bg-emerald-500/15 px-3 py-1 font-semibold text-emerald-100 transition-colors hover:bg-emerald-500/30 disabled:opacity-70"
           >
             {other === "teacher" ? "👩‍🏫 Switch to teacher view" : "🎓 Switch to student view"}
-          </button>
+          </PendingButton>
         </form>
         <form action={exitDemo}>
-          <button
-            type="submit"
-            className="rounded-lg border border-white/15 px-3 py-1 text-emerald-200/80 transition-colors hover:bg-white/10 hover:text-white"
+          <PendingButton
+            pendingLabel="Deleting…"
+            className="rounded-lg border border-white/15 px-3 py-1 text-emerald-200/80 transition-colors hover:bg-white/10 hover:text-white disabled:opacity-70"
           >
             Exit
-          </button>
+          </PendingButton>
         </form>
       </span>
     </div>

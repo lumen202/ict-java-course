@@ -45,8 +45,9 @@ Breaking any of these is never "just a style choice":
   adding material must never mean writing JSX.
 - **RLS is the security boundary**, not the app's redirects. Change a policy and its app-side
   guard together.
-- **Public routes are `/login`, `/register`, and `/auth/confirm`**; everything else requires a
-  session, and the teacher area requires `role === 'teacher'`.
+- **Public routes are `/login`, `/register`, `/auth/confirm`, and `/demo`**; everything else
+  requires a session, and the teacher area requires `role === 'teacher'`. `/demo` is public but
+  **must stay unlinked from anywhere students go** — never add a demo entry point to `/login`.
 - **No open signup** — an account can only be created for an email on the teacher's class list
   (self-registration at `/register` or emailed invite; the `handle_new_user()` trigger is the
   gate), and `teacher` is granted only by hand in SQL.

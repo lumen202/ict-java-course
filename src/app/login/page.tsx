@@ -1,9 +1,7 @@
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { getCurrentUser } from "@/lib/auth";
-import { demoEnabled } from "@/lib/demo";
 import { LoginForm } from "./LoginForm";
-import { DemoButton } from "./DemoButton";
 
 export const metadata: Metadata = { title: "Sign in" };
 
@@ -95,7 +93,9 @@ export default async function LoginPage({ searchParams }: PageProps<"/login">) {
             Give your teacher your email address, then create your account here
             once they&apos;ve added you to the class list.
           </p>
-          {demoEnabled() && <DemoButton />}
+          {/* No demo entry point here on purpose — the class must not be
+              offered a sandbox they could mistake for their own course. The
+              demo lives at the unlinked /demo (see app/demo/page.tsx). */}
         </div>
       </section>
     </main>

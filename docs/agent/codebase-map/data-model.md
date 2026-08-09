@@ -19,7 +19,7 @@ immediately), invited people appear on the teacher's roster before they've accep
 | `first_name` / `middle_name` / `last_name` | middle optional |
 | `full_name` | **derived** by the `sync_full_name()` trigger — never write it directly. `handle_new_user()` fills the parts from signup metadata, falling back to the class list's name; `schema.sql` also backfills older empty profiles from the class list |
 | `role` | `user_role` enum: `student` (default) or `teacher` |
-| `onboarded_at` | null = invited but hasn't set a password yet |
+| `onboarded_at` | "can sign in" — stamped by `handle_new_user()` whenever the new auth user has a password (self-registration, the demo), and by `/welcome` when an invited person chooses one. Null therefore means **invited but never accepted**. It used to be written only by `/welcome`, which made every self-registered student look pending forever (BUG-007) |
 
 **`reflections`** — `id`, `created_at`, `user_id` (FK → auth.users), `week_slug`, `student_name`
 (name snapshot at submit time), `hardest_part`, `want_explained` (nullable), `confidence`

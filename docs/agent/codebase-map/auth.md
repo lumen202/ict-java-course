@@ -45,7 +45,7 @@ Supabase Auth, email + password only — no OAuth, no magic links. Account creat
 | Route | Requirement |
 |---|---|
 | `/login`, `/register` | public |
-| `startDemo` (server action, from `/login`) | public — creates a throwaway account and signs you in; `switchDemoRole` / `exitDemo` act only on the cohort in the httpOnly `jch-demo` cookie |
+| `/demo` | public but **unlinked** — 404s unless the demo is enabled and `?key=` matches `DEMO_KEY` (when set). `startDemo` creates a throwaway account and signs you in; `switchDemoRole` / `exitDemo` act only on the cohort in the httpOnly `jch-demo` cookie |
 | `/auth/confirm` | public (validates a one-time token) |
 | `/welcome` | signed in (session comes from the invite link) |
 | `/`, `/week/[slug]`, `/lessons` | `requireUser()` |

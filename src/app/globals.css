@@ -84,6 +84,54 @@ body {
   .section-label {
     @apply text-xs font-semibold uppercase tracking-wider text-zinc-500;
   }
+
+  /* Placeholder block for loading.tsx skeletons. Sized by the caller; this
+     only supplies the surface and the shimmer. */
+  .skeleton {
+    @apply relative overflow-hidden rounded-lg bg-zinc-200/70 dark:bg-zinc-800/70;
+  }
+
+  .skeleton::after {
+    content: "";
+    @apply absolute inset-0 -translate-x-full bg-linear-to-r from-transparent via-white/60 to-transparent dark:via-white/10;
+    animation: skeleton-sweep 1.4s ease-in-out infinite;
+  }
+}
+
+@keyframes skeleton-sweep {
+  to { transform: translateX(100%); }
+}
+
+/* Nav link hint (Sidebar): reserves its space always, so appearing can't shift
+   the layout, and only fades in if the navigation actually takes a moment —
+   fast transitions show nothing at all. */
+@keyframes hint-fade-in {
+  to { opacity: 1; }
+}
+@keyframes hint-pulse {
+  50% { opacity: 0.3; }
+}
+.link-hint {
+  opacity: 0;
+  visibility: hidden;
+}
+.link-hint.is-pending {
+  visibility: visible;
+  animation-name: hint-fade-in, hint-pulse;
+  animation-duration: 200ms, 1s;
+  animation-delay: 150ms, 150ms;
+  animation-timing-function: ease, ease-in-out;
+  animation-iteration-count: 1, infinite;
+  animation-fill-mode: forwards, none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .skeleton::after { animation: none; }
+  .link-hint.is-pending {
+    animation: none;
+    opacity: 1;
+    visibility: visible;
+  }
 }
 
 /* Battle effects for the mini-games (BossBattle). Re-triggered by remounting

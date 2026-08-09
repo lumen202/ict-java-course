@@ -241,7 +241,16 @@ begin
   -- account is born into a demo cohort — or born a teacher. Both are safe
   -- because RLS forbids anyone but the service-role key from writing a non-null
   -- demo_cohort, and demo_role is ignored unless demo_cohort is set.
-  insert into public.profiles (id, email, first_name, middle_name, last_name, full_name, demo_cohort, role)
+  -- onboarded_at means "has a password" — i.e. this person can actually sign
+  -- in, as opposed to having been invited and never accepted. An account
+  -- created with a password (self-registration at /register, or the demo) is
+  -- onboarded the moment it exists; inviteUserByEmail creates a user with no
+  -- password, and /welcome stamps this when they choose one.
+  --
+  -- Without this, self-registration — the *primary* path — left onboarded_at
+  -- null forever, so the teacher dashboard counted every real student as an
+  -- unaccepted invite.
+  insert into public.profiles (id, email, first_name, middle_name, last_name, full_name, demo_cohort, role, onboarded_at)
   values (
     new.id,
     new.email,
@@ -259,7 +268,8 @@ begin
     coalesce(
       (select case when a.demo_cohort is not null then a.demo_role end
          from public.allowed_students a where lower(a.email) = lower(new.email)),
-      'student')
+      'student'),
+    case when coalesce(new.encrypted_password, '') <> '' then now() end
   )
   on conflict (id) do nothing;
 
@@ -295,6 +305,18 @@ from public.allowed_students a
 where lower(a.email) = lower(p.email)
   and coalesce(p.full_name, '') = ''
   and (coalesce(a.first_name, '') <> '' or coalesce(a.last_name, '') <> '');
+
+-- Backfill 3: every student who self-registered before the trigger stamped
+-- onboarded_at has it null, which made the teacher dashboard read them as
+-- "invite pending" forever. Having a password is the real signal, and it's the
+-- same test the trigger now makes. Idempotent — a stamped profile is untouched,
+-- and a genuinely-invited account (no password yet) stays null.
+update public.profiles p
+set onboarded_at = u.created_at
+from auth.users u
+where u.id = p.id
+  and p.onboarded_at is null
+  and coalesce(u.encrypted_password, '') <> '';
 
 -- ---------------------------------------------------------------------------
 -- course_state — what the class is working on right now
