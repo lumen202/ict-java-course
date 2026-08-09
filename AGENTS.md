@@ -51,9 +51,14 @@ Breaking any of these is never "just a style choice":
   (self-registration at `/register` or emailed invite; the `handle_new_user()` trigger is the
   gate), and `teacher` is granted only by hand in SQL.
 - **The service-role key never leaves `lib/supabase/admin.ts`** and is never used to read course
-  data. Its three callers: invite sending and `updateStudentName` (behind `requireTeacher()`),
-  and `register()`'s create-user path (trigger-gated). Everything else runs as the logged-in
-  user.
+  data. Its four callers: invite sending and `updateStudentName` (behind `requireTeacher()`),
+  `register()`'s create-user path (trigger-gated), and demo-account lifecycle. Everything else
+  runs as the logged-in user. Admin writes bypass RLS, so they bypass demo cohort scoping too —
+  each must check the cohort itself.
+- **Demo mode's isolation lives in the policies**, not in the app: every teacher-side policy is
+  `is_teacher() and same_cohort(...)`. Never simplify one back to a bare `is_teacher()`, and
+  never rewrite `same_cohort`'s `is not distinct from` as `=`. See
+  `docs/agent/codebase-map/demo-mode.md`.
 - **Student-facing copy never mentions grading** (in either direction — it genuinely is ungraded,
   but that stays a teacher-side fact) **or the teacher's attendance.**
 - **Next.js 16**: read `node_modules/next/dist/docs/` before writing app-router code. `middleware`

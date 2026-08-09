@@ -5,6 +5,7 @@ import { headers } from "next/headers";
 import { requireTeacher } from "@/lib/auth";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
+import { cohortFromEmail } from "@/lib/demo";
 import { getWeek } from "@/lib/content";
 
 export type ClassListState = {
@@ -22,19 +23,28 @@ export async function addStudent(
   _prev: ClassListState,
   formData: FormData,
 ): Promise<ClassListState> {
-  await requireTeacher("/teacher/students");
+  const teacher = await requireTeacher("/teacher/students");
 
   const email = String(formData.get("email") ?? "").trim().toLowerCase();
   const firstName = String(formData.get("firstName") ?? "").trim();
   const lastName = String(formData.get("lastName") ?? "").trim();
-  const sendEmail = formData.get("sendEmail") === "on";
+  // A demo teacher may add to their own throwaway class list, but must never
+  // send mail — that would put the project's SMTP behind an anonymous form.
+  const sendEmail = formData.get("sendEmail") === "on" && !teacher.demoCohort;
 
   if (!email.includes("@")) return { error: "Enter a valid email address." };
 
   const supabase = await createClient();
   const { error } = await supabase
     .from("allowed_students")
-    .insert({ email, first_name: firstName, last_name: lastName });
+    // The cohort has to be written explicitly: the class list's RLS check
+    // demands the row match the caller's own cohort.
+    .insert({
+      email,
+      first_name: firstName,
+      last_name: lastName,
+      demo_cohort: teacher.demoCohort,
+    });
 
   if (error) {
     if (error.code === "23505") return { error: `${email} is already on the class list.` };
@@ -48,6 +58,13 @@ export async function addStudent(
   // Carry the email in the link so the student doesn't retype the exact address
   // the class list is keyed on — mistyping it is the main way registration fails.
   const registerUrl = `${origin}/register?email=${encodeURIComponent(email)}`;
+
+  if (teacher.demoCohort) {
+    return {
+      notice: `${email} is on this demo's class list. (No invite email is sent from the demo.)`,
+      registerUrl,
+    };
+  }
 
   if (!sendEmail) {
     return { notice: `${email} is on the class list.`, registerUrl };
@@ -87,7 +104,7 @@ export async function addStudent(
 // button per row. Selecting an earlier day is a rollback; the dedicated undo
 // (below) is the same thing for the common "one step back" case.
 export async function releaseDay(formData: FormData) {
-  await requireTeacher("/teacher/lessons");
+  const teacher = await requireTeacher("/teacher/lessons");
 
   const weekSlug = String(formData.get("weekSlug") ?? "").trim();
   const day = Number(formData.get("day"));
@@ -97,51 +114,60 @@ export async function releaseDay(formData: FormData) {
   if (!Number.isInteger(day) || day < 1 || day > week.video.days.length) return;
 
   const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
 
+  const target = courseStateTarget(teacher);
   const { error } = await supabase
-    .from("course_state")
+    .from(target.table)
     .update({
       current_week_slug: weekSlug,
       current_day: day,
       updated_at: new Date().toISOString(),
-      updated_by: user?.id ?? null,
+      updated_by: teacher.id,
     })
-    .eq("id", true);
+    .eq(target.column, target.value);
 
   if (error) console.error("release failed:", error.message);
 
   revalidatePath("/", "layout");
 }
 
+/**
+ * Which row this teacher's release buttons drive: the singleton for the real
+ * class, their own cohort's row for a demo teacher. RLS enforces the same split
+ * (a demo teacher's UPDATE on course_state matches no row at all), so this is
+ * about writing the *right* row, not about permission.
+ */
+function courseStateTarget(teacher: { demoCohort: string | null }) {
+  return teacher.demoCohort
+    ? { table: "demo_course_state", column: "cohort", value: teacher.demoCohort as string | boolean }
+    : { table: "course_state", column: "id", value: true as string | boolean };
+}
+
 // Step the class back one day. Releasing is reversible on purpose: opening the
 // wrong day by mistake shouldn't need a database edit to fix. Walking it down
 // to 0 closes the week entirely, so students see "hasn't started yet" again.
 export async function undoRelease() {
-  await requireTeacher("/teacher/lessons");
+  const teacher = await requireTeacher("/teacher/lessons");
 
   const supabase = await createClient();
+  const target = courseStateTarget(teacher);
+
   const { data: state } = await supabase
-    .from("course_state")
+    .from(target.table)
     .select("current_day")
+    .eq(target.column, target.value)
     .single();
 
   const nextDay = Math.max(0, (state?.current_day ?? 1) - 1);
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
   const { error } = await supabase
-    .from("course_state")
+    .from(target.table)
     .update({
       current_day: nextDay,
       updated_at: new Date().toISOString(),
-      updated_by: user?.id ?? null,
+      updated_by: teacher.id,
     })
-    .eq("id", true);
+    .eq(target.column, target.value);
 
   if (error) console.error("undo release failed:", error.message);
 
@@ -153,12 +179,18 @@ export async function undoRelease() {
 // what the app actually shows. RLS lets a teacher read every profile but only
 // update their own, which is why the profile write needs the admin client.
 export async function updateStudentName(formData: FormData) {
-  await requireTeacher("/teacher/students");
+  const teacher = await requireTeacher("/teacher/students");
 
   const email = String(formData.get("email") ?? "").trim().toLowerCase();
   const firstName = String(formData.get("firstName") ?? "").trim().slice(0, 60);
   const lastName = String(formData.get("lastName") ?? "").trim().slice(0, 60);
   if (!email) return;
+
+  // The profile write below goes through the admin client, which bypasses RLS —
+  // so the cohort check that every other teacher action gets from a policy has
+  // to be made explicitly here. A demo teacher may only rename their own
+  // cohort's accounts, and the real teacher may not rename demo ones.
+  if (cohortFromEmail(email) !== teacher.demoCohort) return;
 
   const supabase = await createClient();
   await supabase

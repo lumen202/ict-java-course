@@ -27,6 +27,17 @@ practiced through in-browser games that run real SQL.**
 
 ---
 
+## 🧪 Try it without an account
+
+Press **Explore the demo** on the sign-in page. You get a private classroom of
+your own — released lessons, playable SQL games, and one click to switch to the
+teacher side and release a day or read the turned-in work. Nothing you do there
+touches the real class, and it's deleted when you leave (24 hours at the
+outside).
+
+Locally it needs `SUPABASE_SERVICE_ROLE_KEY` set; without it the button doesn't
+appear. Set `DEMO_MODE=off` to hide it on the real classroom deployment.
+
 ## ✨ What it does
 
 Students sign in and work through the course **one released day at a time** — videos with
@@ -46,6 +57,7 @@ and manages the roster. Every day is designed to fill a ~5-hour class session.
 | 📅 **Day-by-day release** | A single-row `course_state` table says which day the class is on. Students see released days only; inside a day, steps unlock one at a time as work is turned in. Teachers can hand work back — which re-locks that part of the day, even against the student's cached local progress. |
 | 📝 **Content is data, not pages** | A week is a `Week` object (one file per day) rendered by a single template. Adding a week of material involves **zero JSX**. |
 | 🔐 **RLS is the security boundary** | Not redirects. Enrolment is invite-only via a teacher-managed class list, enforced by a **database trigger** that aborts any signup for an unlisted email — so the public `/register` page is safe by construction. |
+| 🧪 **A demo that hands out its own classroom** | "Explore the demo" builds a **private cohort** — a demo teacher, your student account, three classmates with work already turned in — and lets you switch between the student and teacher views. Real and demo data can't see each other, and not because of a redirect: every teacher-side policy is `is_teacher() and same_cohort(...)`, so the isolation is a property of the database. It deletes itself when you leave. |
 
 > 🤖 **Working on this with an AI agent?** Point it at
 > [`docs/agent/INDEX.md`](docs/agent/INDEX.md) first — the entry point to the codebase map,

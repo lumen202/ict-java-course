@@ -1,4 +1,5 @@
 import { weeks, getWeek } from "@/lib/content";
+import { currentDemoCohort } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import type { Week } from "@/lib/content/types";
 
@@ -18,10 +19,19 @@ const FALLBACK: CourseState = {
 
 export async function getCourseState(): Promise<CourseState> {
   const supabase = await createClient();
-  const { data } = await supabase
-    .from("course_state")
-    .select("current_week_slug, current_day")
-    .single();
+
+  // Demo sessions run their own classroom: same shape, separate table, so a
+  // visitor pressing "Release day 4" moves their demo and nothing else. RLS
+  // scopes the row to their cohort, so the query needs no cohort filter — but
+  // it reads as one either way.
+  const cohort = await currentDemoCohort();
+  const { data } = cohort
+    ? await supabase
+        .from("demo_course_state")
+        .select("current_week_slug, current_day")
+        .eq("cohort", cohort)
+        .maybeSingle()
+    : await supabase.from("course_state").select("current_week_slug, current_day").single();
 
   if (!data) return FALLBACK;
   return {

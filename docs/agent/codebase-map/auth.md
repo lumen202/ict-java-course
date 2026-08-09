@@ -12,10 +12,14 @@ Supabase Auth, email + password only — no OAuth, no magic links. Account creat
 - `lib/supabase/server.ts` — cookie-bound server client for Server Components, Server Actions and
   Route Handlers. Queries run **as the logged-in user**, so RLS applies. Its `setAll` is wrapped
   in try/catch because server components can read cookies but not write them.
-- `lib/supabase/admin.ts` — service-role client, `server-only`. Three callers: invite sending,
-  `register()`'s create-user path, and `updateStudentName`. Never use it to *read* course data.
+- `lib/supabase/admin.ts` — service-role client, `server-only`. Four callers: invite sending,
+  `register()`'s create-user path, `updateStudentName`, and demo-account lifecycle
+  (`app/demo/actions.ts` — see [`demo-mode.md`](demo-mode.md)). Never use it to *read* course
+  data.
 - `lib/auth.ts` — the single place access is decided:
-  - `getCurrentUser()` → `{ id, email, fullName, role }` or null.
+  - `getCurrentUser()` → `{ id, email, fullName, role, demoCohort }` or null. Wrapped in React's
+    `cache()`, so the shell, the page and `getCourseState()` share one lookup per request.
+  - `currentDemoCohort()` → the demo classroom this request belongs to, or null.
   - `requireUser(returnTo)` → redirects to `/login?next=…` when signed out.
   - `requireTeacher(returnTo)` → also redirects non-teachers to `/`.
 - `src/proxy.ts` (repo root of `src/`) — refreshes auth cookies on every request. Named `proxy`
@@ -41,6 +45,7 @@ Supabase Auth, email + password only — no OAuth, no magic links. Account creat
 | Route | Requirement |
 |---|---|
 | `/login`, `/register` | public |
+| `startDemo` (server action, from `/login`) | public — creates a throwaway account and signs you in; `switchDemoRole` / `exitDemo` act only on the cohort in the httpOnly `jch-demo` cookie |
 | `/auth/confirm` | public (validates a one-time token) |
 | `/welcome` | signed in (session comes from the invite link) |
 | `/`, `/week/[slug]`, `/lessons` | `requireUser()` |

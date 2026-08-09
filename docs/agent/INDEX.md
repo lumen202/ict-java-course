@@ -12,7 +12,7 @@ tokens and increase the odds of drifting on stale details.
 | Need | Go to |
 |---|---|
 | Orient on the project / stack / folder layout / invariants | [`codebase-map/INDEX.md`](codebase-map/INDEX.md) → [`overview.md`](codebase-map/overview.md) |
-| Understand a specific subsystem (schema, auth, invites, content model, week page, teacher area, UI) | [`codebase-map/INDEX.md`](codebase-map/INDEX.md) — find the row, open only that file |
+| Understand a specific subsystem (schema, auth, invites, content model, week page, teacher area, demo mode, UI) | [`codebase-map/INDEX.md`](codebase-map/INDEX.md) — find the row, open only that file |
 | See what past sessions did and why, before starting new work | [`log/INDEX.md`](log/INDEX.md) — skim the table, open only relevant entries |
 | Check for known issues in an area before touching it | [`bugs/INDEX.md`](bugs/INDEX.md) |
 | Add a week of course material | [`codebase-map/course-content.md`](codebase-map/course-content.md) |
@@ -42,6 +42,9 @@ tokens and increase the odds of drifting on stale details.
 - **Student-facing copy never mentions grading** (in either direction) **or the teacher's
   attendance.** See [`codebase-map/ui-and-copy.md`](codebase-map/ui-and-copy.md).
 - **The service-role key never leaves `lib/supabase/admin.ts`** (invites, registration's
-  create-user path, roster name fixes). Everything else runs as the logged-in user.
+  create-user path, roster name fixes, demo-account lifecycle). Everything else runs as the
+  logged-in user — and because admin writes bypass RLS, they bypass the demo cohort scoping too,
+  so each one must check the cohort itself. See
+  [`codebase-map/demo-mode.md`](codebase-map/demo-mode.md).
 - **Next.js 16**: read `node_modules/next/dist/docs/` before writing app-router code. `middleware`
   is now `proxy`; `params`/`searchParams` are Promises.

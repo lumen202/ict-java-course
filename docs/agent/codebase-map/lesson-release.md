@@ -16,7 +16,13 @@ A single row in `course_state` (`id boolean primary key default true` with a
 | `current_day` | 1-based index into that week's `video.days`; **0 means nothing is released** |
 | `updated_at` / `updated_by` | audit trail |
 
-RLS: any signed-in user may `SELECT`; only teachers may `UPDATE`.
+RLS: any signed-in user may `SELECT`; only the **real** teacher may `UPDATE` (the policy also
+requires `my_cohort() is null`).
+
+A demo session reads and writes `demo_course_state` instead — same columns, one row per demo
+cohort — so a visitor releasing a day can't move the real class. `getCourseState()` picks the
+table, and `releaseDay`/`undoRelease` pick it via `courseStateTarget()`. See
+[`demo-mode.md`](demo-mode.md).
 
 ## Rules (`lib/release.ts`)
 

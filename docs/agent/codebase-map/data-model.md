@@ -41,7 +41,12 @@ RLS is on for **all five tables** (`profiles`, `allowed_students`, `course_state
 - Students may `INSERT` a reflection/submission only with `user_id = auth.uid()`, and `SELECT`
   only their own. Submissions add students-update-own (the upsert's conflict path) and
   teachers-delete (hand-back).
-- Teachers may `SELECT` everything, via `is_teacher()`.
+- Teachers may `SELECT` everything **in their own cohort**, via
+  `is_teacher() and same_cohort(...)`. For the real teacher that's everyone; demo mode is the
+  only thing that makes a second cohort exist — see [`demo-mode.md`](demo-mode.md). Never
+  simplify these back to a bare `is_teacher()`, and never rewrite `same_cohort`'s
+  `is not distinct from` as `=` (null = null would stop being true, and the real teacher would
+  lose sight of every real student).
 - `profiles`: read own, teachers read all, and **update own** — the update-own policy is what
   makes `/welcome` and self name-edits work; it's also why `updateStudentName` must route
   through the admin client to fix *someone else's* profile.
@@ -53,15 +58,22 @@ RLS is on for **all five tables** (`profiles`, `allowed_students`, `course_state
   isn't already a teacher — but exempts `auth.uid() is null` (SQL Editor / service-role), which
   is what lets the manual promotion below work (BUG-001). Promotion stays a deliberate manual
   step, not something a student can do to themselves.
-- The admin client bypasses RLS in exactly three places — invite sending, `register()`'s
-  create-user path, and `updateStudentName` — see [`enrolment.md`](enrolment.md) and
-  [`teacher-area.md`](teacher-area.md).
+- The admin client bypasses RLS in exactly four places — invite sending, `register()`'s
+  create-user path, `updateStudentName`, and demo-account lifecycle — see
+  [`enrolment.md`](enrolment.md), [`teacher-area.md`](teacher-area.md) and
+  [`demo-mode.md`](demo-mode.md). Because it bypasses RLS it also bypasses the cohort scoping
+  above, so any admin write must check the cohort itself (`updateStudentName` does).
 
 Two more tables carry the rest of the model: `allowed_students` (the class list — who may create
 an account: `email`, optional `first_name`/`last_name` that the signup trigger falls back to,
 `added_by`, `registered_at`; see [`enrolment.md`](enrolment.md)) and `course_state` (a single
 constrained-to-one row saying which week and day the class is on, see
 [`lesson-release.md`](lesson-release.md)).
+
+Demo mode adds one more, `demo_course_state` (one row per demo cohort), plus the
+`profiles.demo_cohort` / `allowed_students.demo_cohort` / `allowed_students.demo_role` columns
+and the `my_cohort()` and `same_cohort()` helpers. All of it is inert on a deployment with no
+demo accounts. See [`demo-mode.md`](demo-mode.md).
 
 ## Making someone a teacher
 

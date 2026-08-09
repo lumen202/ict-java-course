@@ -1,3 +1,4 @@
+import { cache } from "react";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 
@@ -8,14 +9,24 @@ export type CurrentUser = {
   email: string;
   fullName: string;
   role: Role;
+  /**
+   * Set only for throwaway demo accounts, and equal for everyone in the same
+   * demo classroom. Non-null means "this session is a demo" — the app uses it
+   * to pick the demo's own course state and to show the demo banner. It is not
+   * a permission: the isolation itself is in the RLS policies.
+   */
+  demoCohort: string | null;
 };
 
 /**
  * The logged-in user plus their profile, or null when signed out.
  * Always uses getUser() (which verifies the token with Supabase) rather than
  * getSession(), whose cookie contents are not trustworthy on the server.
+ *
+ * Wrapped in React's cache() so the several callers a single render has (the
+ * shell, the page, getCourseState) share one lookup per request.
  */
-export async function getCurrentUser(): Promise<CurrentUser | null> {
+export const getCurrentUser = cache(async function getCurrentUser(): Promise<CurrentUser | null> {
   const supabase = await createClient();
   const {
     data: { user },
@@ -24,7 +35,7 @@ export async function getCurrentUser(): Promise<CurrentUser | null> {
 
   const { data: profile } = await supabase
     .from("profiles")
-    .select("full_name, first_name, middle_name, last_name, role")
+    .select("full_name, first_name, middle_name, last_name, role, demo_cohort")
     .eq("id", user.id)
     .single();
 
@@ -37,7 +48,13 @@ export async function getCurrentUser(): Promise<CurrentUser | null> {
     fullName: displayName(profile, user.user_metadata, user.email),
     // No profile row yet (trigger lag on a brand-new signup) → treat as student.
     role: (profile?.role as Role) ?? "student",
+    demoCohort: (profile?.demo_cohort as string | null) ?? null,
   };
+});
+
+/** The demo classroom this request belongs to, or null for a real session. */
+export async function currentDemoCohort(): Promise<string | null> {
+  return (await getCurrentUser())?.demoCohort ?? null;
 }
 
 type NameParts = {

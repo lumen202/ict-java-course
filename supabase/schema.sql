@@ -37,6 +37,14 @@ alter table public.profiles add column if not exists last_name text not null def
 -- Set when the invited person has chosen a password and filled in their name.
 alter table public.profiles add column if not exists onboarded_at timestamptz;
 
+-- Demo mode. Null for every real account. A throwaway "try it" visitor gets a
+-- private cohort (one uuid) shared by their demo teacher and demo students, and
+-- every teacher-side policy below is scoped to it — so a demo teacher can never
+-- read a real student's work, and the real teacher never sees demo noise. See
+-- the demo section at the end of this file.
+alter table public.profiles add column if not exists demo_cohort uuid;
+create index if not exists profiles_demo_cohort_idx on public.profiles (demo_cohort);
+
 -- Keeps full_name in sync with the parts, so the rest of the app can just read
 -- full_name (it's what appears on reflections).
 create or replace function public.sync_full_name()
@@ -75,17 +83,48 @@ as $$
   );
 $$;
 
+-- Which demo cohort the caller belongs to (null = a real account). SECURITY
+-- DEFINER for the same reason as is_teacher(): a policy on profiles that reads
+-- profiles would recurse.
+create or replace function public.my_cohort()
+returns uuid
+language sql
+stable
+security definer
+set search_path = public
+as $$
+  select demo_cohort from public.profiles where id = auth.uid();
+$$;
+
+-- True when `target` sits in the caller's cohort. `is not distinct from` makes
+-- null = null true, so a real teacher (cohort null) matches real students and
+-- rows whose owner has no profile at all — while a demo teacher (cohort set)
+-- matches only their own cohort. This is the whole isolation guarantee.
+create or replace function public.same_cohort(target uuid)
+returns boolean
+language sql
+stable
+security definer
+set search_path = public
+as $$
+  select (select demo_cohort from public.profiles where id = target)
+         is not distinct from
+         (select demo_cohort from public.profiles where id = auth.uid());
+$$;
+
 drop policy if exists "read own profile" on public.profiles;
 create policy "read own profile"
   on public.profiles for select
   to authenticated
   using (id = auth.uid());
 
+-- "All" means all of the teacher's own cohort: everyone for the real teacher,
+-- only the throwaway accounts for a demo teacher.
 drop policy if exists "teachers read all profiles" on public.profiles;
 create policy "teachers read all profiles"
   on public.profiles for select
   to authenticated
-  using (public.is_teacher());
+  using (public.is_teacher() and public.same_cohort(id));
 
 -- Students may edit their own name, but NOT their role (enforced by the trigger).
 drop policy if exists "update own profile" on public.profiles;
@@ -139,17 +178,25 @@ create table if not exists public.allowed_students (
   registered_at timestamptz
 );
 
+-- Demo cohort's own class list. Set only by the demo bootstrap (which runs with
+-- the service-role key); the policy below makes it *impossible* for the real
+-- teacher to write a non-null cohort, so demo_role can never be a back door to
+-- the teacher role for a real account.
+alter table public.allowed_students add column if not exists demo_cohort uuid;
+alter table public.allowed_students add column if not exists demo_role public.user_role;
+
 alter table public.allowed_students enable row level security;
 
--- Only teachers can see or change the class list. Students never read it —
--- the signup check below runs SECURITY DEFINER instead, so an applicant can be
--- validated without the list being readable.
+-- Only teachers can see or change the class list — and only the part of it that
+-- belongs to their own cohort (null for the real class). Students never read it
+-- at all: the signup check below runs SECURITY DEFINER instead, so an applicant
+-- can be validated without the list being readable.
 drop policy if exists "teachers manage the class list" on public.allowed_students;
 create policy "teachers manage the class list"
   on public.allowed_students for all
   to authenticated
-  using (public.is_teacher())
-  with check (public.is_teacher());
+  using (public.is_teacher() and demo_cohort is not distinct from public.my_cohort())
+  with check (public.is_teacher() and demo_cohort is not distinct from public.my_cohort());
 
 create or replace function public.is_email_allowed(check_email text)
 returns boolean
@@ -189,7 +236,12 @@ begin
   -- Names: prefer what the person typed at registration; fall back to the
   -- class list's spelling (the teacher's own), so an account created without
   -- name metadata still gets a real name instead of showing as an email.
-  insert into public.profiles (id, email, first_name, middle_name, last_name, full_name)
+  --
+  -- demo_cohort/demo_role come from the class-list row and are the only way an
+  -- account is born into a demo cohort — or born a teacher. Both are safe
+  -- because RLS forbids anyone but the service-role key from writing a non-null
+  -- demo_cohort, and demo_role is ignored unless demo_cohort is set.
+  insert into public.profiles (id, email, first_name, middle_name, last_name, full_name, demo_cohort, role)
   values (
     new.id,
     new.email,
@@ -202,7 +254,12 @@ begin
       nullif(new.raw_user_meta_data ->> 'last_name', ''),
       (select a.last_name from public.allowed_students a where lower(a.email) = lower(new.email)),
       ''),
-    coalesce(new.raw_user_meta_data ->> 'full_name', '')
+    coalesce(new.raw_user_meta_data ->> 'full_name', ''),
+    (select a.demo_cohort from public.allowed_students a where lower(a.email) = lower(new.email)),
+    coalesce(
+      (select case when a.demo_cohort is not null then a.demo_role end
+         from public.allowed_students a where lower(a.email) = lower(new.email)),
+      'student')
   )
   on conflict (id) do nothing;
 
@@ -267,12 +324,50 @@ create policy "everyone signed in reads course state"
   to authenticated
   using (true);
 
+-- The real teacher only. A demo teacher pressing "Release day 3" must not move
+-- the actual class — they get their own row in demo_course_state below.
 drop policy if exists "teachers set course state" on public.course_state;
 create policy "teachers set course state"
   on public.course_state for update
   to authenticated
-  using (public.is_teacher())
-  with check (public.is_teacher());
+  using (public.is_teacher() and public.my_cohort() is null)
+  with check (public.is_teacher() and public.my_cohort() is null);
+
+-- ---------------------------------------------------------------------------
+-- demo_course_state — the same thing, one row per demo cohort
+-- ---------------------------------------------------------------------------
+-- Separate table rather than a nullable column on course_state: that table's
+-- singleton constraint is load-bearing for the real class, and this way a demo
+-- can't corrupt it even in principle.
+
+create table if not exists public.demo_course_state (
+  cohort uuid primary key,
+  current_week_slug text not null default 'unit1-week1',
+  current_day int not null default 1,
+  updated_at timestamptz not null default now(),
+  updated_by uuid references auth.users(id) on delete set null
+);
+
+alter table public.demo_course_state enable row level security;
+
+drop policy if exists "demo cohort reads its own state" on public.demo_course_state;
+create policy "demo cohort reads its own state"
+  on public.demo_course_state for select
+  to authenticated
+  using (cohort = public.my_cohort());
+
+drop policy if exists "demo teachers set their own state" on public.demo_course_state;
+create policy "demo teachers set their own state"
+  on public.demo_course_state for update
+  to authenticated
+  using (public.is_teacher() and cohort = public.my_cohort())
+  with check (public.is_teacher() and cohort = public.my_cohort());
+
+drop policy if exists "demo teachers seed their own state" on public.demo_course_state;
+create policy "demo teachers seed their own state"
+  on public.demo_course_state for insert
+  to authenticated
+  with check (public.is_teacher() and cohort = public.my_cohort());
 
 -- ---------------------------------------------------------------------------
 -- reflections
@@ -318,11 +413,13 @@ create policy "students read own reflections"
   to authenticated
   using (user_id = auth.uid());
 
+-- Cohort-scoped: rows whose author has no profile (the pre-accounts anonymous
+-- era) have a null cohort and so stay visible to the real teacher only.
 drop policy if exists "teachers read all reflections" on public.reflections;
 create policy "teachers read all reflections"
   on public.reflections for select
   to authenticated
-  using (public.is_teacher());
+  using (public.is_teacher() and public.same_cohort(user_id));
 
 -- ---------------------------------------------------------------------------
 -- submissions — each student's turned-in work for a lesson day
@@ -383,7 +480,7 @@ drop policy if exists "teachers read all submissions" on public.submissions;
 create policy "teachers read all submissions"
   on public.submissions for select
   to authenticated
-  using (public.is_teacher());
+  using (public.is_teacher() and public.same_cohort(user_id));
 
 -- Teachers can delete a turn-in to hand work back: the lesson page derives its
 -- gating from these rows, so removing them re-locks that part of the day and
@@ -393,7 +490,35 @@ drop policy if exists "teachers delete submissions" on public.submissions;
 create policy "teachers delete submissions"
   on public.submissions for delete
   to authenticated
-  using (public.is_teacher());
+  using (public.is_teacher() and public.same_cohort(user_id));
+
+-- ---------------------------------------------------------------------------
+-- Demo mode — how the isolation actually works
+-- ---------------------------------------------------------------------------
+-- "Try the demo" (src/app/demo/actions.ts) creates a throwaway cohort: one uuid
+-- shared by a demo teacher, the visitor's demo student, and a few seeded
+-- classmates. Nothing about it is a special case in the app's queries — the
+-- separation is entirely in the policies above:
+--
+--   • every teachers-read/delete policy is `is_teacher() and same_cohort(...)`,
+--     so cohort membership, not the app's routing, is what stops a demo teacher
+--     reading a real student's turn-ins (and vice versa);
+--   • allowed_students is scoped the same way, and its `with check` forbids any
+--     logged-in user from writing a non-null demo_cohort — only the service-role
+--     key can, which is why demo_role can't become a self-promotion path;
+--   • releasing a day writes demo_course_state, never the real singleton.
+--
+-- Cleanup deletes the auth users (everything else cascades). Check for leftovers
+-- with:
+--
+--   select demo_cohort, count(*), min(created_at)
+--   from public.profiles where demo_cohort is not null group by 1;
+--
+-- To wipe every demo account by hand, delete those users in Authentication →
+-- Users, then:
+--
+--   delete from public.allowed_students where demo_cohort is not null;
+--   delete from public.demo_course_state;
 
 -- ---------------------------------------------------------------------------
 -- Promote the teacher (run separately, AFTER they have an account)

@@ -1,6 +1,7 @@
 import { getCurrentUser } from "@/lib/auth";
 import { getCourseState, currentLesson, releasedDayCount } from "@/lib/release";
 import { Sidebar, type NavItem } from "@/components/Sidebar";
+import { DemoBanner } from "@/components/DemoBanner";
 
 // Decides the app frame on the server: signed-in users get the sidebar, and
 // which links it contains depends on their role — a student's browser never
@@ -27,7 +28,10 @@ export async function AppShell({ children }: { children: React.ReactNode }) {
   return (
     <div className="md:flex md:min-h-screen">
       <Sidebar items={items} name={user.fullName} role={user.role} />
-      <div className="min-w-0 flex-1">{children}</div>
+      <div className="min-w-0 flex-1">
+        {user.demoCohort && <DemoBanner role={user.role} />}
+        {children}
+      </div>
     </div>
   );
 }

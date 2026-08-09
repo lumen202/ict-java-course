@@ -12,6 +12,7 @@ Table of contents only. Open just the row you need.
 | Course content model, adding a week, pacing rules | [`course-content.md`](course-content.md) | current |
 | The week page (video days, self-check, reflection, progress) | [`week-experience.md`](week-experience.md) | current |
 | Teacher area (dashboard, reflections, roster) | [`teacher-area.md`](teacher-area.md) | current |
+| Demo mode — the public "try it" classroom and its cohort isolation | [`demo-mode.md`](demo-mode.md) | current |
 | Layout, theming, and the copy rules | [`ui-and-copy.md`](ui-and-copy.md) | current |
 | Deployment + environment | covered in [`overview.md`](overview.md) and root `README.md` | current |
 | Rate limiting / abuse controls | `rate-limiting.md` | not yet built |
