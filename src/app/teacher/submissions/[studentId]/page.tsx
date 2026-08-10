@@ -7,7 +7,7 @@ import { BackLink } from "@/components/BackLink";
 import { getWeek } from "@/lib/content";
 import { studentDisplayNames } from "@/lib/student-names";
 import { deleteSubmission, resetStudentDay } from "../../actions";
-import { ConfirmButton } from "../ConfirmButton";
+import { ConfirmButton } from "@/components/ConfirmButton";
 
 export const metadata: Metadata = { title: "Submissions" };
 

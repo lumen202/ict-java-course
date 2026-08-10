@@ -139,7 +139,7 @@ export default async function StudentsPage() {
                       {new Date(s.added_at).toLocaleDateString()}
                     </td>
                     <td className="px-4 py-3 text-right">
-                      {!hasAccount(s) && <RemoveStudentButton email={s.email} />}
+                      <RemoveStudentButton email={s.email} hasAccount={hasAccount(s)} />
                     </td>
                   </tr>
                 ))}

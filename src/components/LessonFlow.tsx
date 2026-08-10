@@ -1,6 +1,12 @@
 "use client";
 
-import { createContext, useCallback, useContext, useSyncExternalStore } from "react";
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useSyncExternalStore,
+} from "react";
 
 // Gated lesson timeline: steps reveal one at a time, so the day is a path to
 // walk, not a page to skim. A step unlocks the next when it's completed —
@@ -23,6 +29,14 @@ import { createContext, useCallback, useContext, useSyncExternalStore } from "re
 //      was written. If the server now has FEWER, the teacher deleted work —
 //      the stored progress is stale and gets discarded, so the gate really
 //      does close again on the student's own browser.
+//
+// And one rule keeps a student from being trapped: a step that has no
+// completion of its own (a game you have to get right, a box you can't fill)
+// still offers "skip it for now". Several games only finish on a correct
+// answer, so without this a student who can't solve one never reaches the rest
+// of the day — not even the turn-in box they'd have used to say they're stuck
+// (BUG-008). Skipping is local and reversible; the teacher's version of the
+// same move is the `day_unlocks` grant, which arrives here as `unlockAtLeast`.
 
 const FlowCtx = createContext<(key: string) => void>(() => {});
 
@@ -92,11 +106,19 @@ export function LessonFlow({
   storageKey,
   steps,
   gated,
+  unlockAtLeast = 0,
   children,
 }: {
   storageKey: string;
   steps: FlowStep[];
   gated: boolean;
+  /**
+   * A floor on how many steps are open, from the teacher's `day_unlocks` grant
+   * for this student and day. It's a floor rather than a `gated={false}`
+   * switch so that unsticking one part of a day leaves the rest of it gated —
+   * the student carries on step by step from where they were let past.
+   */
+  unlockAtLeast?: number;
   children: React.ReactNode[];
 }) {
   // How many of this day's steps the server has a turn-in for.
@@ -116,7 +138,7 @@ export function LessonFlow({
   const serverUnlocked = lastDone + 2;
 
   const unlocked = gated
-    ? Math.min(steps.length, Math.max(stored, serverUnlocked, 1))
+    ? Math.min(steps.length, Math.max(stored, serverUnlocked, unlockAtLeast, 1))
     : steps.length;
 
   const complete = useCallback(
@@ -129,6 +151,17 @@ export function LessonFlow({
     },
     [steps, storageKey, serverDone],
   );
+
+  // Saving a turn-in doesn't re-render this page (it's a fetch, not a Server
+  // Action), so the count stamped on stored progress stays at whatever it was
+  // when the page loaded — usually 0 for a student working straight through.
+  // A later hand-back would then look like no change at all and the gate would
+  // never close. Catch the baseline up on load instead, once the server render
+  // has told us the real number.
+  useEffect(() => {
+    const { u, c } = readProgress(storageKey);
+    if (serverDone > c) writeUnlocked(storageKey, u, serverDone);
+  }, [storageKey, serverDone]);
 
   const remaining = steps.length - unlocked;
 
@@ -152,15 +185,29 @@ export function LessonFlow({
               {s.final ? "✓" : i + 1}
             </span>
             {children[i]}
-            {gated && s.manual && i === unlocked - 1 && unlocked < steps.length && (
-              <button
-                type="button"
-                onClick={() => complete(s.key)}
-                className="btn-ghost mt-3"
-              >
-                ✅ Done with this — continue
-              </button>
-            )}
+            {gated &&
+              i === unlocked - 1 &&
+              unlocked < steps.length &&
+              (s.manual ? (
+                <button
+                  type="button"
+                  onClick={() => complete(s.key)}
+                  className="btn-ghost mt-3"
+                >
+                  ✅ Done with this — continue
+                </button>
+              ) : (
+                // Deliberately quiet: the way through is to finish the step,
+                // and this is the door out when that isn't happening. Never a
+                // primary button, and never the first thing the eye lands on.
+                <button
+                  type="button"
+                  onClick={() => complete(s.key)}
+                  className="mt-3 text-xs font-medium text-zinc-500 underline underline-offset-2 hover:text-zinc-800 dark:hover:text-zinc-200"
+                >
+                  Stuck on this one? Skip it and carry on →
+                </button>
+              ))}
           </li>
         ))}
 

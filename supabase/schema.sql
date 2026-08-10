@@ -515,6 +515,66 @@ create policy "teachers delete submissions"
   using (public.is_teacher() and public.same_cohort(user_id));
 
 -- ---------------------------------------------------------------------------
+-- day_unlocks — the teacher's "unstuck" grant for one student's day
+-- ---------------------------------------------------------------------------
+-- The lesson page normally reveals a day one step at a time, and a step only
+-- opens the next when it is finished. Some steps can only be finished by
+-- getting them right (the typing drill, the ordering puzzle, the SQL console),
+-- so a student who cannot solve one is stopped for the rest of that day —
+-- including the turn-in box they would have used to say so.
+--
+-- A row here lifts the gate for one student on one day. `open_past` says how
+-- far: the key of the part they're stuck on (a game or activity id, a video's
+-- youtubeId, 'closing', 'turn-in'), which opens everything up to and including
+-- the part after it and leaves the rest of the day gated as normal. Null opens
+-- the whole day. It grants nothing else, and removing the row puts the gate
+-- back.
+create table if not exists public.day_unlocks (
+  user_id uuid not null references auth.users(id) on delete cascade,
+  week_slug text not null,
+  day_number int not null check (day_number >= 1),
+  granted_at timestamptz not null default now(),
+  granted_by uuid references auth.users(id) on delete set null,
+  primary key (user_id, week_slug, day_number)
+);
+
+-- Added after the first version, which only ever opened whole days.
+alter table public.day_unlocks add column if not exists open_past text;
+
+alter table public.day_unlocks enable row level security;
+
+-- The student has to be able to read their own grant — it's what ungates their
+-- lesson page.
+drop policy if exists "students read own unlocks" on public.day_unlocks;
+create policy "students read own unlocks"
+  on public.day_unlocks for select
+  to authenticated
+  using (user_id = auth.uid());
+
+-- Cohort-scoped like every other teacher-side policy: a demo teacher unsticks
+-- only their own throwaway classmates. Never simplify these to a bare
+-- is_teacher().
+drop policy if exists "teachers read cohort unlocks" on public.day_unlocks;
+create policy "teachers read cohort unlocks"
+  on public.day_unlocks for select
+  to authenticated
+  using (public.is_teacher() and public.same_cohort(user_id));
+
+drop policy if exists "teachers grant unlocks" on public.day_unlocks;
+create policy "teachers grant unlocks"
+  on public.day_unlocks for insert
+  to authenticated
+  with check (public.is_teacher() and public.same_cohort(user_id));
+
+-- Students cannot grant themselves one — there is no student-side insert
+-- policy, and no update policy for anybody (grant or revoke, nothing else).
+drop policy if exists "teachers revoke unlocks" on public.day_unlocks;
+create policy "teachers revoke unlocks"
+  on public.day_unlocks for delete
+  to authenticated
+  using (public.is_teacher() and public.same_cohort(user_id));
+
+-- ---------------------------------------------------------------------------
 -- Demo mode — how the isolation actually works
 -- ---------------------------------------------------------------------------
 -- "Try the demo" (src/app/demo/actions.ts) creates a throwaway cohort: one uuid

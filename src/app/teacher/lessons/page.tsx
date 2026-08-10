@@ -1,16 +1,27 @@
 import type { Metadata } from "next";
 import { requireTeacher } from "@/lib/auth";
-import { weeks } from "@/lib/content";
+import { weeks, getWeek } from "@/lib/content";
+import { daySteps } from "@/lib/lesson-steps";
+import { createClient } from "@/lib/supabase/server";
 import { getCourseState, currentLesson, releasedDayCount } from "@/lib/release";
+import { studentDisplayNames } from "@/lib/student-names";
 import LessonReleaseList, {
   type ReleaseWeek,
 } from "@/components/LessonReleaseList";
+import {
+  UnstuckPanel,
+  type UnstuckDay,
+  type UnstuckStep,
+  type UnstuckStudent,
+} from "../UnstuckPanel";
 
 export const metadata: Metadata = { title: "Lessons" };
 
 // Where the teacher decides what the class can see. Students only get the days
 // released here — everything after is hidden, so nobody skims ahead or drifts.
-export default async function LessonsPage() {
+// The same page carries the per-student unstuck control, since that answers the
+// same question one person at a time.
+export default async function LessonsPage({ searchParams }: PageProps<"/teacher/lessons">) {
   await requireTeacher("/teacher/lessons");
 
   const state = await getCourseState();
@@ -33,6 +44,67 @@ export default async function LessonsPage() {
         videos: d.videos.length,
       })),
     }));
+
+  // Every day the unstuck picker can target, and which one it's showing: the
+  // day named in ?unstuck=slug:day, else the day the class is on, else day 1 of
+  // the first published week (so the panel is usable before anything is
+  // released).
+  const unstuckDays: UnstuckDay[] = releaseWeeks.flatMap((w) =>
+    w.days.map((d, i) => ({
+      weekSlug: w.slug,
+      weekTitle: w.title,
+      day: i + 1,
+      focus: d.focus,
+    })),
+  );
+
+  const { unstuck } = await searchParams;
+  const [askedSlug, askedDay] = String(Array.isArray(unstuck) ? unstuck[0] : (unstuck ?? "")).split(
+    ":",
+  );
+  const selected =
+    unstuckDays.find((d) => d.weekSlug === askedSlug && d.day === Number(askedDay)) ??
+    unstuckDays.find(
+      (d) => lesson && d.weekSlug === lesson.week.slug && d.day === lesson.dayNumber,
+    ) ??
+    unstuckDays[0];
+
+  // Both reads are RLS-scoped to the teacher's own cohort, so a demo teacher
+  // sees only their throwaway classmates.
+  const supabase = await createClient();
+  const [{ data: profiles }, names, { data: unlocks }] = await Promise.all([
+    supabase.from("profiles").select("id, email").eq("role", "student"),
+    studentDisplayNames(),
+    selected
+      ? supabase
+          .from("day_unlocks")
+          .select("user_id, open_past")
+          .eq("week_slug", selected.weekSlug)
+          .eq("day_number", selected.day)
+      : Promise.resolve({ data: [] as { user_id: string; open_past: string | null }[] }),
+  ]);
+
+  // The parts of the chosen day, from the same helper the week page renders —
+  // so the names in the picker are the headings the student is looking at.
+  const selectedWeek = selected ? getWeek(selected.weekSlug) : undefined;
+  const steps: UnstuckStep[] = selectedWeek
+    ? daySteps(selectedWeek.video.days[selected.day - 1]).map((s) => ({
+        key: s.key,
+        title: s.title,
+      }))
+    : [];
+
+  // `undefined` = no grant, `null` = the whole day, a key = let past that part.
+  const grantByUser = new Map(
+    (unlocks ?? []).map((u) => [u.user_id as string, (u.open_past as string | null) ?? null]),
+  );
+  const students: UnstuckStudent[] = (profiles ?? [])
+    .map((p) => ({
+      id: p.id as string,
+      name: names.get(p.id as string) || (p.email as string | null) || "Unknown",
+      ...(grantByUser.has(p.id as string) ? { openPast: grantByUser.get(p.id as string)! } : {}),
+    }))
+    .sort((a, b) => a.name.localeCompare(b.name));
 
   return (
     <main className="mx-auto w-full max-w-7xl px-6 py-10 lg:px-10">
@@ -64,6 +136,15 @@ export default async function LessonsPage() {
           </div>
         </div>
       </section>
+
+      {selected && (
+        <UnstuckPanel
+          days={unstuckDays}
+          selected={selected}
+          steps={steps}
+          students={students}
+        />
+      )}
 
       {/* Every day carries its own control. A separate week/day picker existed
           here and was redundant — the list already names every day, so the

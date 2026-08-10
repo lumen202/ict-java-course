@@ -4,9 +4,10 @@ import { createPortal } from "react-dom";
 import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 
 // Submit button that asks first. Deleting a turn-in throws away a student's
-// work and makes them redo it, so it should never be one stray click. The form
-// itself stays a server component calling a server action — only the
-// confirmation needs the client.
+// work and makes them redo it, and removing a student can delete their account
+// outright, so neither should ever be one stray click. The form itself stays a
+// server component calling a server action — only the confirmation needs the
+// client.
 //
 // The ask is an in-app dialog, not `window.confirm`: the native one is drawn by
 // the browser in the operating system's own style, which lands in the middle of

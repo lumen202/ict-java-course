@@ -7,6 +7,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import { cohortFromEmail } from "@/lib/demo";
 import { getWeek } from "@/lib/content";
+import { daySteps } from "@/lib/lesson-steps";
 
 export type ClassListState = {
   error?: string;
@@ -261,16 +262,114 @@ export async function resetStudentDay(formData: FormData) {
   revalidatePath("/teacher/submissions", "layout");
 }
 
+// Take someone off the course entirely. Two halves, because "on the course" is
+// two things: the class-list row that lets them register, and the account they
+// may already have made. Removing only the first is what this used to do, and
+// it left the student signed in with all their work — so the button was hidden
+// for anyone registered, which meant that once a class had signed up it never
+// appeared at all (BUG-009).
+//
+// Deleting the account cascades to their profile, turn-ins, reflections and
+// unlock grants. It is behind a confirmation dialog for that reason.
 export async function removeStudent(formData: FormData) {
-  await requireTeacher("/teacher/students");
+  const teacher = await requireTeacher("/teacher/students");
 
-  const email = String(formData.get("email") ?? "");
+  const email = String(formData.get("email") ?? "").trim().toLowerCase();
   if (!email) return;
 
   const supabase = await createClient();
-  // Only removes them from the list of who *may* register. An account they
-  // already created keeps working — delete that in the Supabase dashboard.
+  // Runs as the teacher: the class list's RLS policy is what scopes this to
+  // their own cohort.
   await supabase.from("allowed_students").delete().eq("email", email);
 
+  await deleteAccountFor(email, teacher);
+
   revalidatePath("/teacher/students");
+  revalidatePath("/", "layout");
+}
+
+/**
+ * Deletes the auth account behind `email`, if there is one. Auth-admin is
+ * service-role only, and the admin client bypasses RLS — so every check a
+ * policy would have made has to be made here instead:
+ *
+ *  - the address must belong to the caller's own cohort (a demo teacher may
+ *    only delete their throwaway classmates, and never a real student);
+ *  - the profile must agree about that cohort, in case the address doesn't;
+ *  - teachers are never deletable, including the caller themselves.
+ *
+ * Without a service-role key there is nothing to do — the class-list row is
+ * already gone and the account has to be removed in the Supabase dashboard.
+ */
+async function deleteAccountFor(email: string, teacher: { id: string; demoCohort: string | null }) {
+  const admin = createAdminClient();
+  if (!admin) return;
+  if (cohortFromEmail(email) !== teacher.demoCohort) return;
+
+  const { data: authUsers } = await admin.auth.admin.listUsers({ perPage: 1000 });
+  const account = authUsers?.users.find((u) => u.email?.toLowerCase() === email);
+  if (!account || account.id === teacher.id) return;
+
+  const { data: profile } = await admin
+    .from("profiles")
+    .select("role, demo_cohort")
+    .eq("id", account.id)
+    .maybeSingle();
+  if (profile?.role === "teacher") return;
+  if ((profile?.demo_cohort ?? null) !== teacher.demoCohort) return;
+
+  const { error } = await admin.auth.admin.deleteUser(account.id);
+  if (error) console.error("remove student: account delete failed:", error.message);
+}
+
+// Unstick one student on one part of one day: a row in `day_unlocks` opens the
+// day as far as `open_past` — the key of the activity they're stuck on — so
+// they carry on from there and the rest of the day stays gated as normal
+// (BUG-008). An empty `step` opens the whole day. Revoking puts the gate back.
+//
+// The step key is checked against the day's real steps rather than trusted:
+// `daySteps()` is the same list the week page renders, so a key that isn't in
+// it would silently unlock nothing and look like the button did nothing.
+//
+// Runs as the teacher — the table's policies are `is_teacher() and
+// same_cohort(user_id)`, so a demo teacher reaches only their own cohort and a
+// student calling this action writes nothing.
+export async function setDayUnlock(formData: FormData) {
+  const teacher = await requireTeacher("/teacher/lessons");
+
+  const userId = String(formData.get("userId") ?? "").trim();
+  const weekSlug = String(formData.get("weekSlug") ?? "").trim();
+  const day = Number(formData.get("day"));
+  const grant = formData.get("grant") === "1";
+  const step = String(formData.get("step") ?? "").trim();
+  if (!userId) return;
+
+  const week = getWeek(weekSlug);
+  if (!week) return;
+  if (!Number.isInteger(day) || day < 1 || day > week.video.days.length) return;
+  if (step && !daySteps(week.video.days[day - 1]).some((s) => s.key === step)) return;
+
+  const supabase = await createClient();
+  const { error } = grant
+    ? await supabase.from("day_unlocks").upsert(
+        {
+          user_id: userId,
+          week_slug: weekSlug,
+          day_number: day,
+          open_past: step || null,
+          granted_by: teacher.id,
+        },
+        { onConflict: "user_id,week_slug,day_number" },
+      )
+    : await supabase
+        .from("day_unlocks")
+        .delete()
+        .eq("user_id", userId)
+        .eq("week_slug", weekSlug)
+        .eq("day_number", day);
+
+  if (error) console.error("day unlock failed:", error.message);
+
+  revalidatePath("/teacher/lessons");
+  revalidatePath("/", "layout");
 }

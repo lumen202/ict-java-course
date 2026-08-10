@@ -3,6 +3,13 @@ import { notFound } from "next/navigation";
 import type { Metadata } from "next";
 import { weeks, getWeek } from "@/lib/content";
 import type { DayActivity, DayGame, Practice } from "@/lib/content/types";
+import {
+  daySteps,
+  stepItem,
+  stepIsManual,
+  unlockedByGrant,
+  type LessonStep,
+} from "@/lib/lesson-steps";
 import { LessonFlow, type FlowStep } from "@/components/LessonFlow";
 import { RowHunt } from "@/components/RowHunt";
 import { Quest } from "@/components/Quest";
@@ -78,12 +85,24 @@ export default async function WeekPage({ params, searchParams }: PageProps<"/wee
   // closing 'day' box), so each box reopens with their work in it. Errors
   // (e.g. table not created yet) degrade to empty boxes.
   const supabase = await createClient();
-  const { data: existingRows } = await supabase
-    .from("submissions")
-    .select("item, content, updated_at")
-    .eq("user_id", user.id)
-    .eq("week_slug", week.slug)
-    .eq("day_number", dayNumber);
+  const [{ data: existingRows }, { data: unlockRow }] = await Promise.all([
+    supabase
+      .from("submissions")
+      .select("item, content, updated_at")
+      .eq("user_id", user.id)
+      .eq("week_slug", week.slug)
+      .eq("day_number", dayNumber),
+    // The teacher's "unstuck" grant for this exact day, if there is one — it
+    // opens the whole day at once. Students can only read their own row (RLS),
+    // and there is no student-side way to create one.
+    supabase
+      .from("day_unlocks")
+      .select("open_past")
+      .eq("user_id", user.id)
+      .eq("week_slug", week.slug)
+      .eq("day_number", dayNumber)
+      .maybeSingle(),
+  ]);
   const existingByItem = new Map(
     (existingRows ?? []).map((r) => [r.item as string, r]),
   );
@@ -123,122 +142,93 @@ export default async function WeekPage({ params, searchParams }: PageProps<"/wee
       <BossBattle weekSlug={week.slug} dayNumber={dayNumber} game={g} />
     );
 
-  // Assemble the day as ordered steps for the gated timeline. `manual` steps
-  // (videos, text cards) get a "continue" button; games and turn-in boxes
-  // unlock the next step by themselves when finished.
-  const steps: (FlowStep & { body: React.ReactNode })[] = [];
+  // The day's steps come from `lib/lesson-steps.ts` so that the teacher's
+  // unstuck panel names exactly the parts this page renders. Everything below
+  // is presentation: `manual` steps (videos, text cards) get a "continue"
+  // button, and games and turn-in boxes unlock the next step by themselves.
+  const stepList = daySteps(day);
 
-  if (day.warmupGame) {
-    steps.push({
-      key: day.warmupGame.id,
-      title: day.warmupGame.title,
-      done: existingByItem.has(day.warmupGame.id),
-      body: renderGame(day.warmupGame),
-    });
-  }
+  const renderStep = (s: LessonStep): React.ReactNode => {
+    switch (s.kind) {
+      case "game":
+        return renderGame(s.game);
+      case "activity":
+        return <ActivityCard activity={s.activity} form={activityForm(s.activity)} />;
+      case "video":
+        return (
+          <div>
+            <p className="mb-2 text-sm font-medium">
+              {s.video.title}
+              <span className="ml-2 text-xs font-normal text-zinc-500">{s.video.length}</span>
+            </p>
+            <VideoEmbed youtubeId={s.video.youtubeId} title={s.video.title} />
+            {s.video.practice && (
+              <div className="mt-4 border-l-2 border-emerald-500/70 pl-4 text-zinc-700 dark:text-zinc-300">
+                <p className="section-label text-emerald-700 dark:text-emerald-400">
+                  ✍️ Now do this
+                </p>
+                <PracticeContent practice={s.video.practice} />
+              </div>
+            )}
+            {s.isLast && week.video.watchNotes.length > 0 && (
+              <details className="mt-3">
+                <summary className="cursor-pointer text-xs font-medium text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300">
+                  How to watch so it sticks
+                </summary>
+                <ul className="mt-2 space-y-1.5 text-xs text-zinc-500 leading-relaxed">
+                  {week.video.watchNotes.map((n) => (
+                    <li key={n}>• {n}</li>
+                  ))}
+                </ul>
+              </details>
+            )}
+          </div>
+        );
+      case "closing":
+        return (
+          <div className={day.videos.length > 0 ? "card p-4" : "card-accent p-4"}>
+            <p className="text-sm font-semibold">
+              {day.videos.length > 0 ? "🏁 To finish the day" : "✍️ Today's work"}
+            </p>
+            <PracticeContent practice={s.practice} />
+          </div>
+        );
+      case "turn-in":
+        return (
+          <div className="card-accent p-5">
+            <p className="text-base font-semibold">📤 Turn in today&apos;s work</p>
+            <p className="mt-1 mb-4 text-sm text-zinc-600 dark:text-zinc-400 leading-relaxed">
+              This is the part that makes today count: your queries, your answers,
+              your questions — in your own words.
+            </p>
+            <SubmissionForm
+              weekSlug={week.slug}
+              dayNumber={dayNumber}
+              initialContent={existingByItem.get("day")?.content ?? ""}
+              turnedInAt={existingByItem.get("day")?.updated_at ?? null}
+            />
+          </div>
+        );
+    }
+  };
 
-  if (day.warmup) {
-    steps.push({
-      key: day.warmup.id,
-      title: day.warmup.title,
-      done: existingByItem.has(day.warmup.id),
-      body: <ActivityCard activity={day.warmup} form={activityForm(day.warmup)} />,
-    });
-  }
-
-  for (const [i, v] of day.videos.entries()) {
-    steps.push({
-      key: v.youtubeId,
-      title: `Watch: ${v.title}`,
-      manual: true,
-      body: (
-        <div>
-          <p className="mb-2 text-sm font-medium">
-            {v.title}
-            <span className="ml-2 text-xs font-normal text-zinc-500">{v.length}</span>
-          </p>
-          <VideoEmbed youtubeId={v.youtubeId} title={v.title} />
-          {v.practice && (
-            <div className="mt-4 border-l-2 border-emerald-500/70 pl-4 text-zinc-700 dark:text-zinc-300">
-              <p className="section-label text-emerald-700 dark:text-emerald-400">
-                ✍️ Now do this
-              </p>
-              <PracticeContent practice={v.practice} />
-            </div>
-          )}
-          {i === day.videos.length - 1 && week.video.watchNotes.length > 0 && (
-            <details className="mt-3">
-              <summary className="cursor-pointer text-xs font-medium text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300">
-                How to watch so it sticks
-              </summary>
-              <ul className="mt-2 space-y-1.5 text-xs text-zinc-500 leading-relaxed">
-                {week.video.watchNotes.map((n) => (
-                  <li key={n}>• {n}</li>
-                ))}
-              </ul>
-            </details>
-          )}
-        </div>
-      ),
-    });
-  }
-
-  for (const a of day.activities ?? []) {
-    steps.push({
-      key: a.id,
-      title: a.title,
-      done: existingByItem.has(a.id),
-      body:
-        "kind" in a ? renderGame(a) : <ActivityCard activity={a} form={activityForm(a)} />,
-    });
-  }
-
-  if (day.game) {
-    steps.push({
-      key: day.game.id,
-      title: day.game.title,
-      done: existingByItem.has(day.game.id),
-      body: renderGame(day.game),
-    });
-  }
-
-  if (day.practice) {
-    steps.push({
-      key: "closing",
-      title: "Finish the day",
-      manual: true,
-      body: (
-        <div className={day.videos.length > 0 ? "card p-4" : "card-accent p-4"}>
-          <p className="text-sm font-semibold">
-            {day.videos.length > 0 ? "🏁 To finish the day" : "✍️ Today's work"}
-          </p>
-          <PracticeContent practice={day.practice} />
-        </div>
-      ),
-    });
-  }
-
-  steps.push({
-    key: "turn-in",
-    title: "📤 Turn in today's work",
-    final: true,
-    done: existingByItem.has("day"),
-    body: (
-      <div className="card-accent p-5">
-        <p className="text-base font-semibold">📤 Turn in today&apos;s work</p>
-        <p className="mt-1 mb-4 text-sm text-zinc-600 dark:text-zinc-400 leading-relaxed">
-          This is the part that makes today count: your queries, your answers,
-          your questions — in your own words.
-        </p>
-        <SubmissionForm
-          weekSlug={week.slug}
-          dayNumber={dayNumber}
-          initialContent={existingByItem.get("day")?.content ?? ""}
-          turnedInAt={existingByItem.get("day")?.updated_at ?? null}
-        />
-      </div>
-    ),
+  const steps: (FlowStep & { body: React.ReactNode })[] = stepList.map((s) => {
+    const item = stepItem(s);
+    return {
+      key: s.key,
+      title: s.title,
+      manual: stepIsManual(s) || undefined,
+      done: item ? existingByItem.has(item) : undefined,
+      final: s.kind === "turn-in" || undefined,
+      body: renderStep(s),
+    };
   });
+
+  // The teacher's grant, if any: `open_past` names the step they were stuck on
+  // and the grant reaches one past it; a null key means the whole day.
+  const openPast = unlockRow ? ((unlockRow.open_past as string | null) ?? null) : null;
+  const unlockAtLeast = unlockRow ? unlockedByGrant(stepList, openPast) : 0;
+  const unstuckStep = openPast ? stepList.find((s) => s.key === openPast) : null;
 
   return (
     <main className="mx-auto w-full max-w-5xl px-6 py-10 lg:px-10">
@@ -286,11 +276,29 @@ export default async function WeekPage({ params, searchParams }: PageProps<"/wee
       {/* The gated timeline: steps unlock one at a time for students (games on
           finish, boxes on save, videos via "done watching"), so the day is a
           path with a next thing to look forward to — not a page to skim.
-          Teachers see everything at once. */}
+          Teachers see everything at once, and so does a student the teacher has
+          unstuck for this day. */}
       <section className="mb-12">
+        {unlockAtLeast > 0 && user.role !== "teacher" && (
+          <p className="mb-6 rounded-2xl border border-emerald-300/80 bg-emerald-50/80 dark:border-emerald-800 dark:bg-emerald-950/30 p-4 text-sm leading-relaxed">
+            {unstuckStep ? (
+              <>
+                🔓 Your teacher opened the next part of today for you — carry on
+                past <span className="font-medium">{unstuckStep.title}</span>. You
+                can still come back to it.
+              </>
+            ) : (
+              <>
+                🔓 Your teacher opened the whole of today for you. Work through it
+                in whatever order helps — nothing here is locked.
+              </>
+            )}
+          </p>
+        )}
         <LessonFlow
           storageKey={`jch-flow:${week.slug}:${dayNumber}`}
           gated={user.role !== "teacher"}
+          unlockAtLeast={unlockAtLeast}
           steps={steps.map(({ key, title, manual, done, final }) => ({
             key,
             title,
