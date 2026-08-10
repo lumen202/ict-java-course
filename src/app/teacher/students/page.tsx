@@ -48,11 +48,6 @@ export default async function StudentsPage() {
   const classList = (allowed ?? []) as AllowedRow[];
   const people = (profiles ?? []) as ProfileRow[];
 
-  // Registration status is derived from real accounts, not from the
-  // `registered_at` stamp alone: that stamp (and `profiles.email`) are written
-  // by database triggers, so anyone who signed up before those existed — or
-  // under an older version of them — would sit at "Not yet" forever despite
-  // having an account. Auth is the authority, so ask it directly when we can.
   const accountEmails = new Set(
     people.map((p) => (p.email ?? "").toLowerCase()).filter(Boolean),
   );
@@ -64,8 +59,17 @@ export default async function StudentsPage() {
       if (u.email) accountEmails.add(u.email.toLowerCase());
     }
   }
-  const hasAccount = (row: AllowedRow) =>
-    Boolean(row.registered_at) || accountEmails.has(row.email.toLowerCase());
+  // With a service-role key, Auth is the live authority on whether an account
+  // exists — ask it directly rather than trusting `registered_at`, which is
+  // stamped once at signup and never cleared, so it would keep saying
+  // "Registered" (and hiding Remove) forever after a teacher deletes the
+  // account in Supabase. Without a service-role key we can't ask Auth, so fall
+  // back to the stamp — it at least covers accounts created before the
+  // registered_at/profiles.email triggers existed.
+  const hasAccount = admin
+    ? (row: AllowedRow) => accountEmails.has(row.email.toLowerCase())
+    : (row: AllowedRow) =>
+        Boolean(row.registered_at) || accountEmails.has(row.email.toLowerCase());
 
   const registered = classList.filter(hasAccount).length;
 

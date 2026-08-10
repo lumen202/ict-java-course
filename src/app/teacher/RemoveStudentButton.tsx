@@ -1,8 +1,10 @@
 import { removeStudent } from "./actions";
 
-// Only offered for people who haven't registered yet — removing someone from
-// the class list doesn't disable an account they already made, and pretending
-// otherwise would be misleading.
+// Only offered for people who don't currently have an account — removing
+// someone from the class list doesn't disable an account they already made,
+// and pretending otherwise would be misleading. ("Currently" is live-checked
+// against Auth when possible, so this reappears once a deleted account is
+// actually gone — see hasAccount in students/page.tsx.)
 export function RemoveStudentButton({ email }: { email: string }) {
   return (
     <form action={removeStudent}>
