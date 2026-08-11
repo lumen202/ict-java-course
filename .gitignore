@@ -44,3 +44,6 @@ next-env.d.ts
 
 # internal agent docs (session logs, bug tracker, codebase map) - not for the repo
 /docs/agent/
+
+# brain entries (Unified-Brain) - kept local only, repo is public
+/docs/brain/

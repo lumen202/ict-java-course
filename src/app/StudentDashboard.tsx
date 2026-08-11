@@ -2,6 +2,8 @@ import Link from "next/link";
 import { weeks } from "@/lib/content";
 import { WeekDoneBadge } from "@/components/WeekProgress";
 import { getCourseState, currentLesson, isWeekOpen } from "@/lib/release";
+import { currentStreak, dayKey } from "@/lib/streak";
+import { createClient } from "@/lib/supabase/server";
 import type { CurrentUser } from "@/lib/auth";
 
 // Student view: today's lesson, and almost nothing else. Unit outlines and
@@ -9,8 +11,16 @@ import type { CurrentUser } from "@/lib/auth";
 // lists the released days, and anything a student doesn't need today is a
 // distraction from the thing they're meant to be doing now.
 export async function StudentDashboard({ user }: { user: CurrentUser }) {
-  const state = await getCourseState();
+  const supabase = await createClient();
+  const [state, { data: turnedIn }] = await Promise.all([
+    getCourseState(),
+    supabase.from("submissions").select("week_slug, day_number").eq("user_id", user.id).eq("item", "day"),
+  ]);
   const lesson = currentLesson(state);
+  const streak = currentStreak(
+    state,
+    new Set((turnedIn ?? []).map((row) => dayKey(row.week_slug, row.day_number))),
+  );
   // Only weeks the teacher has actually opened. Content `status` says a week
   // is written, not that the class has reached it — filtering on it alone
   // previewed future weeks' titles on the dashboard.
@@ -24,9 +34,16 @@ export async function StudentDashboard({ user }: { user: CurrentUser }) {
   return (
     <main className="mx-auto w-full max-w-6xl px-6 py-10 lg:px-10">
       <header className="mb-8">
-        <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">
-          Welcome back, {user.fullName.split(" ")[0]}
-        </h1>
+        <div className="flex flex-wrap items-center gap-2">
+          <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">
+            Welcome back, {user.fullName.split(" ")[0]}
+          </h1>
+          {streak > 1 && (
+            <span className="chip bg-orange-100 text-orange-800 dark:bg-orange-950/60 dark:text-orange-300">
+              🔥 {streak}-day streak
+            </span>
+          )}
+        </div>
         <p className="mt-1 text-sm text-zinc-500">Here&apos;s where the class is today.</p>
       </header>
 
