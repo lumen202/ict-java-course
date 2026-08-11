@@ -42,8 +42,9 @@ yarn-error.log*
 *.tsbuildinfo
 next-env.d.ts
 
-# internal agent docs (session logs, bug tracker, codebase map) - not for the repo
+# internal agent docs (session logs, bug tracker, codebase map) - not for the repo.
+# Also the brain's entry store: Unified-Brain entries land here, so they stay local too.
 /docs/agent/
 
-# brain entries (Unified-Brain) - kept local only, repo is public
-/docs/brain/
+# agent harness config (Unified-Brain kernel hook + recall gate) - local only
+/.claude/

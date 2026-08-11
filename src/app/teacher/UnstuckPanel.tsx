@@ -24,6 +24,8 @@ export type UnstuckStudent = {
   name: string;
   /** The step they've been let past, `null` for a whole-day grant, undefined for no grant. */
   openPast?: string | null;
+  /** The step they flagged as stuck on, `null` if unspecified, undefined if they haven't asked. */
+  requestedStep?: string | null;
 };
 
 export function UnstuckPanel({
@@ -78,10 +80,19 @@ export function UnstuckPanel({
           {students.map((s) => {
             const openPast = s.openPast;
             const granted = openPast !== undefined;
+            const waiting = s.requestedStep !== undefined;
             return (
               <li key={s.id} className="px-4 py-3">
                 <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
                   <span className="min-w-0 flex-1 truncate text-sm font-medium">{s.name}</span>
+                  {waiting && !granted && (
+                    <span className="chip bg-amber-100 text-amber-800 dark:bg-amber-950/60 dark:text-amber-300">
+                      🙋{" "}
+                      {s.requestedStep
+                        ? `stuck on ${titleOf.get(s.requestedStep) ?? s.requestedStep}`
+                        : "asked for help"}
+                    </span>
+                  )}
                   {openPast !== undefined && (
                     <span className="chip bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300">
                       🔓{" "}

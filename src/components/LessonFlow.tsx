@@ -5,6 +5,7 @@ import {
   useCallback,
   useContext,
   useEffect,
+  useState,
   useSyncExternalStore,
 } from "react";
 
@@ -32,11 +33,13 @@ import {
 //
 // And one rule keeps a student from being trapped: a step that has no
 // completion of its own (a game you have to get right, a box you can't fill)
-// still offers "skip it for now". Several games only finish on a correct
-// answer, so without this a student who can't solve one never reaches the rest
-// of the day — not even the turn-in box they'd have used to say they're stuck
-// (BUG-008). Skipping is local and reversible; the teacher's version of the
-// same move is the `day_unlocks` grant, which arrives here as `unlockAtLeast`.
+// still offers a way out. Several games only finish on a correct answer, so
+// without this a student who can't solve one never reaches the rest of the
+// day — not even the turn-in box they'd have used to say they're stuck
+// (BUG-008). Unlocking is the teacher's call, not the student's: the button
+// here only raises a flag (POST /api/unstuck-requests) for the "Someone
+// stuck?" panel; the actual unlock is the `day_unlocks` grant, which arrives
+// here as `unlockAtLeast`.
 
 const FlowCtx = createContext<(key: string) => void>(() => {});
 
@@ -104,12 +107,18 @@ export type FlowStep = {
 
 export function LessonFlow({
   storageKey,
+  weekSlug,
+  dayNumber,
   steps,
   gated,
   unlockAtLeast = 0,
+  requestedStep,
   children,
 }: {
   storageKey: string;
+  /** Identifies the day for the "I'm stuck" flag — see `weekSlug`/`dayNumber` on `/api/unstuck-requests`. */
+  weekSlug: string;
+  dayNumber: number;
   steps: FlowStep[];
   gated: boolean;
   /**
@@ -119,6 +128,8 @@ export function LessonFlow({
    * the student carries on step by step from where they were let past.
    */
   unlockAtLeast?: number;
+  /** The step key this student already flagged as stuck on, if any (server-known, survives reload). */
+  requestedStep?: string | null;
   children: React.ReactNode[];
 }) {
   // How many of this day's steps the server has a turn-in for.
@@ -165,6 +176,26 @@ export function LessonFlow({
 
   const remaining = steps.length - unlocked;
 
+  const [asked, setAsked] = useState(requestedStep ?? null);
+  const [asking, setAsking] = useState(false);
+
+  const askForHelp = useCallback(
+    async (key: string) => {
+      setAsking(true);
+      try {
+        const res = await fetch("/api/unstuck-requests", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ weekSlug, dayNumber, step: key }),
+        });
+        if (res.ok) setAsked(key);
+      } finally {
+        setAsking(false);
+      }
+    },
+    [weekSlug, dayNumber],
+  );
+
   return (
     <FlowCtx.Provider value={complete}>
       <ol className="relative space-y-10">
@@ -196,16 +227,24 @@ export function LessonFlow({
                 >
                   ✅ Done with this — continue
                 </button>
+              ) : asked === s.key ? (
+                // The flag went through — no way to skip themselves past it,
+                // just confirmation that the teacher can now see it.
+                <p className="mt-3 text-xs font-medium text-emerald-700 dark:text-emerald-400">
+                  🙋 Your teacher has been notified — they can open this for you.
+                </p>
               ) : (
                 // Deliberately quiet: the way through is to finish the step,
-                // and this is the door out when that isn't happening. Never a
-                // primary button, and never the first thing the eye lands on.
+                // and this is the door out when that isn't happening. It only
+                // raises a flag for the teacher — the student can't unlock
+                // anything themselves.
                 <button
                   type="button"
-                  onClick={() => complete(s.key)}
-                  className="mt-3 text-xs font-medium text-zinc-500 underline underline-offset-2 hover:text-zinc-800 dark:hover:text-zinc-200"
+                  disabled={asking}
+                  onClick={() => askForHelp(s.key)}
+                  className="mt-3 text-xs font-medium text-zinc-500 underline underline-offset-2 hover:text-zinc-800 dark:hover:text-zinc-200 disabled:opacity-60"
                 >
-                  Stuck on this one? Skip it and carry on →
+                  {asking ? "Letting your teacher know…" : "Stuck on this one? Ask your teacher for help →"}
                 </button>
               ))}
           </li>

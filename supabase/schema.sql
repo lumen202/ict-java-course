@@ -575,6 +575,67 @@ create policy "teachers revoke unlocks"
   using (public.is_teacher() and public.same_cohort(user_id));
 
 -- ---------------------------------------------------------------------------
+-- unstuck_requests — a student flagging "I'm stuck here" to the teacher
+-- ---------------------------------------------------------------------------
+-- The old fix for BUG-008 let a stuck student skip themselves past an
+-- unsolvable step. That control belongs to the teacher, not the student —
+-- see docs/agent/bugs/BUG-008-unsolvable-step-locks-the-rest-of-the-day.md —
+-- so a stuck student now raises a flag here instead of unlocking anything
+-- themselves. The teacher's "Someone stuck?" panel surfaces it and grants a
+-- day_unlocks row, which is still the only thing that actually opens a step.
+--
+-- One row per student/week/day, same shape as day_unlocks: `step` names the
+-- part they're stuck on (nullable — unused today but kept for parity with
+-- open_past). Granting an unlock for the same user/week/day clears the row
+-- (see setDayUnlock), so the panel's badge disappears once handled.
+create table if not exists public.unstuck_requests (
+  user_id uuid not null references auth.users(id) on delete cascade,
+  week_slug text not null,
+  day_number int not null check (day_number >= 1),
+  step text,
+  requested_at timestamptz not null default now(),
+  primary key (user_id, week_slug, day_number)
+);
+
+alter table public.unstuck_requests enable row level security;
+
+-- A student may raise and read only their own flag — there is no way to
+-- resolve someone else's, and no student-side delete (revoking is the
+-- teacher's grant clearing it, not the student changing their mind).
+drop policy if exists "students raise own unstuck request" on public.unstuck_requests;
+create policy "students raise own unstuck request"
+  on public.unstuck_requests for insert
+  to authenticated
+  with check (user_id = auth.uid());
+
+drop policy if exists "students update own unstuck request" on public.unstuck_requests;
+create policy "students update own unstuck request"
+  on public.unstuck_requests for update
+  to authenticated
+  using (user_id = auth.uid())
+  with check (user_id = auth.uid());
+
+drop policy if exists "students read own unstuck request" on public.unstuck_requests;
+create policy "students read own unstuck request"
+  on public.unstuck_requests for select
+  to authenticated
+  using (user_id = auth.uid());
+
+-- Cohort-scoped like every other teacher-side policy — never simplify to a
+-- bare is_teacher().
+drop policy if exists "teachers read cohort unstuck requests" on public.unstuck_requests;
+create policy "teachers read cohort unstuck requests"
+  on public.unstuck_requests for select
+  to authenticated
+  using (public.is_teacher() and public.same_cohort(user_id));
+
+drop policy if exists "teachers clear cohort unstuck requests" on public.unstuck_requests;
+create policy "teachers clear cohort unstuck requests"
+  on public.unstuck_requests for delete
+  to authenticated
+  using (public.is_teacher() and public.same_cohort(user_id));
+
+-- ---------------------------------------------------------------------------
 -- Demo mode — how the isolation actually works
 -- ---------------------------------------------------------------------------
 -- "Try the demo" (src/app/demo/actions.ts) creates a throwaway cohort: one uuid

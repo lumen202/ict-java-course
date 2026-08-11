@@ -370,6 +370,19 @@ export async function setDayUnlock(formData: FormData) {
 
   if (error) console.error("day unlock failed:", error.message);
 
+  // Granting resolves whatever flag the student raised for this day — clear it
+  // so the "Someone stuck?" panel stops showing them as waiting. Revoking
+  // leaves any flag alone; that's an unrelated "not yet" decision.
+  if (grant) {
+    const { error: clearError } = await supabase
+      .from("unstuck_requests")
+      .delete()
+      .eq("user_id", userId)
+      .eq("week_slug", weekSlug)
+      .eq("day_number", day);
+    if (clearError) console.error("clearing unstuck request failed:", clearError.message);
+  }
+
   revalidatePath("/teacher/lessons");
   revalidatePath("/", "layout");
 }

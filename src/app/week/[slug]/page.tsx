@@ -85,7 +85,7 @@ export default async function WeekPage({ params, searchParams }: PageProps<"/wee
   // closing 'day' box), so each box reopens with their work in it. Errors
   // (e.g. table not created yet) degrade to empty boxes.
   const supabase = await createClient();
-  const [{ data: existingRows }, { data: unlockRow }] = await Promise.all([
+  const [{ data: existingRows }, { data: unlockRow }, { data: requestRow }] = await Promise.all([
     supabase
       .from("submissions")
       .select("item, content, updated_at")
@@ -98,6 +98,15 @@ export default async function WeekPage({ params, searchParams }: PageProps<"/wee
     supabase
       .from("day_unlocks")
       .select("open_past")
+      .eq("user_id", user.id)
+      .eq("week_slug", week.slug)
+      .eq("day_number", dayNumber)
+      .maybeSingle(),
+    // A flag this student already raised for this day, if any — so the "ask
+    // your teacher" confirmation survives a reload instead of resetting.
+    supabase
+      .from("unstuck_requests")
+      .select("step")
       .eq("user_id", user.id)
       .eq("week_slug", week.slug)
       .eq("day_number", dayNumber)
@@ -297,8 +306,11 @@ export default async function WeekPage({ params, searchParams }: PageProps<"/wee
         )}
         <LessonFlow
           storageKey={`jch-flow:${week.slug}:${dayNumber}`}
+          weekSlug={week.slug}
+          dayNumber={dayNumber}
           gated={user.role !== "teacher"}
           unlockAtLeast={unlockAtLeast}
+          requestedStep={requestRow ? ((requestRow.step as string | null) ?? null) : undefined}
           steps={steps.map(({ key, title, manual, done, final }) => ({
             key,
             title,

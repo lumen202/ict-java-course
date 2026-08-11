@@ -16,10 +16,40 @@ This block is written and re-added by `next dev` — verify at `node_modules/nex
 
 # ICT Java Course — agent framework
 
-Before doing anything else in this repo, read **`docs/agent/INDEX.md`** — it is the entry point
-for orientation, past work, and known issues, and links to everything else so you never need to
-scan the whole `docs/agent/` tree at once. It explains what this project is, the stack, the folder
-layout, and the invariants that must not be silently broken.
+Before doing anything else in this repo, in this order:
+
+1. Read **`docs/agent/INDEX.md`** — it is the entry point for orientation, past work, and known
+   issues, and links to everything else so you never need to scan the whole `docs/agent/` tree at
+   once. It explains what this project is, the stack, the folder layout, and the invariants that
+   must not be silently broken.
+2. Before any non-trivial change, call **`mcp__brain__brain_recall`** with a plain sentence
+   describing what you are about to do (not keywords), and say in one line what came back. The
+   brain's standing kernel is injected automatically by the `SessionStart` hook in
+   `.claude/settings.json` — recall is the part that is per-task and is *not* automatic. A
+   `PreToolUse` gate on `Edit`/`Write` enforces this once per session; it fails open and stops
+   after two denials, so if the brain is unreachable, say so and keep working.
+
+### How the brain and `docs/agent/` fit together
+
+These are two systems with overlapping vocabulary. Where they give opposed instructions, this
+section governs:
+
+- **`docs/agent/` is this project's entry store — the brain does not get a second one.** There is
+  no `docs/brain/` here, deliberately. Brain-shaped entries go into `docs/agent/log/` and
+  `docs/agent/bugs/` under those folders' existing conventions.
+- **`docs/agent/` is NOT the brain's raw-entry layer.** The imported `core/AGENTS.md` says never
+  to read, grep, or list raw entry files. That prohibition covers the brain's own
+  `brain/projects/` corpus only. `docs/agent/` is meant to be read, and step 1 above requires it.
+- **Logging bar:** the project rule ("add a log entry after any meaningful chunk of work") governs
+  `docs/agent/log/`, which is a session log and which the brain explicitly does not treat as a
+  brain entry. The brain's Rule 1 (write only on *surprise* + statable *mechanism*) governs
+  whether a distillable entry is *additionally* worth writing. Neither rule suppresses the other.
+- **Entries never ship.** This repository is public, but `/docs/agent/` and `/.claude/` are both
+  gitignored, so nothing written there is published. That is a blind spot, not a safe harbour:
+  no history to purge, but equally no secret scanner or commit hook ever positioned to see it,
+  and the brain's sanitize gates run inside the brain repo rather than here. Never write a
+  credential, key, or connection string into an entry — name the env var and where it is read
+  from instead.
 
 Three living doc trees make up the framework for working on this project across sessions
 (structured as small per-topic files with index tables, not a few giant files, so orientation

@@ -72,7 +72,7 @@ export default async function LessonsPage({ searchParams }: PageProps<"/teacher/
   // Both reads are RLS-scoped to the teacher's own cohort, so a demo teacher
   // sees only their throwaway classmates.
   const supabase = await createClient();
-  const [{ data: profiles }, names, { data: unlocks }] = await Promise.all([
+  const [{ data: profiles }, names, { data: unlocks }, { data: requests }] = await Promise.all([
     supabase.from("profiles").select("id, email").eq("role", "student"),
     studentDisplayNames(),
     selected
@@ -82,6 +82,16 @@ export default async function LessonsPage({ searchParams }: PageProps<"/teacher/
           .eq("week_slug", selected.weekSlug)
           .eq("day_number", selected.day)
       : Promise.resolve({ data: [] as { user_id: string; open_past: string | null }[] }),
+    // Students who flagged themselves stuck on the selected day — see
+    // src/app/api/unstuck-requests/route.ts. Granting an unlock clears the
+    // row (setDayUnlock), so this only ever shows who's still waiting.
+    selected
+      ? supabase
+          .from("unstuck_requests")
+          .select("user_id, step")
+          .eq("week_slug", selected.weekSlug)
+          .eq("day_number", selected.day)
+      : Promise.resolve({ data: [] as { user_id: string; step: string | null }[] }),
   ]);
 
   // The parts of the chosen day, from the same helper the week page renders —
@@ -98,13 +108,23 @@ export default async function LessonsPage({ searchParams }: PageProps<"/teacher/
   const grantByUser = new Map(
     (unlocks ?? []).map((u) => [u.user_id as string, (u.open_past as string | null) ?? null]),
   );
+  const requestByUser = new Map(
+    (requests ?? []).map((r) => [r.user_id as string, (r.step as string | null) ?? null]),
+  );
   const students: UnstuckStudent[] = (profiles ?? [])
     .map((p) => ({
       id: p.id as string,
       name: names.get(p.id as string) || (p.email as string | null) || "Unknown",
       ...(grantByUser.has(p.id as string) ? { openPast: grantByUser.get(p.id as string)! } : {}),
+      ...(requestByUser.has(p.id as string)
+        ? { requestedStep: requestByUser.get(p.id as string)! }
+        : {}),
     }))
-    .sort((a, b) => a.name.localeCompare(b.name));
+    // Waiting on the teacher floats to the top — that's who this panel is for.
+    .sort((a, b) => {
+      const waiting = Number(b.requestedStep !== undefined) - Number(a.requestedStep !== undefined);
+      return waiting !== 0 ? waiting : a.name.localeCompare(b.name);
+    });
 
   return (
     <main className="mx-auto w-full max-w-7xl px-6 py-10 lg:px-10">
