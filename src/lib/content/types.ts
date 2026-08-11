@@ -339,6 +339,41 @@ export type AnswerSheetGame = {
   items: AnswerSheetItem[];
 };
 
+/**
+ * Hand in a file from the student's own machine — the one step that can't be
+ * done inside this page, and that's the point. Everything else here is played
+ * in the browser, which proves they understood the idea but not that they ever
+ * built the thing on a real server. A `mysqldump` export carries artifacts the
+ * student didn't write (server version banner, charset declarations, dump
+ * timestamp) and, more importantly, *their own data* — the table they designed
+ * and the rows they chose — which is what makes it awkward to fabricate.
+ *
+ * Ask for something session-specific in `proves`, never a generic schema: a
+ * request an AI could satisfy without ever seeing the student's database
+ * defeats the whole step. Rendered by `components/UploadTurnIn.tsx`.
+ */
+export type UploadTask = {
+  kind: "upload";
+  /** Stable slug — keys the turn-in and the storage path. Never change once live. */
+  id: string;
+  title: string;
+  intro: string;
+  /** How to produce the file, in order — e.g. the Workbench export click-path. */
+  steps: string[];
+  /**
+   * What the file has to contain that only this student's database has. Shown
+   * prominently, because it's the difference between proof and decoration.
+   */
+  proves: string;
+  /**
+   * Escape hatch text for a student whose export genuinely won't run (broken
+   * install, DB Fiddle, no mysqldump). They upload a screenshot instead — see
+   * `docs/agent/bugs/BUG-008-...`: a step that can only be cleared by
+   * succeeding traps whoever can't.
+   */
+  screenshotFallback?: string;
+};
+
 /** A playable mini-game. Results auto-save as turn-ins under the game's id. */
 export type DayGame =
   | BossBattleGame
@@ -348,7 +383,8 @@ export type DayGame =
   | WorkbenchSimGame
   | SqlConsoleGame
   | OrderGame
-  | AnswerSheetGame;
+  | AnswerSheetGame
+  | UploadTask;
 
 export type DayPlan = {
   /** "Day 1", "Day 2", … */

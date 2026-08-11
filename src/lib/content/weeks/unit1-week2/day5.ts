@@ -245,6 +245,24 @@ export const day5: DayPlan = {
       ],
     },
     {
+      kind: "upload",
+      id: "export-week2-db",
+      title: "📤 Export the whole week and hand it in",
+      intro:
+        "Last one for the unit. Both your tables, locked with real keys and counting themselves — export the database as it stands at the end of week 2 and hand it in. This is the state everything in unit 2 will build on.",
+      steps: [
+        "In MySQL Workbench: Server → Data Export.",
+        "Tick the `school` schema and every table inside it — `students` and the table you designed.",
+        'Choose "Export to Self-Contained File", name it `week2-final-<yourname>.sql`.',
+        'Keep "Include Create Schema" ticked, then Start Export and wait for the green tick.',
+        "Upload the file below.",
+      ],
+      proves:
+        "the week's work on YOUR data: `students` carrying the column you invented in week 1, your own designed table beside it, and a real `PRIMARY KEY` plus `AUTO_INCREMENT` on the id columns. The AUTO_INCREMENT number in the file is your own row count — nobody else's will match.",
+      screenshotFallback:
+        "Still fighting the export? Upload a screenshot of the SCHEMAS panel with both your tables expanded, plus a SELECT * from each, and say so in today's turn-in box. Bring the export problem to class — you'll want it working before unit 2.",
+    },
+    {
       id: "self-audit",
       title: "🔍 Audit your own work",
       steps: [

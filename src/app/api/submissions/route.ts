@@ -27,10 +27,8 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Invalid request." }, { status: 400 });
   }
 
-  const { weekSlug, dayNumber, content, item, pasted, startedAt } = (body ?? {}) as Record<
-    string,
-    unknown
-  >;
+  const { weekSlug, dayNumber, content, item, pasted, startedAt, filePath, fileName } = (body ??
+    {}) as Record<string, unknown>;
 
   const slug = typeof weekSlug === "string" ? weekSlug.trim() : "";
   const day = typeof dayNumber === "number" && Number.isInteger(dayNumber) ? dayNumber : 0;
@@ -43,6 +41,16 @@ export async function POST(request: Request) {
   const wasPasted = pasted === true;
   const shownAt =
     typeof startedAt === "string" && !Number.isNaN(Date.parse(startedAt)) ? startedAt : null;
+
+  // An UploadTask step records where its file landed in the `turn-ins` bucket.
+  // The path must start with this user's own id: storage's RLS already refuses
+  // a write anywhere else, so a forged path here could only ever point at an
+  // object this user was allowed to write — but it could still name *another*
+  // of their own files, so pin it to the shape the uploader actually uses.
+  const claimedPath = typeof filePath === "string" ? filePath.trim() : "";
+  const storedPath = claimedPath.startsWith(`${user.id}/`) ? claimedPath : null;
+  const storedName =
+    storedPath && typeof fileName === "string" ? fileName.trim().slice(0, 200) : null;
 
   const week = getWeek(slug);
   if (!week || day < 1 || day > week.video.days.length) {
@@ -77,6 +85,8 @@ export async function POST(request: Request) {
       content: text,
       pasted: wasPasted,
       started_at: shownAt,
+      file_path: storedPath,
+      file_name: storedName,
       updated_at: new Date().toISOString(),
     },
     { onConflict: "user_id,week_slug,day_number,item" },

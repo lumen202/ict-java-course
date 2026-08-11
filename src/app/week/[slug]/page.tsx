@@ -18,6 +18,7 @@ import { WorkbenchSim } from "@/components/WorkbenchSim";
 import { SqlConsole } from "@/components/SqlConsole";
 import { OrderGame } from "@/components/OrderGame";
 import { AnswerSheet } from "@/components/AnswerSheet";
+import { UploadTurnIn } from "@/components/UploadTurnIn";
 import { SelfCheck } from "@/components/SelfCheck";
 import { ReflectionForm } from "@/components/ReflectionForm";
 import { SubmissionForm } from "@/components/SubmissionForm";
@@ -88,7 +89,7 @@ export default async function WeekPage({ params, searchParams }: PageProps<"/wee
   const [{ data: existingRows }, { data: unlockRow }, { data: requestRow }] = await Promise.all([
     supabase
       .from("submissions")
-      .select("item, content, updated_at")
+      .select("item, content, updated_at, file_name")
       .eq("user_id", user.id)
       .eq("week_slug", week.slug)
       .eq("day_number", dayNumber),
@@ -147,6 +148,14 @@ export default async function WeekPage({ params, searchParams }: PageProps<"/wee
       <OrderGame weekSlug={week.slug} dayNumber={dayNumber} game={g} />
     ) : g.kind === "answer-sheet" ? (
       <AnswerSheet weekSlug={week.slug} dayNumber={dayNumber} game={g} />
+    ) : g.kind === "upload" ? (
+      <UploadTurnIn
+        weekSlug={week.slug}
+        dayNumber={dayNumber}
+        task={g}
+        initialFileName={(existingByItem.get(g.id)?.file_name as string | null) ?? null}
+        turnedInAt={existingByItem.get(g.id)?.updated_at ?? null}
+      />
     ) : (
       <BossBattle weekSlug={week.slug} dayNumber={dayNumber} game={g} />
     );

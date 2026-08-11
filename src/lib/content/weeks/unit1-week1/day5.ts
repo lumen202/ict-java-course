@@ -265,6 +265,24 @@ export const day5: DayPlan = {
       ],
     },
     {
+      kind: "upload",
+      id: "export-week1-db",
+      title: "📤 Export your real database and hand it in",
+      intro:
+        "Everything else this week happened in this page. This one happens on YOUR computer: you're going to export the actual database off your actual server and hand the file in. It's the difference between knowing the answer and having built the thing.",
+      steps: [
+        "In MySQL Workbench, open Server → Data Export from the top menu.",
+        "On the left, tick the `school` schema. In the panel beside it, tick your `students` table.",
+        "Choose \"Export to Self-Contained File\" and set the filename to `week1-<yourname>.sql` somewhere you'll find it (Documents is fine).",
+        "Make sure \"Include Create Schema\" is ticked — the file should be able to rebuild the database from nothing.",
+        "Click Start Export, wait for the green tick, then find the file and upload it below.",
+      ],
+      proves:
+        "your own `students` table — including the extra column you invented on Day 4, and the rows you actually put in it. A generic table of made-up students isn't your database, and it's the one thing here nobody else can hand in for you.",
+      screenshotFallback:
+        "Export not working — install still broken, or you've been on DB Fiddle all week? Don't lose the day to it. Upload a screenshot of your table with its rows showing instead (in Workbench, or DB Fiddle's result grid), and say so in today's turn-in box.",
+    },
+    {
       id: "self-audit",
       title: "🔍 Audit your own work",
       steps: [

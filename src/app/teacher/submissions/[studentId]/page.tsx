@@ -5,6 +5,7 @@ import { requireTeacher } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { BackLink } from "@/components/BackLink";
 import { getWeek } from "@/lib/content";
+import { turnInCount } from "@/lib/lesson-steps";
 import { studentDisplayNames, teacherUserIds } from "@/lib/student-names";
 import { deleteSubmission, resetStudentDay } from "../../actions";
 import { ConfirmButton } from "@/components/ConfirmButton";
@@ -26,7 +27,19 @@ type Submission = {
   content: string;
   pasted: boolean;
   started_at: string | null;
+  file_path: string | null;
+  file_name: string | null;
 };
+
+/**
+ * How many turn-ins this day asks for, or 0 when the week/day isn't in the
+ * content model any more (an old submission for renamed content) — in which
+ * case the count is simply not shown rather than compared against a guess.
+ */
+function expectedTurnIns(weekSlug: string, dayNumber: number): number {
+  const day = getWeek(weekSlug)?.video.days[dayNumber - 1];
+  return day ? turnInCount(day) : 0;
+}
 
 /** "42s" / "3m 10s" — how long between the box appearing and this landing. */
 function elapsedLabel(startedAt: string, updatedAt: string): string {
@@ -52,7 +65,9 @@ export default async function StudentSubmissionsPage({
   const [{ data }, names, teacherIds] = await Promise.all([
     supabase
       .from("submissions")
-      .select("id, updated_at, week_slug, day_number, item, student_name, content, pasted, started_at")
+      .select(
+        "id, updated_at, week_slug, day_number, item, student_name, content, pasted, started_at, file_path, file_name",
+      )
       .eq("user_id", studentId)
       .order("updated_at", { ascending: false })
       .limit(1000),
@@ -78,6 +93,26 @@ export default async function StudentSubmissionsPage({
       .reverse(); // oldest first reads in the order the day was worked
     const focus = getWeek(weekSlug)?.video.days[dayNumber - 1]?.focus;
 
+    // How many turn-in boxes this day actually has, derived from the same
+    // content the student walks — so "3 of 11" means three of the eleven
+    // things today asks for, not three of some number kept in sync by hand.
+    const expected = expectedTurnIns(weekSlug, dayNumber);
+
+    // The `turn-ins` bucket is private, so a stored path isn't directly
+    // openable. Sign each one for this render only; the teacher's own session
+    // does the signing, so RLS scopes it exactly like every other read.
+    const signedByPath = new Map<string, string>();
+    await Promise.all(
+      dayWork
+        .filter((s) => s.file_path)
+        .map(async (s) => {
+          const { data: signed } = await supabase.storage
+            .from("turn-ins")
+            .createSignedUrl(s.file_path!, 60 * 60);
+          if (signed?.signedUrl) signedByPath.set(s.file_path!, signed.signedUrl);
+        }),
+    );
+
     return (
       <main className="mx-auto w-full max-w-5xl px-6 py-10 lg:px-10">
         <div className="mb-6">
@@ -90,8 +125,11 @@ export default async function StudentSubmissionsPage({
           {focus ?? `Day ${dayNumber}`}
         </h1>
         <p className="mt-1 text-sm text-zinc-600 dark:text-zinc-400">
-          {name} — {dayWork.length} turn-in{dayWork.length === 1 ? "" : "s"}, in
-          the order they were worked.
+          {name} —{" "}
+          {expected
+            ? `${dayWork.length} of ${expected} turned in`
+            : `${dayWork.length} turn-in${dayWork.length === 1 ? "" : "s"}`}
+          , in the order they were worked.
         </p>
 
         {/* Handing work back is the point of these controls: the student's
@@ -168,6 +206,25 @@ export default async function StudentSubmissionsPage({
               <pre className="mt-2 max-h-96 overflow-auto rounded-xl bg-zinc-900/[0.04] dark:bg-white/5 p-4 font-mono text-xs leading-relaxed whitespace-pre-wrap">
                 {s.content}
               </pre>
+              {/* An uploaded file (an UploadTask step). The link is a signed
+                  URL minted for this render only — the bucket is private, so
+                  it expires rather than becoming a shareable public address. */}
+              {s.file_path &&
+                (signedByPath.has(s.file_path) ? (
+                  <a
+                    href={signedByPath.get(s.file_path)}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="btn-ghost mt-3 text-sm"
+                  >
+                    ⬇ Download {s.file_name ?? "their file"}
+                  </a>
+                ) : (
+                  <p className="mt-3 text-xs text-zinc-500">
+                    {s.file_name ?? "A file"} was uploaded, but the download link
+                    couldn&apos;t be prepared — reload to try again.
+                  </p>
+                ))}
             </li>
           ))}
         </ul>
@@ -204,6 +261,8 @@ export default async function StudentSubmissionsPage({
       <ul className="space-y-2">
         {[...days.values()].map((d) => {
           const focus = getWeek(d.week_slug)?.video.days[d.day_number - 1]?.focus;
+          const expected = expectedTurnIns(d.week_slug, d.day_number);
+          const complete = expected > 0 && d.count >= expected;
           return (
             <li key={`${d.week_slug}:${d.day_number}`}>
               <Link
@@ -218,8 +277,19 @@ export default async function StudentSubmissionsPage({
                     {focus ?? d.week_slug}
                   </span>
                   <span className="block text-xs text-zinc-500">
-                    {d.week_slug} · {d.count} turn-in{d.count === 1 ? "" : "s"} ·{" "}
-                    {new Date(d.latest).toLocaleDateString()}
+                    {d.week_slug} ·{" "}
+                    {expected ? (
+                      <span
+                        className={
+                          complete ? "text-emerald-700 dark:text-emerald-400 font-medium" : undefined
+                        }
+                      >
+                        {d.count} of {expected} turned in
+                      </span>
+                    ) : (
+                      `${d.count} turn-in${d.count === 1 ? "" : "s"}`
+                    )}{" "}
+                    · {new Date(d.latest).toLocaleDateString()}
                   </span>
                 </span>
                 <span aria-hidden="true" className="text-zinc-400">

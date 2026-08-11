@@ -105,6 +105,20 @@ export function daySteps(day: DayPlan): LessonStep[] {
 }
 
 /**
+ * How many turn-in boxes a day actually has — every step that records
+ * something server-side, which is what the teacher's "3 of 11" count is
+ * measured against.
+ *
+ * Derived from the day's own content rather than stored, for the same reason
+ * `daySteps` exists: a hand-maintained number would drift the first time a day
+ * gains an activity, and the drift would be invisible — a teacher would just
+ * see a total that quietly stopped matching the lesson.
+ */
+export function turnInCount(day: DayPlan): number {
+  return daySteps(day).filter((s) => stepItem(s) !== null).length;
+}
+
+/**
  * How many steps a `day_unlocks` grant opens.
  *
  * `openPast` is the key of the step the student was stuck on, so the grant has

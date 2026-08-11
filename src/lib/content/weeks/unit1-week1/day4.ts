@@ -445,6 +445,24 @@ export const day4: DayPlan = {
       ],
     },
     {
+      kind: "upload",
+      id: "export-day4-twist",
+      title: "📤 Export the table only you have",
+      intro:
+        "You just added a column nobody else thought of and filled it with your own data. That version of the table exists on your server and nowhere else — so before the day closes, take a copy off your machine and hand it in.",
+      steps: [
+        "In MySQL Workbench: Server → Data Export.",
+        "Tick the `school` schema on the left, then tick the `students` table beside it.",
+        'Choose "Export to Self-Contained File" and name it `day4-<yourname>.sql`.',
+        'Leave "Include Create Schema" ticked, click Start Export, and wait for the green tick.',
+        "Find the file and upload it below.",
+      ],
+      proves:
+        "the column you invented today, with the values you chose in it. Your CREATE TABLE should list a column no tutorial would have — and the INSERT/UPDATE rows underneath should hold real answers about the real people in your table.",
+      screenshotFallback:
+        "Export refusing to run — install still broken, or you're on DB Fiddle? Don't lose the day to it. Upload a screenshot showing SELECT * FROM students; with your new column and its filled-in values, and mention it in today's turn-in box.",
+    },
+    {
       kind: "quest",
       id: "cheat-sheet-day4",
       title: "📓 Quest: cheat sheet, day 4",

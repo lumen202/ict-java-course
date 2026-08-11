@@ -350,6 +350,24 @@ export const day4: DayPlan = {
         },
       ],
     },
+    {
+      kind: "upload",
+      id: "export-own-table",
+      title: "📤 Export the table you designed yourself",
+      intro:
+        "The table you sketched on a piece of paper in week 1 is now a real table on a real server, built the professional way. Export it — this is the first thing in this course that is entirely your own idea, built entirely by you.",
+      steps: [
+        "In MySQL Workbench: Server → Data Export.",
+        "Tick the `school` schema, then tick BOTH tables beside it — `students` and the one you designed.",
+        'Choose "Export to Self-Contained File" and name it `week2-<yourname>.sql`.',
+        'Keep "Include Create Schema" ticked, then Start Export.',
+        "Upload the file below.",
+      ],
+      proves:
+        "your own table — the one whose name and columns you invented in week 1 (playlists, players, episodes, stock, whatever you chose). Its CREATE TABLE should show `id INT PRIMARY KEY AUTO_INCREMENT` first, then your columns, and it should hold real rows of your own data.",
+      screenshotFallback:
+        "Export not cooperating? Upload a screenshot instead: your table's CREATE statement (right-click the table → Copy to Clipboard → Create Statement, pasted somewhere visible) plus a SELECT * showing your rows. Say you did this in today's turn-in box.",
+    },
   ],
   game: {
     kind: "boss-battle",

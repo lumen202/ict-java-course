@@ -524,6 +524,105 @@ create policy "teachers delete submissions"
   using (public.is_teacher() and public.same_cohort(user_id));
 
 -- ---------------------------------------------------------------------------
+-- turn-ins storage bucket — files handed in from the student's own machine
+-- ---------------------------------------------------------------------------
+-- Everything else in this course is played inside the browser, which proves a
+-- student understood an idea but never that they built anything on a real
+-- server. An `UploadTask` step (see src/lib/content/types.ts) asks for a
+-- mysqldump export of their own database; this is where those files land.
+--
+-- Private bucket, always. A turn-in is a student's work and is read only by
+-- them and their teacher, so nothing here is world-readable by URL — the app
+-- mints a short-lived signed URL server-side per request instead.
+--
+-- Path convention, and it is load-bearing for the policies below:
+--   {user_id}/{week_slug}/{day_number}/{item}.{ext}
+-- The first folder segment IS the owner's uuid, which is what every policy
+-- checks. A student can therefore only ever write inside their own folder.
+--
+-- Free-tier sizing: the plan allows 1 GB of storage and 5 GB of egress a
+-- month. A .sql dump of a week-1 practice database is a few KB; the real risk
+-- is screenshot fallbacks, so the bucket caps any single object at 2 MB and
+-- the client downscales images before upload (components/UploadTurnIn.tsx).
+-- Re-submitting overwrites, because the path above is deterministic and the
+-- upload uses upsert — without that, a student re-uploading five times would
+-- leave five copies behind and quietly burn five times the quota.
+insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
+values (
+  'turn-ins', 'turn-ins', false, 2097152,
+  array['text/plain', 'application/sql', 'text/x-sql', 'application/octet-stream',
+        'image/png', 'image/jpeg', 'image/webp']
+)
+on conflict (id) do update
+  set file_size_limit = excluded.file_size_limit,
+      allowed_mime_types = excluded.allowed_mime_types,
+      public = false;
+
+-- Students reach only their own folder. `storage.foldername(name)` splits the
+-- object path, so element 1 is the `{user_id}` segment above.
+drop policy if exists "students upload own turn-ins" on storage.objects;
+create policy "students upload own turn-ins"
+  on storage.objects for insert
+  to authenticated
+  with check (
+    bucket_id = 'turn-ins'
+    and (storage.foldername(name))[1] = auth.uid()::text
+  );
+
+-- Update, not just insert: re-submitting overwrites the same path (upsert).
+drop policy if exists "students replace own turn-ins" on storage.objects;
+create policy "students replace own turn-ins"
+  on storage.objects for update
+  to authenticated
+  using (
+    bucket_id = 'turn-ins'
+    and (storage.foldername(name))[1] = auth.uid()::text
+  )
+  with check (
+    bucket_id = 'turn-ins'
+    and (storage.foldername(name))[1] = auth.uid()::text
+  );
+
+drop policy if exists "students read own turn-ins" on storage.objects;
+create policy "students read own turn-ins"
+  on storage.objects for select
+  to authenticated
+  using (
+    bucket_id = 'turn-ins'
+    and (storage.foldername(name))[1] = auth.uid()::text
+  );
+
+-- Cohort-scoped like every other teacher-side policy — never simplify to a
+-- bare is_teacher(). A demo teacher must not reach a real student's file.
+drop policy if exists "teachers read cohort turn-ins" on storage.objects;
+create policy "teachers read cohort turn-ins"
+  on storage.objects for select
+  to authenticated
+  using (
+    bucket_id = 'turn-ins'
+    and public.is_teacher()
+    and public.same_cohort(((storage.foldername(name))[1])::uuid)
+  );
+
+-- Handing work back deletes the submissions row; this lets the file go with
+-- it. Students get no delete, matching "students cannot delete their own"
+-- above.
+drop policy if exists "teachers delete cohort turn-ins" on storage.objects;
+create policy "teachers delete cohort turn-ins"
+  on storage.objects for delete
+  to authenticated
+  using (
+    bucket_id = 'turn-ins'
+    and public.is_teacher()
+    and public.same_cohort(((storage.foldername(name))[1])::uuid)
+  );
+
+-- Where the uploaded object lives, for the turn-in row that describes it.
+-- Null for every ordinary typed turn-in; set only by an UploadTask step.
+alter table public.submissions add column if not exists file_path text;
+alter table public.submissions add column if not exists file_name text;
+
+-- ---------------------------------------------------------------------------
 -- day_unlocks — the teacher's "unstuck" grant for one student's day
 -- ---------------------------------------------------------------------------
 -- The lesson page normally reveals a day one step at a time, and a step only
