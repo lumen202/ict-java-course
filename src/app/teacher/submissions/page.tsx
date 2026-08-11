@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { requireTeacher } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
-import { studentDisplayNames } from "@/lib/student-names";
+import { studentDisplayNames, studentUserIds } from "@/lib/student-names";
 
 export const metadata: Metadata = { title: "Submissions" };
 
@@ -27,16 +27,19 @@ export default async function SubmissionsPage() {
   await requireTeacher("/teacher/submissions");
 
   const supabase = await createClient();
-  const [{ data, error }, nameById] = await Promise.all([
+  const [{ data, error }, nameById, studentIds] = await Promise.all([
     supabase
       .from("submissions")
       .select("updated_at, user_id, week_slug, day_number, student_name")
       .order("updated_at", { ascending: false })
       .limit(2000),
     studentDisplayNames(),
+    studentUserIds(),
   ]);
 
-  const rows = (data ?? []) as SubmissionRow[];
+  // A teacher testing a lesson leaves turn-ins under their own account just
+  // like a student would — keep those out of the class list.
+  const rows = ((data ?? []) as SubmissionRow[]).filter((r) => studentIds.has(r.user_id));
 
   // Newest-first input → students ordered by most recent activity.
   const students = new Map<

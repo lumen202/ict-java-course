@@ -4,6 +4,7 @@ import { useState } from "react";
 import type { AnswerSheetGame } from "@/lib/content/types";
 import { useFlowComplete } from "@/components/LessonFlow";
 import { GameDoor, GameModal, GameModalHeader, GameModalBody } from "@/components/GameModal";
+import { usePasteFlag, useStepShownAt } from "@/lib/submission-integrity";
 
 // An in-site answer sheet: questions one at a time, each answered by filling
 // the same labeled boxes (prediction → the SQL run → the real answer). The
@@ -33,6 +34,8 @@ export function AnswerSheet({
   const [answers, setAnswers] = useState<Record<number, string[]>>({});
   const [saved, setSaved] = useState(false);
   const flowComplete = useFlowComplete();
+  const { pasted, onPaste } = usePasteFlag();
+  const startedAt = useStepShownAt();
 
   const item = game.items[idx];
   const current = answers[idx] ?? [];
@@ -76,7 +79,7 @@ export function AnswerSheet({
     fetch("/api/submissions", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ weekSlug, dayNumber, item: game.id, content }),
+      body: JSON.stringify({ weekSlug, dayNumber, item: game.id, content, pasted, startedAt }),
     })
       .then((r) => setSaved(r.ok))
       .catch(() => setSaved(false));
@@ -171,6 +174,7 @@ export function AnswerSheet({
                       id={`sheet-${game.id}-${idx}-${fi}`}
                       value={current[fi] ?? ""}
                       onChange={(e) => setField(fi, e.target.value)}
+                      onPaste={onPaste}
                       rows={fi === 0 ? 1 : 2}
                       maxLength={2000}
                       spellCheck={false}

@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useFlowComplete } from "@/components/LessonFlow";
+import { usePasteFlag, useStepShownAt } from "@/lib/submission-integrity";
 
 type Status = "idle" | "saving" | "saved" | "error";
 
@@ -34,6 +35,8 @@ export function SubmissionForm({
   const [message, setMessage] = useState("");
   const [savedOnce, setSavedOnce] = useState(Boolean(turnedInAt));
   const flowComplete = useFlowComplete();
+  const { pasted, onPaste } = usePasteFlag();
+  const startedAt = useStepShownAt();
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
@@ -43,7 +46,7 @@ export function SubmissionForm({
       const res = await fetch("/api/submissions", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ weekSlug, dayNumber, item, content }),
+        body: JSON.stringify({ weekSlug, dayNumber, item, content, pasted, startedAt }),
       });
       const data = await res.json();
       if (!res.ok) {
@@ -79,6 +82,7 @@ export function SubmissionForm({
           setContent(e.target.value);
           if (status === "saved") setStatus("idle");
         }}
+        onPaste={onPaste}
         required
         maxLength={20000}
         rows={rows}

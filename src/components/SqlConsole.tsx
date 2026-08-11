@@ -3,6 +3,7 @@
 import { useState } from "react";
 import type { SqlConsoleGame } from "@/lib/content/types";
 import { useFlowComplete } from "@/components/LessonFlow";
+import { usePasteFlag, useStepShownAt } from "@/lib/submission-integrity";
 import { GameDoor, GameModal, GameModalHeader, GameModalBody } from "@/components/GameModal";
 import {
   createState,
@@ -55,6 +56,8 @@ export function SqlConsole({
   // stays winnable.
   const [engine, setEngine] = useState<MiniState>(() => createState(game.setup));
   const flowComplete = useFlowComplete();
+  const { pasted, onPaste } = usePasteFlag();
+  const startedAt = useStepShownAt();
 
   const task = game.tasks[idx];
   const playing = phase === "task" || phase === "cleared";
@@ -108,7 +111,14 @@ export function SqlConsole({
       fetch("/api/submissions", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ weekSlug, dayNumber, item: game.id, content: finalSummary }),
+        body: JSON.stringify({
+          weekSlug,
+          dayNumber,
+          item: game.id,
+          content: finalSummary,
+          pasted,
+          startedAt,
+        }),
       })
         .then((r) => setSaved(r.ok))
         .catch(() => setSaved(false));
@@ -177,6 +187,7 @@ export function SqlConsole({
                 <textarea
                   value={text}
                   onChange={(e) => setText(e.target.value)}
+                  onPaste={onPaste}
                   onKeyDown={(e) => {
                     if ((e.ctrlKey || e.metaKey) && e.key === "Enter") {
                       e.preventDefault();

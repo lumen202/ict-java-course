@@ -33,3 +33,15 @@ export async function studentDisplayNames(): Promise<Map<string, string>> {
   }
   return names;
 }
+
+// IDs of every account with role 'student' — the same population
+// studentDisplayNames() names. A teacher walking through a lesson to test it
+// leaves rows in submissions/reflections exactly like a student would;
+// nothing else distinguishes them, so student-only listings need to check
+// this before grouping by user_id, or the teacher's own test data shows up
+// mixed in with the class.
+export async function studentUserIds(): Promise<Set<string>> {
+  const supabase = await createClient();
+  const { data } = await supabase.from("profiles").select("id").eq("role", "student");
+  return new Set((data ?? []).map((p) => p.id as string));
+}

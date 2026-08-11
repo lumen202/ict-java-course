@@ -4,6 +4,7 @@ import { useState } from "react";
 import type { QuestGame } from "@/lib/content/types";
 import { useFlowComplete } from "@/components/LessonFlow";
 import { GameDoor, GameModal, GameModalHeader, GameModalBody } from "@/components/GameModal";
+import { usePasteFlag, useStepShownAt } from "@/lib/submission-integrity";
 
 // A quest: real work broken into missions shown ONE at a time. Each mission is
 // a couple of sentences — do the thing, then clear it with a quick check
@@ -38,6 +39,8 @@ export function Quest({
   const [inputs, setInputs] = useState<Record<number, string>>({});
   const [saved, setSaved] = useState(false);
   const flowComplete = useFlowComplete();
+  const { pasted, onPaste } = usePasteFlag();
+  const startedAt = useStepShownAt();
 
   const mission = game.missions[idx];
   const checksTotal = game.missions.filter((m) => m.check).length;
@@ -84,7 +87,14 @@ export function Quest({
       fetch("/api/submissions", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ weekSlug, dayNumber, item: game.id, content: summary }),
+        body: JSON.stringify({
+          weekSlug,
+          dayNumber,
+          item: game.id,
+          content: summary,
+          pasted,
+          startedAt,
+        }),
       })
         .then((r) => setSaved(r.ok))
         .catch(() => setSaved(false));
@@ -176,6 +186,7 @@ export function Quest({
                     id={`quest-${game.id}-${idx}`}
                     value={inputs[idx] ?? ""}
                     onChange={(e) => setInputs((v) => ({ ...v, [idx]: e.target.value }))}
+                    onPaste={onPaste}
                     rows={5}
                     maxLength={5000}
                     className="input mt-2 font-mono text-xs leading-relaxed"

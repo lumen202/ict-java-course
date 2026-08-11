@@ -5,7 +5,7 @@ import { requireTeacher } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { BackLink } from "@/components/BackLink";
 import { getWeek } from "@/lib/content";
-import { studentDisplayNames } from "@/lib/student-names";
+import { studentDisplayNames, studentUserIds } from "@/lib/student-names";
 import { deleteSubmission, resetStudentDay } from "../../actions";
 import { ConfirmButton } from "@/components/ConfirmButton";
 
@@ -24,7 +24,19 @@ type Submission = {
   item: string;
   student_name: string;
   content: string;
+  pasted: boolean;
+  started_at: string | null;
 };
+
+/** "42s" / "3m 10s" — how long between the box appearing and this landing. */
+function elapsedLabel(startedAt: string, updatedAt: string): string {
+  const ms = new Date(updatedAt).getTime() - new Date(startedAt).getTime();
+  if (!Number.isFinite(ms) || ms < 0) return "";
+  const totalSeconds = Math.round(ms / 1000);
+  const minutes = Math.floor(totalSeconds / 60);
+  const seconds = totalSeconds % 60;
+  return minutes > 0 ? `${minutes}m ${seconds}s` : `${seconds}s`;
+}
 
 export default async function StudentSubmissionsPage({
   params,
@@ -37,15 +49,21 @@ export default async function StudentSubmissionsPage({
   const dayNumber = Number(Array.isArray(day) ? day[0] : day) || null;
 
   const supabase = await createClient();
-  const [{ data }, names] = await Promise.all([
+  const [{ data }, names, studentIds] = await Promise.all([
     supabase
       .from("submissions")
-      .select("id, updated_at, week_slug, day_number, item, student_name, content")
+      .select("id, updated_at, week_slug, day_number, item, student_name, content, pasted, started_at")
       .eq("user_id", studentId)
       .order("updated_at", { ascending: false })
       .limit(1000),
     studentDisplayNames(),
+    studentUserIds(),
   ]);
+
+  // Guards the same hole as the listing page, for anyone who reaches this
+  // route directly (an old link, a typed-in id): a teacher's own account is
+  // never a valid "student" to drill into here.
+  if (!studentIds.has(studentId)) notFound();
 
   const submissions = (data ?? []) as Submission[];
   if (submissions.length === 0) notFound();
@@ -95,8 +113,41 @@ export default async function StudentSubmissionsPage({
           {dayWork.map((s) => (
             <li key={s.id} className="card p-4">
               <div className="flex flex-wrap items-baseline justify-between gap-2">
-                <span className="chip bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300">
-                  {s.item === "day" ? "day wrap-up" : s.item}
+                <span className="flex flex-wrap items-center gap-1.5">
+                  <span className="chip bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300">
+                    {s.item === "day" ? "day wrap-up" : s.item}
+                  </span>
+                  {/* Advisory only — see src/lib/submission-integrity.ts. Neither
+                      badge means anything on its own: pasting your own earlier
+                      work is normal, and finishing fast can just mean fast. */}
+                  {s.pasted && (
+                    <span
+                      className="chip bg-zinc-100 text-zinc-600 dark:bg-zinc-800 dark:text-zinc-400"
+                      title="Some of this was pasted in, not typed"
+                    >
+                      📋 pasted
+                    </span>
+                  )}
+                  {s.started_at &&
+                    (() => {
+                      const label = elapsedLabel(s.started_at, s.updated_at);
+                      if (!label) return null;
+                      const ms =
+                        new Date(s.updated_at).getTime() - new Date(s.started_at).getTime();
+                      const fast = ms < 30_000;
+                      return (
+                        <span
+                          className={
+                            fast
+                              ? "chip bg-amber-100 text-amber-800 dark:bg-amber-950/60 dark:text-amber-300"
+                              : "chip bg-zinc-100 text-zinc-600 dark:bg-zinc-800 dark:text-zinc-400"
+                          }
+                          title="Time between the box appearing and this turn-in landing"
+                        >
+                          ⏱ {label}
+                        </span>
+                      );
+                    })()}
                 </span>
                 <span className="flex items-center gap-3">
                   <span className="text-xs text-zinc-500">

@@ -1,5 +1,6 @@
 import { setDayUnlock } from "./actions";
 import { PendingButton } from "@/components/PendingButton";
+import { Select } from "@/components/Select";
 
 // "Someone stuck?" — the per-student escape hatch, next to the class-wide
 // release controls because it answers the same question ("what can they open?")
@@ -56,16 +57,20 @@ export function UnstuckPanel({
       {/* Plain GET form: the chosen day lives in the URL, so the panel is
           linkable and survives a refresh. */}
       <form method="get" className="mb-5 flex flex-wrap items-end gap-2">
-        <label className="text-xs font-medium text-zinc-600 dark:text-zinc-400">
+        <span className="text-xs font-medium text-zinc-600 dark:text-zinc-400">
           <span className="mb-1 block">Which day</span>
-          <select name="unstuck" defaultValue={value} className="input w-auto text-sm">
-            {days.map((d) => (
-              <option key={`${d.weekSlug}:${d.day}`} value={`${d.weekSlug}:${d.day}`}>
-                {d.weekTitle} — Day {d.day}: {d.focus}
-              </option>
-            ))}
-          </select>
-        </label>
+          <Select
+            name="unstuck"
+            ariaLabel="Which day"
+            defaultValue={value}
+            className="text-sm"
+            maxWidthClassName="max-w-full sm:max-w-xl"
+            options={days.map((d) => ({
+              value: `${d.weekSlug}:${d.day}`,
+              label: `${d.weekTitle} — Day ${d.day}: ${d.focus}`,
+            }))}
+          />
+        </span>
         <button type="submit" className="btn-ghost text-sm">
           Show
         </button>
@@ -109,22 +114,17 @@ export function UnstuckPanel({
                     <input type="hidden" name="weekSlug" value={selected.weekSlug} />
                     <input type="hidden" name="day" value={selected.day} />
                     <input type="hidden" name="grant" value="1" />
-                    <label className="sr-only" htmlFor={`step-${s.id}`}>
-                      Which part {s.name} is stuck on
-                    </label>
-                    <select
-                      id={`step-${s.id}`}
+                    <Select
                       name="step"
+                      ariaLabel={`Which part ${s.name} is stuck on`}
                       defaultValue={s.openPast ?? ""}
-                      className="input w-auto max-w-full text-xs"
-                    >
-                      {steps.map((st) => (
-                        <option key={st.key} value={st.key}>
-                          Stuck on: {st.title}
-                        </option>
-                      ))}
-                      <option value="">Open the whole day</option>
-                    </select>
+                      className="text-xs"
+                      maxWidthClassName="max-w-full sm:max-w-xs"
+                      options={[
+                        ...steps.map((st) => ({ value: st.key, label: `Stuck on: ${st.title}` })),
+                        { value: "", label: "Open the whole day" },
+                      ]}
+                    />
                     <PendingButton
                       pendingLabel="Opening…"
                       className="rounded-lg px-2.5 py-1 text-xs font-semibold text-emerald-700 transition-colors hover:bg-emerald-50 dark:text-emerald-400 dark:hover:bg-emerald-950/40"

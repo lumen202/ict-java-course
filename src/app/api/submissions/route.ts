@@ -27,13 +27,22 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Invalid request." }, { status: 400 });
   }
 
-  const { weekSlug, dayNumber, content, item } = (body ?? {}) as Record<string, unknown>;
+  const { weekSlug, dayNumber, content, item, pasted, startedAt } = (body ?? {}) as Record<
+    string,
+    unknown
+  >;
 
   const slug = typeof weekSlug === "string" ? weekSlug.trim() : "";
   const day = typeof dayNumber === "number" && Number.isInteger(dayNumber) ? dayNumber : 0;
   const text = typeof content === "string" ? content.trim() : "";
   // Which box: 'day' (the closing turn-in) or an activity id from the content.
   const box = typeof item === "string" && /^[a-z0-9-]{1,40}$/.test(item) ? item : "day";
+  // Advisory-only integrity signals — see src/lib/submission-integrity.ts.
+  // Neither is validated beyond shape: a client can lie about them, and that's
+  // fine, they're context for a teacher's judgment, not a security control.
+  const wasPasted = pasted === true;
+  const shownAt =
+    typeof startedAt === "string" && !Number.isNaN(Date.parse(startedAt)) ? startedAt : null;
 
   const week = getWeek(slug);
   if (!week || day < 1 || day > week.video.days.length) {
@@ -66,6 +75,8 @@ export async function POST(request: Request) {
       item: box,
       student_name: profile?.full_name || user.email || "Unknown",
       content: text,
+      pasted: wasPasted,
+      started_at: shownAt,
       updated_at: new Date().toISOString(),
     },
     { onConflict: "user_id,week_slug,day_number,item" },

@@ -1,6 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
+import { Select } from "@/components/Select";
 
 // Week filter for the teacher views (reflections, submissions). The pages are
 // server components, so the filter travels in the URL (?week=…) — that also
@@ -18,27 +19,17 @@ export function WeekFilter({
 
   return (
     <div>
-      <label htmlFor="week-filter" className="block text-xs font-medium mb-1 text-zinc-500">
-        Week
-      </label>
-      <select
-        id="week-filter"
+      <span className="block text-xs font-medium mb-1 text-zinc-500">Week</span>
+      <Select
+        ariaLabel="Week"
         value={current}
-        onChange={(e) => {
-          const value = e.target.value;
+        onChange={(value) => {
           router.push(
             value === "all" ? basePath : `${basePath}?week=${encodeURIComponent(value)}`,
           );
         }}
-        className="input w-auto"
-      >
-        <option value="all">All weeks</option>
-        {weeks.map((slug) => (
-          <option key={slug} value={slug}>
-            {slug}
-          </option>
-        ))}
-      </select>
+        options={[{ value: "all", label: "All weeks" }, ...weeks.map((slug) => ({ value: slug, label: slug }))]}
+      />
     </div>
   );
 }

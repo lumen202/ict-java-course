@@ -469,6 +469,15 @@ create table if not exists public.submissions (
 alter table public.submissions add column if not exists item text not null default 'day';
 alter table public.submissions drop constraint if exists submissions_user_id_week_slug_day_number_key;
 
+-- Two advisory, client-reported integrity signals for the teacher's review —
+-- never used to block a submission or auto-grade it. `pasted` is sticky per
+-- attempt (see src/lib/submission-integrity.ts); `started_at` is when the box
+-- became visible, so `updated_at - started_at` is roughly "how long they
+-- spent," shown next to the turn-in for the teacher to weigh, not act on
+-- automatically.
+alter table public.submissions add column if not exists pasted boolean not null default false;
+alter table public.submissions add column if not exists started_at timestamptz;
+
 -- The upsert target (ON CONFLICT works against a unique index).
 create unique index if not exists submissions_owner_item_key
   on public.submissions (user_id, week_slug, day_number, item);

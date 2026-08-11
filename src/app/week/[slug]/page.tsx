@@ -261,6 +261,19 @@ export default async function WeekPage({ params, searchParams }: PageProps<"/wee
         </div>
       </header>
 
+      {/* Shown immediately, not buried at the end of the day — a heads-up only
+          means something if it arrives before the choice it's about, not after.
+          Friendly, not a warning: pasting your own earlier work is normal and
+          explicitly encouraged elsewhere in this flow. */}
+      {user.role !== "teacher" && (
+        <p className="mb-8 rounded-2xl border border-zinc-200 dark:border-zinc-800 bg-zinc-50/80 dark:bg-zinc-900/40 p-4 text-xs text-zinc-600 dark:text-zinc-400 leading-relaxed">
+          💡 Quick heads up: your teacher can see whether an answer was pasted
+          in and roughly how long a box took to fill — not a big deal, pasting
+          your own earlier work is totally fine. It&apos;s just there so they
+          have context if something looks off.
+        </p>
+      )}
+
       {/* Day switcher — the sidebar does this too, but this keeps it reachable
           on mobile where the sidebar is behind a drawer. */}
       {released > 1 && (
