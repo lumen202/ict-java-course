@@ -635,6 +635,23 @@ create policy "teachers clear cohort unstuck requests"
   to authenticated
   using (public.is_teacher() and public.same_cohort(user_id));
 
+-- Realtime broadcasts row changes to subscribers, filtered by each
+-- subscriber's own RLS — the "teachers read cohort unstuck requests" policy
+-- above is what actually scopes it, this just turns broadcasting on for the
+-- table. Wrapped in the exists check because ALTER PUBLICATION ... ADD TABLE
+-- errors on a second run rather than no-op'ing like the rest of this file.
+do $$
+begin
+  if not exists (
+    select 1 from pg_publication_tables
+    where pubname = 'supabase_realtime'
+      and schemaname = 'public'
+      and tablename = 'unstuck_requests'
+  ) then
+    alter publication supabase_realtime add table public.unstuck_requests;
+  end if;
+end $$;
+
 -- ---------------------------------------------------------------------------
 -- Demo mode — how the isolation actually works
 -- ---------------------------------------------------------------------------
