@@ -5,7 +5,7 @@ import { requireTeacher } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { BackLink } from "@/components/BackLink";
 import { getWeek } from "@/lib/content";
-import { studentDisplayNames, studentUserIds } from "@/lib/student-names";
+import { studentDisplayNames, teacherUserIds } from "@/lib/student-names";
 import { deleteSubmission, resetStudentDay } from "../../actions";
 import { ConfirmButton } from "@/components/ConfirmButton";
 
@@ -49,7 +49,7 @@ export default async function StudentSubmissionsPage({
   const dayNumber = Number(Array.isArray(day) ? day[0] : day) || null;
 
   const supabase = await createClient();
-  const [{ data }, names, studentIds] = await Promise.all([
+  const [{ data }, names, teacherIds] = await Promise.all([
     supabase
       .from("submissions")
       .select("id, updated_at, week_slug, day_number, item, student_name, content, pasted, started_at")
@@ -57,13 +57,14 @@ export default async function StudentSubmissionsPage({
       .order("updated_at", { ascending: false })
       .limit(1000),
     studentDisplayNames(),
-    studentUserIds(),
+    teacherUserIds(),
   ]);
 
   // Guards the same hole as the listing page, for anyone who reaches this
   // route directly (an old link, a typed-in id): a teacher's own account is
-  // never a valid "student" to drill into here.
-  if (!studentIds.has(studentId)) notFound();
+  // never a valid "student" to drill into here. Everyone else is fair game,
+  // including an account whose profiles row hasn't landed yet.
+  if (teacherIds.has(studentId)) notFound();
 
   const submissions = (data ?? []) as Submission[];
   if (submissions.length === 0) notFound();

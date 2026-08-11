@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { requireTeacher } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
-import { studentUserIds } from "@/lib/student-names";
+import { teacherUserIds } from "@/lib/student-names";
 import { WeekFilter } from "./WeekFilter";
 
 export const metadata: Metadata = { title: "Reflections" };
@@ -27,20 +27,21 @@ export default async function TeacherPage({ searchParams }: PageProps<"/teacher"
   const weekFilter = typeof week === "string" ? week : "all";
 
   const supabase = await createClient();
-  const [{ data, error }, studentIds] = await Promise.all([
+  const [{ data, error }, teacherIds] = await Promise.all([
     supabase
       .from("reflections")
       .select("id, created_at, week_slug, student_name, hardest_part, want_explained, user_id")
       .order("created_at", { ascending: false })
       .limit(500),
-    studentUserIds(),
+    teacherUserIds(),
   ]);
 
   // Same hole as submissions: a teacher testing a lesson leaves a reflection
   // under their own account too. Rows from before accounts existed have no
-  // user_id at all — keep those, there's nothing to check them against.
+  // user_id at all, and a brand-new account may have no profiles row yet —
+  // keep both, only a confirmed teacher gets excluded.
   const reflections = ((data ?? []) as Reflection[]).filter(
-    (r) => r.user_id === null || studentIds.has(r.user_id),
+    (r) => r.user_id === null || !teacherIds.has(r.user_id),
   );
   const weekSlugs = [...new Set(reflections.map((r) => r.week_slug))].sort();
   const visible =

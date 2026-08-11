@@ -34,14 +34,21 @@ export async function studentDisplayNames(): Promise<Map<string, string>> {
   return names;
 }
 
-// IDs of every account with role 'student' — the same population
-// studentDisplayNames() names. A teacher walking through a lesson to test it
-// leaves rows in submissions/reflections exactly like a student would;
-// nothing else distinguishes them, so student-only listings need to check
-// this before grouping by user_id, or the teacher's own test data shows up
-// mixed in with the class.
-export async function studentUserIds(): Promise<Set<string>> {
+// IDs of every account with role 'teacher'. A teacher walking through a
+// lesson to test it leaves rows in submissions/reflections exactly like a
+// student would; nothing else distinguishes them, so student-only listings
+// need to exclude these before grouping by user_id, or the teacher's own
+// test data shows up mixed in with the class.
+//
+// Deliberately an EXCLUDE-teachers list, not an INCLUDE-students one: a
+// brand-new account has no profiles row until the signup trigger's insert
+// lands (getCurrentUser() treats that gap as role 'student', see its comment
+// on trigger lag), so requiring a positive role='student' match drops real,
+// just-turned-in student work the moment the row is queried in that gap —
+// worse than the teacher-contamination bug this was built to fix. Unknown
+// defaults to "show it"; only a confirmed teacher gets excluded.
+export async function teacherUserIds(): Promise<Set<string>> {
   const supabase = await createClient();
-  const { data } = await supabase.from("profiles").select("id").eq("role", "student");
+  const { data } = await supabase.from("profiles").select("id").eq("role", "teacher");
   return new Set((data ?? []).map((p) => p.id as string));
 }
