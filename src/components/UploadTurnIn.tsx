@@ -2,10 +2,9 @@
 
 import { useState } from "react";
 import type { UploadTask } from "@/lib/content/types";
-import { useFlowComplete } from "@/components/LessonFlow";
 import { createClient } from "@/lib/supabase/client";
 import { downscaleImage } from "@/lib/downscale-image";
-import { useStepShownAt } from "@/lib/submission-integrity";
+import { useTurnIn } from "@/lib/game/useTurnIn";
 
 // Hand in a file from your own machine — the one step of a day that can't be
 // completed inside this page, which is exactly what makes it evidence. See
@@ -43,8 +42,7 @@ export function UploadTurnIn({
   const [status, setStatus] = useState<Status>("idle");
   const [message, setMessage] = useState("");
   const [fileName, setFileName] = useState(initialFileName);
-  const flowComplete = useFlowComplete();
-  const startedAt = useStepShownAt();
+  const { submit } = useTurnIn({ weekSlug, dayNumber, item: task.id });
 
   async function handleFile(file: File) {
     setStatus("working");
@@ -102,30 +100,20 @@ export function UploadTurnIn({
       }
 
       // Record it as an ordinary turn-in so it shows up with everything else.
-      const res = await fetch("/api/submissions", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          weekSlug,
-          dayNumber,
-          item: task.id,
-          content: `${task.title} — uploaded ${file.name}`,
-          filePath: path,
-          fileName: file.name,
-          startedAt,
-        }),
+      const { ok, error } = await submit({
+        content: `${task.title} — uploaded ${file.name}`,
+        filePath: path,
+        fileName: file.name,
       });
 
-      if (!res.ok) {
-        const data = await res.json().catch(() => ({}));
+      if (!ok) {
         setStatus("error");
-        setMessage(data.error ?? "Uploaded, but couldn't record it — try again.");
+        setMessage(error ?? "Uploaded, but couldn't record it — try again.");
         return;
       }
 
       setFileName(file.name);
       setStatus("saved");
-      flowComplete(task.id);
     } catch {
       setStatus("error");
       setMessage("Couldn't prepare that file — try a different one.");

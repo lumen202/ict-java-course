@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import type { TypingGame as TypingGameData } from "@/lib/content/types";
-import { useFlowComplete } from "@/components/LessonFlow";
+import { useTurnIn } from "@/lib/game/useTurnIn";
 import { GameDoor, GameModal, GameModalHeader, GameModalBody } from "@/components/GameModal";
 
 // Fill-in-the-blank SQL typing game. Each round shows a goal in words and the
@@ -52,8 +52,7 @@ export function TypingGame({
   const [wrongBlanks, setWrongBlanks] = useState<Set<number>>(new Set());
   const [missedThisRound, setMissedThisRound] = useState(false);
   const [firstTry, setFirstTry] = useState(0);
-  const [saved, setSaved] = useState(false);
-  const flowComplete = useFlowComplete();
+  const { submit, saved } = useTurnIn({ weekSlug, dayNumber, item: game.id });
 
   const round = game.rounds[idx];
   const segments = round ? parseTemplate(round.template) : [];
@@ -67,7 +66,6 @@ export function TypingGame({
     setWrongBlanks(new Set());
     setMissedThisRound(false);
     setFirstTry(0);
-    setSaved(false);
     setOpen(true);
   }
 
@@ -93,16 +91,8 @@ export function TypingGame({
     setMissedThisRound(false);
     if (idx + 1 >= total) {
       setPhase("done");
-      flowComplete(game.id);
       const hits = firstTry;
-      const summary = `${game.title} — typed all ${total} commands, ${hits}/${total} right on the first try.`;
-      fetch("/api/submissions", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ weekSlug, dayNumber, item: game.id, content: summary }),
-      })
-        .then((r) => setSaved(r.ok))
-        .catch(() => setSaved(false));
+      void submit({ content: `${game.title} — typed all ${total} commands, ${hits}/${total} right on the first try.` });
     } else {
       setIdx(idx + 1);
       setPhase("round");

@@ -1,8 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { useFlowComplete } from "@/components/LessonFlow";
-import { usePasteFlag, useStepShownAt } from "@/lib/submission-integrity";
+import { useTurnIn } from "@/lib/game/useTurnIn";
 
 type Status = "idle" | "saving" | "saved" | "error";
 
@@ -34,33 +33,20 @@ export function SubmissionForm({
   const [status, setStatus] = useState<Status>("idle");
   const [message, setMessage] = useState("");
   const [savedOnce, setSavedOnce] = useState(Boolean(turnedInAt));
-  const flowComplete = useFlowComplete();
-  const { pasted, onPaste } = usePasteFlag();
-  const startedAt = useStepShownAt();
+  const { submit: handIn, onPaste } = useTurnIn({ weekSlug, dayNumber, item });
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
     setStatus("saving");
     setMessage("");
-    try {
-      const res = await fetch("/api/submissions", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ weekSlug, dayNumber, item, content, pasted, startedAt }),
-      });
-      const data = await res.json();
-      if (!res.ok) {
-        setStatus("error");
-        setMessage(data.error ?? "Something went wrong — try again.");
-        return;
-      }
-      setStatus("saved");
-      setSavedOnce(true);
-      flowComplete(item);
-    } catch {
+    const { ok, error } = await handIn({ content });
+    if (!ok) {
       setStatus("error");
-      setMessage("Couldn't reach the server — check your connection and try again.");
+      setMessage(error ?? "Couldn't reach the server — check your connection and try again.");
+      return;
     }
+    setStatus("saved");
+    setSavedOnce(true);
   }
 
   return (

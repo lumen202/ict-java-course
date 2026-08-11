@@ -431,7 +431,11 @@ export const day1: DayPlan = {
       {
         prompt: "Spot the correct way to change TWO columns in one UPDATE.",
         code: "A) SET name = 'Ana' AND grade_level = 9\nB) SET name = 'Ana', grade_level = 9\nC) SET name = 'Ana' SET grade_level = 9",
-        choices: ["A", "B", "C"],
+        choices: [
+          "SET name = 'Ana' AND grade_level = 9",
+          "SET name = 'Ana', grade_level = 9",
+          "SET name = 'Ana' SET grade_level = 9",
+        ],
         answer: 1,
         explain:
           "A comma between assignments. AND belongs in the WHERE — using it in the SET is a classic mix-up.",

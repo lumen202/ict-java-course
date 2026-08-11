@@ -391,7 +391,11 @@ export const day4: DayPlan = {
       {
         prompt: "Which line creates a self-numbering key?",
         code: "A) id INT PRIMARY KEY AUTO_INCREMENT\nB) id INT AUTO_NUMBER\nC) id COUNTER PRIMARY KEY",
-        choices: ["A", "B", "C"],
+        choices: [
+          "id INT PRIMARY KEY AUTO_INCREMENT",
+          "id INT AUTO_NUMBER",
+          "id COUNTER PRIMARY KEY",
+        ],
         answer: 0,
         explain:
           "One word, one underscore: AUTO_INCREMENT, riding on the key. The week's flagship line.",

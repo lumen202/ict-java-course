@@ -2,9 +2,8 @@
 
 import { useState } from "react";
 import type { AnswerSheetGame } from "@/lib/content/types";
-import { useFlowComplete } from "@/components/LessonFlow";
 import { GameDoor, GameModal, GameModalHeader, GameModalBody } from "@/components/GameModal";
-import { usePasteFlag, useStepShownAt } from "@/lib/submission-integrity";
+import { useTurnIn } from "@/lib/game/useTurnIn";
 
 // An in-site answer sheet: questions one at a time, each answered by filling
 // the same labeled boxes (prediction → the SQL run → the real answer). The
@@ -32,10 +31,7 @@ export function AnswerSheet({
   const [idx, setIdx] = useState(0);
   /** answers[itemIndex][fieldIndex] */
   const [answers, setAnswers] = useState<Record<number, string[]>>({});
-  const [saved, setSaved] = useState(false);
-  const flowComplete = useFlowComplete();
-  const { pasted, onPaste } = usePasteFlag();
-  const startedAt = useStepShownAt();
+  const { submit, saved, onPaste } = useTurnIn({ weekSlug, dayNumber, item: game.id });
 
   const item = game.items[idx];
   const current = answers[idx] ?? [];
@@ -44,7 +40,6 @@ export function AnswerSheet({
   function start() {
     setPhase("question");
     setIdx(0);
-    setSaved(false);
     setOpen(true);
   }
 
@@ -66,7 +61,6 @@ export function AnswerSheet({
 
   function finish() {
     setPhase("done");
-    flowComplete(game.id);
     const doc = game.items
       .map((it, qi) => {
         const lines = game.fields
@@ -75,14 +69,7 @@ export function AnswerSheet({
         return `${qi + 1}. ${it.question}\n${lines}`;
       })
       .join("\n\n");
-    const content = `${game.title} — completed all ${total} questions.\n\n${doc}`;
-    fetch("/api/submissions", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ weekSlug, dayNumber, item: game.id, content, pasted, startedAt }),
-    })
-      .then((r) => setSaved(r.ok))
-      .catch(() => setSaved(false));
+    void submit({ content: `${game.title} — completed all ${total} questions.\n\n${doc}` });
   }
 
   const filledCount = game.items.filter((_, qi) =>

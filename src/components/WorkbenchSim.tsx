@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import type { WorkbenchSimGame } from "@/lib/content/types";
-import { useFlowComplete } from "@/components/LessonFlow";
+import { useTurnIn } from "@/lib/game/useTurnIn";
 import { GameDoor, GameModal, GameModalHeader, GameModalBody } from "@/components/GameModal";
 
 // A clickable mock of MySQL Workbench. Each mission names something to click
@@ -51,8 +51,7 @@ export function WorkbenchSim({
   const [wrongCount, setWrongCount] = useState(0);
   const [missedThisStep, setMissedThisStep] = useState(false);
   const [firstTry, setFirstTry] = useState(0);
-  const [saved, setSaved] = useState(false);
-  const flowComplete = useFlowComplete();
+  const { submit, saved } = useTurnIn({ weekSlug, dayNumber, item: game.id });
 
   const step = game.steps[idx];
   const playing = phase === "mission" || phase === "feedback";
@@ -64,7 +63,6 @@ export function WorkbenchSim({
     setWrongCount(0);
     setMissedThisStep(false);
     setFirstTry(0);
-    setSaved(false);
     setOpen(true);
   }
 
@@ -87,15 +85,7 @@ export function WorkbenchSim({
     setMissedThisStep(false);
     if (idx + 1 >= total) {
       setPhase("done");
-      flowComplete(game.id);
-      const summary = `${game.title} — completed all ${total} missions, ${firstTry}/${total} on the first click.`;
-      fetch("/api/submissions", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ weekSlug, dayNumber, item: game.id, content: summary }),
-      })
-        .then((r) => setSaved(r.ok))
-        .catch(() => setSaved(false));
+      void submit({ content: `${game.title} — completed all ${total} missions, ${firstTry}/${total} on the first click.` });
     } else {
       setIdx(idx + 1);
       setPhase("mission");

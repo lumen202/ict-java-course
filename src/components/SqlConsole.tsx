@@ -2,8 +2,7 @@
 
 import { useState } from "react";
 import type { SqlConsoleGame } from "@/lib/content/types";
-import { useFlowComplete } from "@/components/LessonFlow";
-import { usePasteFlag, useStepShownAt } from "@/lib/submission-integrity";
+import { useTurnIn } from "@/lib/game/useTurnIn";
 import { GameDoor, GameModal, GameModalHeader, GameModalBody } from "@/components/GameModal";
 import {
   createState,
@@ -49,15 +48,12 @@ export function SqlConsole({
   const [matched, setMatched] = useState(false);
   const [missesThisTask, setMissesThisTask] = useState(0);
   const [firstTry, setFirstTry] = useState(0);
-  const [saved, setSaved] = useState(false);
   // The engine is immutable-by-convention in React state: each run works on a
   // clone, which only replaces the live state when the task is cleared — so a
   // wrong run (a bad table, a stray insert) rolls back for free and the task
   // stays winnable.
   const [engine, setEngine] = useState<MiniState>(() => createState(game.setup));
-  const flowComplete = useFlowComplete();
-  const { pasted, onPaste } = usePasteFlag();
-  const startedAt = useStepShownAt();
+  const { submit, saved, onPaste } = useTurnIn({ weekSlug, dayNumber, item: game.id });
 
   const task = game.tasks[idx];
   const playing = phase === "task" || phase === "cleared";
@@ -71,7 +67,6 @@ export function SqlConsole({
     setMatched(false);
     setMissesThisTask(0);
     setFirstTry(0);
-    setSaved(false);
     setOpen(true);
   }
 
@@ -106,22 +101,8 @@ export function SqlConsole({
     setMissesThisTask(0);
     if (idx + 1 >= total) {
       setPhase("done");
-      flowComplete(game.id);
       const finalSummary = `${game.title} — ran all ${total} tasks on the mini server, ${firstTry}/${total} on the first run.`;
-      fetch("/api/submissions", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          weekSlug,
-          dayNumber,
-          item: game.id,
-          content: finalSummary,
-          pasted,
-          startedAt,
-        }),
-      })
-        .then((r) => setSaved(r.ok))
-        .catch(() => setSaved(false));
+      void submit({ content: finalSummary });
     } else {
       setIdx(idx + 1);
       setPhase("task");

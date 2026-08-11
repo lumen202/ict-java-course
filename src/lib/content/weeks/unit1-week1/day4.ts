@@ -575,7 +575,11 @@ export const day4: DayPlan = {
       {
         prompt: "Which query lists your highest grade levels first?",
         code: "A) SELECT * FROM students ORDER BY grade_level;\nB) SELECT * FROM students ORDER BY grade_level DESC;",
-        choices: ["A", "B", "Both"],
+        choices: [
+          "SELECT * FROM students ORDER BY grade_level;",
+          "SELECT * FROM students ORDER BY grade_level DESC;",
+          "Both",
+        ],
         answer: 1,
         explain: "DESC flips it. Without it, the lowest grade level sits at the top.",
       },

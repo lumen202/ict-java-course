@@ -501,7 +501,11 @@ export const day3: DayPlan = {
       {
         prompt: "Which query returns FEWER columns, not fewer rows?",
         code: "A) SELECT name FROM students;\nB) SELECT * FROM students WHERE grade_level = 9;",
-        choices: ["A", "B", "Both do the same thing"],
+        choices: [
+          "SELECT name FROM students;",
+          "SELECT * FROM students WHERE grade_level = 9;",
+          "Both do the same thing",
+        ],
         answer: 0,
         explain:
           "A narrows the columns and keeps every row. B keeps every column and narrows the rows.",
@@ -551,7 +555,11 @@ export const day3: DayPlan = {
       {
         prompt: "Which one finds everyone whose subject is anything except Math?",
         code: "A) WHERE favorite_subject = NOT 'Math'\nB) WHERE favorite_subject != 'Math'\nC) WHERE NOT favorite_subject",
-        choices: ["A", "B", "C"],
+        choices: [
+          "WHERE favorite_subject = NOT 'Math'",
+          "WHERE favorite_subject != 'Math'",
+          "WHERE NOT favorite_subject",
+        ],
         answer: 1,
         explain:
           "!= is 'not equal to'. NOT works as well, but in front of a whole condition: WHERE NOT favorite_subject = 'Math'.",
@@ -570,7 +578,11 @@ export const day3: DayPlan = {
       {
         prompt: "You want everyone from Cebu or Davao. Which is correct?",
         code: "A) WHERE hometown = 'Cebu' OR 'Davao'\nB) WHERE hometown = 'Cebu' OR hometown = 'Davao'",
-        choices: ["A", "B", "Both work"],
+        choices: [
+          "WHERE hometown = 'Cebu' OR 'Davao'",
+          "WHERE hometown = 'Cebu' OR hometown = 'Davao'",
+          "Both work",
+        ],
         answer: 1,
         explain:
           "Each side of OR must be a complete test. A looks right in English and is wrong in SQL — one of the most common beginner bugs there is.",

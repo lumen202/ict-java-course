@@ -344,7 +344,7 @@ export const day5: DayPlan = {
       {
         prompt: "Which statement adds ROWS to a table that already exists?",
         code: "A) CREATE TABLE\nB) INSERT INTO\nC) ALTER TABLE",
-        choices: ["A", "B", "C"],
+        choices: ["CREATE TABLE", "INSERT INTO", "ALTER TABLE"],
         answer: 1,
         explain:
           "CREATE makes the shape, INSERT adds rows, ALTER changes the shape afterwards. Three different jobs.",
@@ -364,7 +364,11 @@ export const day5: DayPlan = {
       {
         prompt: "Which one returns FEWER ROWS than SELECT * FROM students;?",
         code: "A) SELECT name FROM students;\nB) SELECT * FROM students WHERE grade_level = 9;",
-        choices: ["A", "B", "Both"],
+        choices: [
+          "SELECT name FROM students;",
+          "SELECT * FROM students WHERE grade_level = 9;",
+          "Both",
+        ],
         answer: 1,
         explain:
           "A narrows the columns and keeps every row. Only WHERE removes rows — the distinction you were tested on all Wednesday.",
@@ -413,7 +417,11 @@ export const day5: DayPlan = {
       {
         prompt: "Which of these can you NOT undo?",
         code: "A) SELECT * FROM students;\nB) DROP DATABASE school;\nC) ORDER BY name DESC",
-        choices: ["A", "B", "C"],
+        choices: [
+          "SELECT * FROM students;",
+          "DROP DATABASE school;",
+          "ORDER BY name DESC",
+        ],
         answer: 1,
         explain:
           "Reading is always safe. DROP is permanent and there is no recycle bin — which is why you practised it on sandbox.",

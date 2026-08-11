@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import type { RowHuntGame } from "@/lib/content/types";
-import { useFlowComplete } from "@/components/LessonFlow";
+import { useTurnIn } from "@/lib/game/useTurnIn";
 import { GameDoor, GameModal, GameModalHeader, GameModalBody } from "@/components/GameModal";
 
 // "You are the database": a table on screen, a query in plain words, and the
@@ -32,8 +32,7 @@ export function RowHunt({
   const [firstTry, setFirstTry] = useState(0);
   const [triedThisRound, setTriedThisRound] = useState(false);
   const [lastCorrect, setLastCorrect] = useState(false);
-  const [saved, setSaved] = useState(false);
-  const flowComplete = useFlowComplete();
+  const { submit, saved } = useTurnIn({ weekSlug, dayNumber, item: game.id });
 
   const round = game.rounds[roundIdx];
   const matchSet = new Set(round?.matches ?? []);
@@ -45,7 +44,6 @@ export function RowHunt({
     setSelected(new Set());
     setFirstTry(0);
     setTriedThisRound(false);
-    setSaved(false);
     setOpen(true);
   }
 
@@ -78,16 +76,8 @@ export function RowHunt({
     const isLast = roundIdx + 1 >= total;
     if (isLast) {
       setPhase("done");
-      flowComplete(game.id);
       const hits = firstTry;
-      const summary = `${game.title} — completed all ${total} rounds, ${hits}/${total} right on the first click.`;
-      fetch("/api/submissions", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ weekSlug, dayNumber, item: game.id, content: summary }),
-      })
-        .then((r) => setSaved(r.ok))
-        .catch(() => setSaved(false));
+      void submit({ content: `${game.title} — completed all ${total} rounds, ${hits}/${total} right on the first click.` });
     } else {
       setRoundIdx(roundIdx + 1);
       setSelected(new Set());

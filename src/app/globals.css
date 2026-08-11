@@ -152,6 +152,213 @@ body {
   from { opacity: 1; transform: translateY(0); }
   to { opacity: 0; transform: translateY(-32px); }
 }
-.anim-hit { animation: hit-shake 0.45s ease; }
-.anim-loom { animation: boss-loom 0.5s ease; }
-.anim-float { animation: float-up 0.9s ease forwards; }
+/* The two fighters face each other, so "forward" is +X for the student on the
+   left and -X for the boss on the right. */
+@keyframes lunge-right {
+  0%, 100% { transform: translateX(0) rotate(0); }
+  35% { transform: translateX(18px) rotate(4deg); }
+  55% { transform: translateX(12px) rotate(2deg); }
+}
+@keyframes lunge-left {
+  0%, 100% { transform: translateX(0) rotate(0); }
+  35% { transform: translateX(-18px) rotate(-4deg); }
+  55% { transform: translateX(-12px) rotate(-2deg); }
+}
+@keyframes recoil-left {
+  0%, 100% { transform: translateX(0) rotate(0); }
+  25% { transform: translateX(-14px) rotate(-8deg); }
+  60% { transform: translateX(-6px) rotate(-3deg); }
+}
+@keyframes recoil-right {
+  0%, 100% { transform: translateX(0) rotate(0); }
+  25% { transform: translateX(14px) rotate(8deg); }
+  60% { transform: translateX(6px) rotate(3deg); }
+}
+
+/* Every battle animation below moves only `transform` and `opacity` — the two
+   properties a browser can animate on the compositor without re-running
+   layout or paint. Anything else (filter, width, top/left, box-shadow) drags
+   a repaint into every frame, which is exactly what made an earlier version
+   of this arena stutter on the finishing blow.
+
+   `will-change` promotes a fighter to its own layer for the length of a
+   swing. It is listed ONLY on the one-shot classes, never on the looping idle
+   ones: `will-change` on an infinite animation pins a GPU layer for as long
+   as the element exists, and pinning a layer for a 60px emoji that is bobbing
+   forever costs more than the bob is worth. One-shots release the layer when
+   the animation ends. */
+.anim-hit,
+.anim-loom,
+.anim-lunge,
+.anim-lunge-back,
+.anim-recoil,
+.anim-recoil-back,
+.anim-finisher,
+.anim-boss-defeat,
+.anim-boss-triumph,
+.anim-hero-defeat,
+.anim-sword-wave,
+.anim-slash,
+.anim-float,
+.anim-flash {
+  will-change: transform, opacity;
+}
+
+/* Sprite-frame feel. `steps()` is the whole trick: eased motion glides like
+   CSS, while stepped motion snaps between a handful of poses the way a 2D
+   sprite sheet does. Same keyframes, completely different character — and no
+   sprite assets in the bundle to get it. */
+.anim-hit { animation: hit-shake 0.4s steps(4, end); }
+.anim-loom { animation: boss-loom 0.45s steps(3, end); }
+.anim-float { animation: float-up 0.9s steps(6, end) forwards; }
+.anim-lunge { animation: lunge-right 0.45s steps(3, end); }
+.anim-lunge-back { animation: lunge-left 0.45s steps(3, end); }
+.anim-recoil { animation: recoil-left 0.45s steps(3, end); }
+.anim-recoil-back { animation: recoil-right 0.45s steps(3, end); }
+
+/* Idle bob — the arena reads as inhabited rather than as two parked images.
+   Deliberately out of phase and on different periods so the pair never
+   pulses in lockstep, which is what makes a loop obvious. */
+@keyframes idle-bob {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-3px); }
+}
+@keyframes idle-hover {
+  0%, 100% { transform: translateY(0) scaleX(-1); }
+  50% { transform: translateY(-5px) scaleX(-1); }
+}
+.anim-idle { animation: idle-bob 1.6s steps(2, end) infinite; }
+/* The boss does NOT bob. A text-6xl emoji is a big glyph raster, and animating
+   it forever costs far more than the 5px of life it buys — the stickman is a
+   handful of SVG paths and is cheap to move, so the arena keeps its idle
+   motion where it is affordable. `.anim-idle-boss` now only carries the
+   facing flip. */
+.anim-idle-boss { transform: scaleX(-1); }
+
+/* Impact: whoever got hit blinks. Deliberately `opacity` and not
+   `filter: brightness()` — a filter animation cannot run on the compositor,
+   so it repaints the (large, shadowed) sprite every frame and drags the whole
+   arena down. A blink is also what a real 2D game does on an i-frame, so the
+   cheap version is the more authentic one. */
+@keyframes hit-flash {
+  0%, 49% { opacity: 0.25; }
+  50%, 100% { opacity: 1; }
+}
+.anim-flash { animation: hit-flash 0.3s steps(2, end) 2; }
+
+/* --- The finisher -------------------------------------------------------
+   The last blow gets its own, longer beat. An ordinary hit is 0.45s of
+   feedback; this is a held moment, because "the battle is over" is worth more
+   screen time than "that one was right" — and because the result card used to
+   appear the instant the final answer landed, which made winning feel like
+   the game had simply stopped. */
+
+/* The hero's finishing sweep: a wide blade arc that crosses the whole arena. */
+@keyframes sword-wave {
+  0% { opacity: 0; transform: translateX(-10px) rotate(-70deg) scale(0.5); }
+  15% { opacity: 1; }
+  70% { opacity: 1; }
+  100% { opacity: 0; transform: translateX(90px) rotate(60deg) scale(1.9); }
+}
+.anim-sword-wave { animation: sword-wave 1.5s steps(7, end) forwards; }
+
+/* The hero drives all the way through, holds, then settles. */
+@keyframes finisher-lunge {
+  0% { transform: translateX(0); }
+  25% { transform: translateX(34px) rotate(7deg); }
+  70% { transform: translateX(34px) rotate(7deg); }
+  100% { transform: translateX(0); }
+}
+.anim-finisher { animation: finisher-lunge 1.8s steps(6, end); }
+
+/* Boss defeat: struck, reels, greys out and drops off the bottom. Keeps the
+   scaleX(-1) facing flip in every frame or it flips mid-collapse. */
+@keyframes boss-defeat {
+  0% { transform: scaleX(-1) translate(0, 0) rotate(0); opacity: 1; }
+  20% { transform: scaleX(-1) translate(10px, -6px) rotate(12deg); opacity: 0.3; }
+  45% { transform: scaleX(-1) translate(4px, 0) rotate(-8deg); opacity: 1; }
+  100% { transform: scaleX(-1) translate(0, 46px) rotate(88deg); opacity: 0; }
+}
+.anim-boss-defeat { animation: boss-defeat 1.8s steps(7, end) forwards; }
+
+/* Boss victory: it swells over the arena instead of dying. */
+@keyframes boss-triumph {
+  0% { transform: scaleX(-1) scale(1); }
+  40% { transform: scaleX(-1) scale(1.45) translateX(6px); }
+  100% { transform: scaleX(-1) scale(1.25) translateX(2px); }
+}
+.anim-boss-triumph { animation: boss-triumph 1.8s steps(6, end) forwards; }
+
+/* The hero going down: knocked back, folds, fades — never gorier than this. */
+@keyframes hero-defeat {
+  0% { transform: translateX(0) rotate(0); opacity: 1; }
+  25% { transform: translateX(-18px) rotate(-14deg); }
+  100% { transform: translateX(-26px) rotate(-78deg) translateY(16px); opacity: 0.35; }
+}
+.anim-hero-defeat { animation: hero-defeat 1.8s steps(6, end) forwards; }
+
+/* A single white blink over the whole arena at the moment of impact. */
+@keyframes arena-flash {
+  0% { opacity: 0; }
+  10% { opacity: 0.85; }
+  100% { opacity: 0; }
+}
+.anim-arena-flash { animation: arena-flash 0.9s steps(4, end) forwards; }
+
+/* Slash arc — the swing's trail, drawn as a quarter-circle that wipes through
+   and vanishes. */
+@keyframes slash-sweep {
+  0% { opacity: 0; transform: rotate(-45deg) scale(0.6); }
+  30% { opacity: 1; }
+  100% { opacity: 0; transform: rotate(35deg) scale(1.15); }
+}
+.anim-slash { animation: slash-sweep 0.4s steps(4, end) forwards; }
+
+/* Reduce, don't strip (WCAG SC 2.3.3 / W3C technique C39). The battle still
+   has to say who hit whom — that's information, not decoration — so the
+   damage numbers still fade in place while every lunge, shake and shudder
+   that moves a fighter across the screen is switched off. The components ask
+   `useCombatFx().stillness` for the same answer, so they can hold a static
+   attack pose instead of relying on motion nobody will see. */
+@media (prefers-reduced-motion: reduce) {
+  .anim-hit,
+  .anim-loom,
+  .anim-lunge,
+  .anim-lunge-back,
+  .anim-recoil,
+  .anim-recoil-back,
+  .anim-idle,
+  .anim-idle-boss,
+  .anim-slash,
+  .anim-flash,
+  .anim-sword-wave,
+  .anim-finisher,
+  .anim-boss-defeat,
+  .anim-boss-triumph,
+  .anim-hero-defeat,
+  .anim-arena-flash {
+    animation: none;
+  }
+  /* Nothing plays, so nothing should linger: the finisher's held frame would
+     otherwise sit on screen forever with no animation to end it. The
+     component also skips the finisher's pause entirely under `reduce` (it
+     asks useCombatFx().stillness), so the result card arrives immediately
+     rather than after a beat the viewer never sees. */
+  .anim-sword-wave,
+  .anim-arena-flash {
+    opacity: 0;
+  }
+  /* The boss is drawn flipped to face the student; that flip is layout, not
+     motion, so it has to survive the animation being switched off. */
+  .anim-idle-boss {
+    transform: scaleX(-1);
+  }
+  .anim-float {
+    animation: float-up 0.9s ease forwards;
+    animation-name: fade-only;
+  }
+}
+@keyframes fade-only {
+  from { opacity: 1; }
+  to { opacity: 0; }
+}

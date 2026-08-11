@@ -2,9 +2,8 @@
 
 import { useState } from "react";
 import type { QuestGame } from "@/lib/content/types";
-import { useFlowComplete } from "@/components/LessonFlow";
 import { GameDoor, GameModal, GameModalHeader, GameModalBody } from "@/components/GameModal";
-import { usePasteFlag, useStepShownAt } from "@/lib/submission-integrity";
+import { useTurnIn } from "@/lib/game/useTurnIn";
 
 // A quest: real work broken into missions shown ONE at a time. Each mission is
 // a couple of sentences — do the thing, then clear it with a quick check
@@ -37,10 +36,7 @@ export function Quest({
   const [wrong, setWrong] = useState<Set<number>>(new Set());
   const [firstTry, setFirstTry] = useState(0);
   const [inputs, setInputs] = useState<Record<number, string>>({});
-  const [saved, setSaved] = useState(false);
-  const flowComplete = useFlowComplete();
-  const { pasted, onPaste } = usePasteFlag();
-  const startedAt = useStepShownAt();
+  const { submit, saved, onPaste } = useTurnIn({ weekSlug, dayNumber, item: game.id });
 
   const mission = game.missions[idx];
   const checksTotal = game.missions.filter((m) => m.check).length;
@@ -52,7 +48,6 @@ export function Quest({
     setWrong(new Set());
     setFirstTry(0);
     setInputs({});
-    setSaved(false);
     setOpen(true);
   }
 
@@ -75,7 +70,6 @@ export function Quest({
     setWrong(new Set());
     if (idx + 1 >= total) {
       setPhase("done");
-      flowComplete(game.id);
       const typed = game.missions
         .map((m, i) => (m.input && inputs[i]?.trim() ? `[${m.input}]\n${inputs[i].trim()}` : null))
         .filter(Boolean)
@@ -84,20 +78,7 @@ export function Quest({
         `${game.title} — all ${total} missions cleared` +
         (checksTotal > 0 ? `, ${finalFirstTry}/${checksTotal} checks right on the first try.` : ".") +
         (typed ? `\n\n${typed}` : "");
-      fetch("/api/submissions", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          weekSlug,
-          dayNumber,
-          item: game.id,
-          content: summary,
-          pasted,
-          startedAt,
-        }),
-      })
-        .then((r) => setSaved(r.ok))
-        .catch(() => setSaved(false));
+      void submit({ content: summary });
     } else {
       setIdx(idx + 1);
       setPhase("mission");

@@ -546,7 +546,7 @@ export const day2: DayPlan = {
       {
         prompt: "Which one belongs in an INT column?",
         code: "A) 'nine'\nB) 9\nC) 'Grade 9'",
-        choices: ["A", "B", "C"],
+        choices: ["'nine'", "9", "'Grade 9'"],
         answer: 1,
         explain:
           "Only a bare number. The other two are text — MySQL rejects them with 'incorrect integer value', exactly as you saw on the mini server.",

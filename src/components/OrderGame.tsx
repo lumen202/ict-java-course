@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import type { OrderGame as OrderGameData } from "@/lib/content/types";
-import { useFlowComplete } from "@/components/LessonFlow";
+import { useTurnIn } from "@/lib/game/useTurnIn";
 import { GameDoor, GameModal, GameModalHeader, GameModalBody } from "@/components/GameModal";
 
 // Arrange-the-lines: shuffled SQL statements (or the lines of one statement)
@@ -45,8 +45,7 @@ export function OrderGame({
   const [checked, setChecked] = useState(false);
   const [missedThisRound, setMissedThisRound] = useState(false);
   const [firstTry, setFirstTry] = useState(0);
-  const [saved, setSaved] = useState(false);
-  const flowComplete = useFlowComplete();
+  const { submit, saved } = useTurnIn({ weekSlug, dayNumber, item: game.id });
 
   const round = game.rounds[idx];
   const playing = phase === "round" || phase === "cleared";
@@ -63,7 +62,6 @@ export function OrderGame({
 
   function start() {
     setFirstTry(0);
-    setSaved(false);
     initRound(0);
     setOpen(true);
   }
@@ -100,15 +98,7 @@ export function OrderGame({
   function next() {
     if (idx + 1 >= total) {
       setPhase("done");
-      flowComplete(game.id);
-      const summary = `${game.title} — assembled all ${total} rounds, ${firstTry}/${total} right on the first try.`;
-      fetch("/api/submissions", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ weekSlug, dayNumber, item: game.id, content: summary }),
-      })
-        .then((r) => setSaved(r.ok))
-        .catch(() => setSaved(false));
+      void submit({ content: `${game.title} — assembled all ${total} rounds, ${firstTry}/${total} right on the first try.` });
     } else {
       initRound(idx + 1);
     }

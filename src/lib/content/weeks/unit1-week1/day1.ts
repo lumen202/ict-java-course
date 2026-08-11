@@ -465,7 +465,7 @@ export const day1: DayPlan = {
       {
         prompt: "Which spell actually creates a database?",
         code: "A) CREAT DATABASE school;\nB) CREATE DATABASE school;\nC) MAKE DATABASE school;",
-        choices: ["A", "B", "C"],
+        choices: ["CREAT DATABASE school;", "CREATE DATABASE school;", "MAKE DATABASE school;"],
         answer: 1,
         explain:
           "SQL keywords must be exact: CREATE DATABASE. You met A's error yourself on the mini server — “syntax error near CREAT”.",
