@@ -761,6 +761,59 @@ begin
 end $$;
 
 -- ---------------------------------------------------------------------------
+-- client_error_logs — what a student's browser actually said, for a teacher
+-- ---------------------------------------------------------------------------
+-- A client-side failure (an upload Storage rejects, a browser that can't
+-- decode a file) already prints to that browser's own console via
+-- console.error — which is useless in practice, because a student doesn't
+-- know to open devtools and wouldn't recognise the error if they did. This
+-- mirrors the same message into a table the teacher can actually read next to
+-- a student's other submissions, so a vague "can't upload" report is
+-- diagnosable rather than a black box. See src/lib/report-client-error.ts —
+-- the report is fire-and-forget, so a failure to log never blocks the app.
+--
+-- Insert-only from the student's side, and no student-side select either:
+-- this is a channel to the teacher, not a log a student can read back.
+create table if not exists public.client_error_logs (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references auth.users(id) on delete cascade,
+  created_at timestamptz not null default now(),
+  -- Where it happened (e.g. "upload:export-day4-twist") and what the
+  -- browser/Supabase actually said. Both length-capped by the API route —
+  -- this is a diagnostic breadcrumb, not a place for an arbitrary payload.
+  context text not null,
+  message text not null,
+  week_slug text,
+  day_number int,
+  user_agent text
+);
+
+create index if not exists client_error_logs_user_id_idx
+  on public.client_error_logs (user_id, created_at desc);
+
+alter table public.client_error_logs enable row level security;
+
+drop policy if exists "students report own client errors" on public.client_error_logs;
+create policy "students report own client errors"
+  on public.client_error_logs for insert
+  to authenticated
+  with check (user_id = auth.uid());
+
+-- Cohort-scoped like every other teacher-side policy — never simplify to a
+-- bare is_teacher().
+drop policy if exists "teachers read cohort client errors" on public.client_error_logs;
+create policy "teachers read cohort client errors"
+  on public.client_error_logs for select
+  to authenticated
+  using (public.is_teacher() and public.same_cohort(user_id));
+
+drop policy if exists "teachers clear cohort client errors" on public.client_error_logs;
+create policy "teachers clear cohort client errors"
+  on public.client_error_logs for delete
+  to authenticated
+  using (public.is_teacher() and public.same_cohort(user_id));
+
+-- ---------------------------------------------------------------------------
 -- Demo mode — how the isolation actually works
 -- ---------------------------------------------------------------------------
 -- "Try the demo" (src/app/demo/actions.ts) creates a throwaway cohort: one uuid

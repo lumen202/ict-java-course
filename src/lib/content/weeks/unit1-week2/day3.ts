@@ -498,7 +498,11 @@ export const day3: DayPlan = {
       {
         prompt: "Which order works?",
         code: "A) Lock the table, then fix the duplicate ids\nB) Fix the duplicate ids, then lock the table",
-        choices: ["B", "A", "Either"],
+        choices: [
+          "Fix the duplicate ids, then lock the table",
+          "Lock the table, then fix the duplicate ids",
+          "Either order works",
+        ],
         answer: 0,
         explain:
           "Clean first, then lock — the server enforces this by refusing the key over dirty data, as it did to you twice today.",

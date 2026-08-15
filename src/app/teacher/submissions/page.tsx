@@ -3,6 +3,8 @@ import Link from "next/link";
 import { requireTeacher } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { studentDisplayNames, teacherUserIds } from "@/lib/student-names";
+import { getWeek } from "@/lib/content";
+import { turnInCount } from "@/lib/lesson-steps";
 
 export const metadata: Metadata = { title: "Submissions" };
 
@@ -27,7 +29,7 @@ export default async function SubmissionsPage() {
   await requireTeacher("/teacher/submissions");
 
   const supabase = await createClient();
-  const [{ data, error }, nameById, teacherIds] = await Promise.all([
+  const [{ data, error }, nameById, teacherIds, { data: errorRows }] = await Promise.all([
     supabase
       .from("submissions")
       .select("updated_at, user_id, week_slug, day_number, student_name")
@@ -35,6 +37,10 @@ export default async function SubmissionsPage() {
       .limit(2000),
     studentDisplayNames(),
     teacherUserIds(),
+    // Undismissed client-side failures (see report-client-error.ts) — just a
+    // count here, so a teacher can spot who to actually worry about without
+    // opening every card. The full messages are on their submissions page.
+    supabase.from("client_error_logs").select("user_id").limit(2000),
   ]);
 
   // A teacher testing a lesson leaves turn-ins under their own account just
@@ -42,10 +48,27 @@ export default async function SubmissionsPage() {
   // stays in, even an account whose profiles row hasn't landed yet.
   const rows = ((data ?? []) as SubmissionRow[]).filter((r) => !teacherIds.has(r.user_id));
 
-  // Newest-first input → students ordered by most recent activity.
+  const errorCountByUser = new Map<string, number>();
+  for (const r of errorRows ?? []) {
+    const uid = r.user_id as string;
+    errorCountByUser.set(uid, (errorCountByUser.get(uid) ?? 0) + 1);
+  }
+
+  // Newest-first input → students ordered by most recent activity, and the
+  // first row seen for each student is also their most recent turn-in — which
+  // doubles as a decent guess at where they currently are, without a click.
   const students = new Map<
     string,
-    { name: string; latest: string; total: number; days: Set<string> }
+    {
+      name: string;
+      latest: string;
+      total: number;
+      days: Set<string>;
+      currentWeekSlug: string;
+      currentDay: number;
+      /** Turn-ins recorded for that current day specifically. */
+      currentDayCount: number;
+    }
   >();
   for (const r of rows) {
     let s = students.get(r.user_id);
@@ -55,11 +78,29 @@ export default async function SubmissionsPage() {
         latest: r.updated_at,
         total: 0,
         days: new Set(),
+        currentWeekSlug: r.week_slug,
+        currentDay: r.day_number,
+        currentDayCount: 0,
       };
       students.set(r.user_id, s);
     }
     s.total += 1;
     s.days.add(`${r.week_slug}:${r.day_number}`);
+    if (r.week_slug === s.currentWeekSlug && r.day_number === s.currentDay) {
+      s.currentDayCount += 1;
+    }
+  }
+
+  /** "unit1-week2" -> "Week 2" — short enough for a card, unlike the full week title. */
+  function weekLabel(slug: string): string {
+    const n = /week(\d+)/.exec(slug)?.[1];
+    return n ? `Week ${n}` : slug;
+  }
+
+  /** How many turn-in boxes that day actually has, for the "X of Y today" fraction. */
+  function dayTurnInTotal(weekSlug: string, day: number): number | null {
+    const d = getWeek(weekSlug)?.video.days[day - 1];
+    return d ? turnInCount(d) : null;
   }
 
   return (
@@ -92,11 +133,13 @@ export default async function SubmissionsPage() {
                 .slice(0, 2)
                 .join("")
                 .toUpperCase() || "?";
+            const todayTotal = dayTurnInTotal(s.currentWeekSlug, s.currentDay);
+            const errorCount = errorCountByUser.get(userId) ?? 0;
             return (
               <li key={userId}>
                 <Link
                   href={`/teacher/submissions/${userId}`}
-                  className="card flex items-center gap-3 p-4 transition-transform hover:-translate-y-0.5"
+                  className="card flex items-start gap-3 p-4 transition-transform hover:-translate-y-0.5"
                 >
                   <span
                     aria-hidden="true"
@@ -105,16 +148,30 @@ export default async function SubmissionsPage() {
                     {initials}
                   </span>
                   <span className="min-w-0 flex-1">
-                    <span className="block truncate font-semibold">{s.name}</span>
-                    <span className="block text-xs text-zinc-500">
-                      {s.days.size} day{s.days.size === 1 ? "" : "s"} · {s.total}{" "}
-                      turn-in{s.total === 1 ? "" : "s"}
+                    <span className="block font-semibold break-words">{s.name}</span>
+                    <span className="mt-1 flex flex-wrap items-center gap-1.5">
+                      <span className="chip bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300">
+                        {weekLabel(s.currentWeekSlug)} · Day {s.currentDay}
+                      </span>
+                      {errorCount > 0 && (
+                        <span
+                          className="chip bg-red-100 text-red-700 dark:bg-red-950/60 dark:text-red-400"
+                          title="Client-side errors their browser hit — open their page to read them"
+                        >
+                          ⚠ {errorCount} error{errorCount === 1 ? "" : "s"}
+                        </span>
+                      )}
+                    </span>
+                    <span className="mt-1 block text-xs text-zinc-500">
+                      {s.currentDayCount}
+                      {todayTotal !== null ? ` of ${todayTotal}` : ""} turn-in
+                      {todayTotal === 1 ? "" : "s"} today · {s.total} total
                     </span>
                     <span className="block text-xs text-zinc-500">
                       latest {new Date(s.latest).toLocaleDateString()}
                     </span>
                   </span>
-                  <span aria-hidden="true" className="text-zinc-400">
+                  <span aria-hidden="true" className="mt-2 shrink-0 text-zinc-400">
                     →
                   </span>
                 </Link>

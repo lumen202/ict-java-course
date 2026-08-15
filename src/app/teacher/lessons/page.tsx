@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { requireTeacher } from "@/lib/auth";
 import { weeks, getWeek } from "@/lib/content";
-import { daySteps } from "@/lib/lesson-steps";
+import { daySteps, stepItem } from "@/lib/lesson-steps";
 import { createClient } from "@/lib/supabase/server";
 import { getCourseState, currentLesson, releasedDayCount } from "@/lib/release";
 import { studentDisplayNames } from "@/lib/student-names";
@@ -72,37 +72,71 @@ export default async function LessonsPage({ searchParams }: PageProps<"/teacher/
   // Both reads are RLS-scoped to the teacher's own cohort, so a demo teacher
   // sees only their throwaway classmates.
   const supabase = await createClient();
-  const [{ data: profiles }, names, { data: unlocks }, { data: requests }] = await Promise.all([
-    supabase.from("profiles").select("id, email").eq("role", "student"),
-    studentDisplayNames(),
-    selected
-      ? supabase
-          .from("day_unlocks")
-          .select("user_id, open_past")
-          .eq("week_slug", selected.weekSlug)
-          .eq("day_number", selected.day)
-      : Promise.resolve({ data: [] as { user_id: string; open_past: string | null }[] }),
-    // Students who flagged themselves stuck on the selected day — see
-    // src/app/api/unstuck-requests/route.ts. Granting an unlock clears the
-    // row (setDayUnlock), so this only ever shows who's still waiting.
-    selected
-      ? supabase
-          .from("unstuck_requests")
-          .select("user_id, step")
-          .eq("week_slug", selected.weekSlug)
-          .eq("day_number", selected.day)
-      : Promise.resolve({ data: [] as { user_id: string; step: string | null }[] }),
-  ]);
+  const [{ data: profiles }, names, { data: unlocks }, { data: requests }, { data: subs }] =
+    await Promise.all([
+      supabase.from("profiles").select("id, email").eq("role", "student"),
+      studentDisplayNames(),
+      selected
+        ? supabase
+            .from("day_unlocks")
+            .select("user_id, open_past")
+            .eq("week_slug", selected.weekSlug)
+            .eq("day_number", selected.day)
+        : Promise.resolve({ data: [] as { user_id: string; open_past: string | null }[] }),
+      // Students who flagged themselves stuck on the selected day — see
+      // src/app/api/unstuck-requests/route.ts. Granting an unlock clears the
+      // row (setDayUnlock), so this only ever shows who's still waiting.
+      selected
+        ? supabase
+            .from("unstuck_requests")
+            .select("user_id, step")
+            .eq("week_slug", selected.weekSlug)
+            .eq("day_number", selected.day)
+        : Promise.resolve({ data: [] as { user_id: string; step: string | null }[] }),
+      // Every turn-in recorded for the selected day, whoever it belongs to —
+      // the raw material for guessing where each student actually is, without
+      // needing them to have asked for help first.
+      selected
+        ? supabase
+            .from("submissions")
+            .select("user_id, item")
+            .eq("week_slug", selected.weekSlug)
+            .eq("day_number", selected.day)
+        : Promise.resolve({ data: [] as { user_id: string; item: string }[] }),
+    ]);
 
   // The parts of the chosen day, from the same helper the week page renders —
   // so the names in the picker are the headings the student is looking at.
   const selectedWeek = selected ? getWeek(selected.weekSlug) : undefined;
-  const steps: UnstuckStep[] = selectedWeek
-    ? daySteps(selectedWeek.video.days[selected.day - 1]).map((s) => ({
-        key: s.key,
-        title: s.title,
-      }))
-    : [];
+  const dayLessonSteps = selectedWeek ? daySteps(selectedWeek.video.days[selected.day - 1]) : [];
+  const steps: UnstuckStep[] = dayLessonSteps.map((s) => ({ key: s.key, title: s.title }));
+
+  // A best guess at where each student actually is: the step just past the
+  // last one they have a server-recorded turn-in for. Video/closing steps
+  // clear with a button and leave no submission, so a student can be a step
+  // or two further than this — but it needs no self-report, which is the gap
+  // that let Jaypee's Day 4 upload block go unnoticed (they never used the
+  // "stuck?" link for that step, only for an earlier day).
+  const submittedItemsByUser = new Map<string, Set<string>>();
+  for (const row of subs ?? []) {
+    const uid = row.user_id as string;
+    const item = row.item as string;
+    if (!submittedItemsByUser.has(uid)) submittedItemsByUser.set(uid, new Set());
+    submittedItemsByUser.get(uid)!.add(item);
+  }
+  function currentStepFor(userId: string): string | null {
+    if (dayLessonSteps.length === 0) return null;
+    const submitted = submittedItemsByUser.get(userId);
+    let lastIndex = -1;
+    if (submitted) {
+      dayLessonSteps.forEach((s, i) => {
+        const item = stepItem(s);
+        if (item && submitted.has(item)) lastIndex = i;
+      });
+    }
+    if (lastIndex === dayLessonSteps.length - 1) return null; // turned the day in
+    return dayLessonSteps[lastIndex + 1].key; // -1 -> hasn't started, so step 0
+  }
 
   // `undefined` = no grant, `null` = the whole day, a key = let past that part.
   const grantByUser = new Map(
@@ -119,6 +153,7 @@ export default async function LessonsPage({ searchParams }: PageProps<"/teacher/
       ...(requestByUser.has(p.id as string)
         ? { requestedStep: requestByUser.get(p.id as string)! }
         : {}),
+      currentStep: currentStepFor(p.id as string),
     }))
     // Waiting on the teacher floats to the top — that's who this panel is for.
     .sort((a, b) => {

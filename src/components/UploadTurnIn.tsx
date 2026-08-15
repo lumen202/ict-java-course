@@ -5,6 +5,7 @@ import type { UploadTask } from "@/lib/content/types";
 import { createClient } from "@/lib/supabase/client";
 import { downscaleImage } from "@/lib/downscale-image";
 import { useTurnIn } from "@/lib/game/useTurnIn";
+import { reportClientError } from "@/lib/report-client-error";
 
 // Hand in a file from your own machine — the one step of a day that can't be
 // completed inside this page, which is exactly what makes it evidence. See
@@ -94,6 +95,11 @@ export function UploadTurnIn({
         .upload(path, body, { contentType: body.type || "application/octet-stream", upsert: true });
 
       if (uploadError) {
+        // A student can only ever report "it didn't work" — this puts the
+        // real Supabase error (bad MIME type, size over the bucket's 2 MB
+        // cap, a network path that can't reach the storage domain at all) on
+        // the teacher's own dashboard instead.
+        reportClientError(`upload:${task.id}`, uploadError, { weekSlug, dayNumber });
         setStatus("error");
         setMessage("Couldn't upload that — check your connection and try again.");
         return;
@@ -114,7 +120,11 @@ export function UploadTurnIn({
 
       setFileName(file.name);
       setStatus("saved");
-    } catch {
+    } catch (err) {
+      // Same reasoning as the upload-error branch above: this is where a
+      // browser that can't decode the file (an unsupported image format, no
+      // canvas 2d context) or a rejected fetch lands.
+      reportClientError(`upload:${task.id}`, err, { weekSlug, dayNumber });
       setStatus("error");
       setMessage("Couldn't prepare that file — try a different one.");
     }

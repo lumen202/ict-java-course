@@ -241,6 +241,20 @@ export async function deleteSubmission(formData: FormData) {
   revalidatePath("/teacher/submissions", "layout");
 }
 
+/** Dismiss one client_error_logs row once the teacher has read/handled it. */
+export async function dismissClientError(formData: FormData) {
+  await requireTeacher("/teacher/submissions");
+
+  const id = String(formData.get("id") ?? "").trim();
+  if (!id) return;
+
+  const supabase = await createClient();
+  const { error } = await supabase.from("client_error_logs").delete().eq("id", id);
+  if (error) console.error("dismiss client error failed:", error.message);
+
+  revalidatePath("/teacher/submissions", "layout");
+}
+
 /** Delete every turn-in a student has for one day — puts the whole day back. */
 export async function resetStudentDay(formData: FormData) {
   await requireTeacher("/teacher/submissions");

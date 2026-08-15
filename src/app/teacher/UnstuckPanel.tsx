@@ -27,6 +27,12 @@ export type UnstuckStudent = {
   openPast?: string | null;
   /** The step they flagged as stuck on, `null` if unspecified, undefined if they haven't asked. */
   requestedStep?: string | null;
+  /**
+   * Best guess at where they actually are, from server-recorded turn-ins alone
+   * — the step just past the last one with a submission. `null` means the
+   * day's turn-in itself is in, so there's nothing left to guess at.
+   */
+  currentStep: string | null;
 };
 
 export function UnstuckPanel({
@@ -51,7 +57,9 @@ export function UnstuckPanel({
         A lesson day opens part by part, and some parts only open the next one
         when they&apos;re answered correctly. Pick the part a student is stuck on
         and they&apos;ll be let past it — the rest of their day carries on as
-        normal.
+        normal. The 📍 tag is a guess at where they are, from their last
+        recorded turn-in — it doesn&apos;t need them to have asked for help
+        first, but it can lag behind by a video or a closing step.
       </p>
 
       {/* Plain GET form: the chosen day lives in the URL, so the panel is
@@ -90,6 +98,14 @@ export function UnstuckPanel({
               <li key={s.id} className="px-4 py-3">
                 <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
                   <span className="min-w-0 flex-1 truncate text-sm font-medium">{s.name}</span>
+                  {!granted && s.currentStep !== null && (
+                    <span
+                      className="chip bg-sky-100 text-sky-800 dark:bg-sky-950/60 dark:text-sky-300"
+                      title="Guessed from their last recorded turn-in — a video or closing step in between wouldn't show up here."
+                    >
+                      📍 likely on: {titleOf.get(s.currentStep) ?? s.currentStep}
+                    </span>
+                  )}
                   {waiting && !granted && (
                     <span className="chip bg-amber-100 text-amber-800 dark:bg-amber-950/60 dark:text-amber-300">
                       🙋{" "}
@@ -117,7 +133,7 @@ export function UnstuckPanel({
                     <Select
                       name="step"
                       ariaLabel={`Which part ${s.name} is stuck on`}
-                      defaultValue={s.openPast ?? ""}
+                      defaultValue={s.openPast ?? s.currentStep ?? ""}
                       className="text-xs"
                       maxWidthClassName="max-w-full sm:max-w-xs"
                       options={[

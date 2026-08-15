@@ -7,7 +7,7 @@ import { BackLink } from "@/components/BackLink";
 import { getWeek } from "@/lib/content";
 import { turnInCount } from "@/lib/lesson-steps";
 import { studentDisplayNames, teacherUserIds } from "@/lib/student-names";
-import { deleteSubmission, resetStudentDay } from "../../actions";
+import { deleteSubmission, dismissClientError, resetStudentDay } from "../../actions";
 import { ConfirmButton } from "@/components/ConfirmButton";
 
 export const metadata: Metadata = { title: "Submissions" };
@@ -29,6 +29,16 @@ type Submission = {
   started_at: string | null;
   file_path: string | null;
   file_name: string | null;
+};
+
+type ClientErrorLog = {
+  id: string;
+  created_at: string;
+  context: string;
+  message: string;
+  week_slug: string | null;
+  day_number: number | null;
+  user_agent: string | null;
 };
 
 /**
@@ -62,7 +72,7 @@ export default async function StudentSubmissionsPage({
   const dayNumber = Number(Array.isArray(day) ? day[0] : day) || null;
 
   const supabase = await createClient();
-  const [{ data }, names, teacherIds] = await Promise.all([
+  const [{ data }, names, teacherIds, { data: errorData }] = await Promise.all([
     supabase
       .from("submissions")
       .select(
@@ -73,6 +83,17 @@ export default async function StudentSubmissionsPage({
       .limit(1000),
     studentDisplayNames(),
     teacherUserIds(),
+    // What their browser actually said when something client-side failed —
+    // see lib/report-client-error.ts. Shown once, on the student's own page,
+    // not per-day: the failure isn't necessarily tied to whichever day is
+    // open, and a student stuck badly enough to trigger one is worth seeing
+    // regardless of which day they were on.
+    supabase
+      .from("client_error_logs")
+      .select("id, created_at, context, message, week_slug, day_number, user_agent")
+      .eq("user_id", studentId)
+      .order("created_at", { ascending: false })
+      .limit(50),
   ]);
 
   // Guards the same hole as the listing page, for anyone who reaches this
@@ -247,6 +268,8 @@ export default async function StudentSubmissionsPage({
       });
   }
 
+  const clientErrors = (errorData ?? []) as ClientErrorLog[];
+
   return (
     <main className="mx-auto w-full max-w-5xl px-6 py-10 lg:px-10">
       <div className="mb-6">
@@ -257,6 +280,64 @@ export default async function StudentSubmissionsPage({
         {days.size} day{days.size === 1 ? "" : "s"} with turned-in work. Open one
         to read it.
       </p>
+
+      {/* What their browser actually said when something client-side failed
+          — see lib/report-client-error.ts. A vague "it didn't work" from a
+          student becomes readable here instead of staying a black box. */}
+      {clientErrors.length > 0 && (
+        <section className="mb-8">
+          <h2 className="mb-1 text-sm font-semibold text-red-700 dark:text-red-400">
+            ⚠ {clientErrors.length} client-side error{clientErrors.length === 1 ? "" : "s"}
+          </h2>
+          <p className="mb-3 text-sm text-zinc-600 dark:text-zinc-400">
+            What their browser actually reported — no need to ask them to open
+            devtools.
+          </p>
+          <ul className="space-y-2">
+            {clientErrors.map((e) => (
+              <li
+                key={e.id}
+                className="rounded-2xl border border-red-200 dark:border-red-900/60 bg-red-50/60 dark:bg-red-950/20 p-4"
+              >
+                <div className="flex flex-wrap items-start justify-between gap-2">
+                  <span className="flex flex-wrap items-center gap-1.5">
+                    <span className="chip bg-red-100 text-red-800 dark:bg-red-950/60 dark:text-red-300">
+                      {e.context}
+                    </span>
+                    {e.week_slug && e.day_number && (
+                      <span className="chip bg-zinc-100 text-zinc-600 dark:bg-zinc-800 dark:text-zinc-400">
+                        {e.week_slug} · Day {e.day_number}
+                      </span>
+                    )}
+                  </span>
+                  <span className="flex items-center gap-3">
+                    <span className="text-xs text-zinc-500">
+                      {new Date(e.created_at).toLocaleString()}
+                    </span>
+                    <form action={dismissClientError}>
+                      <input type="hidden" name="id" value={e.id} />
+                      <button
+                        type="submit"
+                        className="rounded-lg px-2 py-1 text-xs font-medium text-zinc-500 transition-colors hover:bg-red-100 hover:text-red-700 dark:hover:bg-red-950/40 dark:hover:text-red-400"
+                      >
+                        Dismiss
+                      </button>
+                    </form>
+                  </span>
+                </div>
+                <pre className="mt-2 max-h-48 overflow-auto rounded-xl bg-zinc-900/[0.04] dark:bg-white/5 p-3 font-mono text-xs leading-relaxed whitespace-pre-wrap">
+                  {e.message}
+                </pre>
+                {e.user_agent && (
+                  <p className="mt-2 truncate text-xs text-zinc-500" title={e.user_agent}>
+                    {e.user_agent}
+                  </p>
+                )}
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
 
       <ul className="space-y-2">
         {[...days.values()].map((d) => {
