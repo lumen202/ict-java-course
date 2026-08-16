@@ -236,6 +236,7 @@ export default async function WeekPage({ params, searchParams }: PageProps<"/wee
       key: s.key,
       title: s.title,
       manual: stepIsManual(s) || undefined,
+      optional: s.optional,
       done: item ? existingByItem.has(item) : undefined,
       final: s.kind === "turn-in" || undefined,
       body: renderStep(s),
@@ -333,10 +334,11 @@ export default async function WeekPage({ params, searchParams }: PageProps<"/wee
           gated={user.role !== "teacher"}
           unlockAtLeast={unlockAtLeast}
           requestedStep={requestRow ? ((requestRow.step as string | null) ?? null) : undefined}
-          steps={steps.map(({ key, title, manual, done, final }) => ({
+          steps={steps.map(({ key, title, manual, optional, done, final }) => ({
             key,
             title,
             manual,
+            optional,
             done,
             final,
           }))}

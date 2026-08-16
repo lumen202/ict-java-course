@@ -52,6 +52,12 @@ export type DayActivity = {
    * change it once students have submitted — it keys their saved work.
    */
   id: string;
+  /**
+   * Optional challenge step: shown with a "Challenge — optional" badge and a
+   * skip affordance, and never blocks the day's progression. This is the
+   * unbounded ceiling for fast finishers — the gate is mastery, not time.
+   */
+  optional?: boolean;
   /** Shown as the card heading — lead with an emoji, e.g. "🎮 Level 1: …". */
   title: string;
   /**
@@ -244,6 +250,13 @@ export type ConsoleTask = {
   hint?: string;
   /** Shown when the task clears. */
   explain?: string;
+  /**
+   * Commit-before-run prediction (PRIMM): the run button stays disabled until
+   * the student answers this multiple-choice question about what the statement
+   * will do. Turns a 30-second run into a reasoning step — use it on tasks
+   * where the outcome is surprising (0 rows, an error, a NULL).
+   */
+  predict?: { question: string; choices: string[]; answer: number; explain?: string };
 };
 
 /** A table pre-existing in the console's starting state. */
@@ -295,6 +308,12 @@ export type OrderRound = {
   prompt: string;
   /** The lines in CORRECT order — they're shown shuffled. */
   lines: string[];
+  /**
+   * Wrong lines shuffled in with the real ones — they must be left OUT of the
+   * build. Picking one explains why it's wrong. Use for challenge rounds:
+   * distractors raise the thinking load without raising the reading load.
+   */
+  distractors?: string[];
   /** Shown after the round is assembled correctly. */
   explain?: string;
 };
@@ -374,8 +393,12 @@ export type UploadTask = {
   screenshotFallback?: string;
 };
 
-/** A playable mini-game. Results auto-save as turn-ins under the game's id. */
-export type DayGame =
+/**
+ * A playable mini-game. Results auto-save as turn-ins under the game's id.
+ * `optional` marks a challenge-tier step: badged, skippable, and never a gate —
+ * fast finishers self-serve instead of asking the teacher what's next.
+ */
+export type DayGame = (
   | BossBattleGame
   | RowHuntGame
   | QuestGame
@@ -384,7 +407,8 @@ export type DayGame =
   | SqlConsoleGame
   | OrderGame
   | AnswerSheetGame
-  | UploadTask;
+  | UploadTask
+) & { optional?: boolean };
 
 export type DayPlan = {
   /** "Day 1", "Day 2", … */

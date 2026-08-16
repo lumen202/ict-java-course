@@ -163,7 +163,11 @@ export default async function SubmissionsPage() {
                       )}
                     </span>
                     <span className="mt-1 block text-xs text-zinc-500">
-                      {s.currentDayCount}
+                      {/* Capped: optional challenge turn-ins aren't in the
+                          total, so an over-achiever shows 11 of 11, not 12. */}
+                      {todayTotal !== null
+                        ? Math.min(s.currentDayCount, todayTotal)
+                        : s.currentDayCount}
                       {todayTotal !== null ? ` of ${todayTotal}` : ""} turn-in
                       {todayTotal === 1 ? "" : "s"} today · {s.total} total
                     </span>

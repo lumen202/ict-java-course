@@ -3,6 +3,8 @@
 import { useState } from "react";
 import type { SqlConsoleGame } from "@/lib/content/types";
 import { useTurnIn } from "@/lib/game/useTurnIn";
+import { shuffledChoices, seededShuffle } from "@/lib/game/shuffle";
+import { toParsonsFragments, assembleFragments } from "@/lib/game/sqlParsons";
 import { GameDoor, GameModal, GameModalHeader, GameModalBody } from "@/components/GameModal";
 import {
   createState,
@@ -25,10 +27,37 @@ import {
 // a table inside it in task 2), which is what makes it feel like a server and
 // not a quiz. Result auto-saves as a turn-in under the game's id.
 //
+// A task may carry `predict` (PRIMM): a commit-before-run question shown above
+// the editor. Run stays disabled until the student picks a choice; the pick is
+// revealed right or wrong and then the run proceeds either way — a wrong guess
+// costs nothing, the run itself is the teacher. Picks persist across modal
+// close/open (pause, never reset) and are tallied into the turn-in summary.
+//
+// STUCK EXIT (BUG-015). Hints fade to nothing on each console's final
+// compose-from-scratch tasks, and a required step has no skip — so a student who
+// couldn't compose one had no way forward except asking the teacher, which the
+// whole platform exists to avoid. After ASSIST_AFTER failed runs the task offers
+// a fallback, and every task has one:
+//   - a solution that splits into 2+ clauses becomes a Parsons puzzle — assemble
+//     the statement from mixed-up fragments. This is Ericson's intra-problem
+//     adaptation: make the problem easier rather than answer it. Falling back
+//     this way preserves posttest performance while keeping students working,
+//     where simply showing the answer collapses time-on-task (some finish by
+//     copying in under two minutes) and bottom-out hints get skipped straight to
+//     on 82-89% of steps.
+//   - a solution too atomic to split (`SHOW TABLES;`) reveals the command
+//     instead; there is no composition left to protect, only keyword recall.
+// Assembling fills the editor but never clears the task — the student still runs
+// it, so clearing always goes through the same judged-by-effect path. Assisted
+// tasks are counted and reported in the turn-in rather than blocking anything.
+//
 // The lesson shows a door card; the console lives in the full-screen modal.
 // Closing the modal pauses — server state is kept, the card offers "Continue".
 
 type Phase = "intro" | "task" | "cleared" | "done";
+
+/** Failed runs on one task before the assemble/reveal fallback is offered. */
+const ASSIST_AFTER = 4;
 
 export function SqlConsole({
   weekSlug,
@@ -53,10 +82,56 @@ export function SqlConsole({
   // wrong run (a bad table, a stray insert) rolls back for free and the task
   // stays winnable.
   const [engine, setEngine] = useState<MiniState>(() => createState(game.setup));
+  // Prediction picks, keyed by task index (value = index into the SHUFFLED
+  // choices). Never cleared between tasks or on modal close — only a full
+  // replay resets it — so an answered prediction stays answered.
+  const [predictPicks, setPredictPicks] = useState<Record<number, number>>({});
+  // Stuck-exit state. `assembling` is the open puzzle; `placed` are indices into
+  // the shuffled fragments; `assisted` counts tasks where the fallback was used,
+  // which is reported but never blocks (an exit that is recorded, not refused).
+  const [assembling, setAssembling] = useState(false);
+  const [placed, setPlaced] = useState<number[]>([]);
+  const [assisted, setAssisted] = useState<Set<number>>(new Set());
   const { submit, saved, onPaste } = useTurnIn({ weekSlug, dayNumber, item: game.id });
 
   const task = game.tasks[idx];
   const playing = phase === "task" || phase === "cleared";
+
+  // The task's solution as orderable fragments, shuffled stably per task.
+  const fragments = task ? toParsonsFragments(task.solution) : [];
+  const canAssemble = fragments.length >= 2;
+  const shuffledFragments = canAssemble
+    ? seededShuffle(
+        fragments.map((_, i) => i),
+        `${game.id}:parsons:${idx}`,
+      )
+    : [];
+  // Offered only once the student has genuinely tried — never before.
+  const stuck = missesThisTask >= ASSIST_AFTER;
+  const builtSql = assembleFragments(placed.map((f) => fragments[f]));
+  const builtRight = placed.length === fragments.length && builtSql === assembleFragments(fragments);
+  // Shuffled per task, seeded, so the order is stable across re-renders and
+  // modal close/open — the pick index stays meaningful.
+  const predict = task?.predict
+    ? shuffledChoices(task.predict.choices, task.predict.answer, `${game.id}:${idx}`)
+    : null;
+  const pick = predictPicks[idx];
+  const mustPredict = predict !== null && pick === undefined;
+
+  /** How the predictions went, for the turn-in summary. */
+  function predictTally(): { right: number; asked: number } {
+    let right = 0;
+    let asked = 0;
+    game.tasks.forEach((t, i) => {
+      if (!t.predict) return;
+      asked++;
+      const p = predictPicks[i];
+      if (p === undefined) return;
+      const sh = shuffledChoices(t.predict.choices, t.predict.answer, `${game.id}:${i}`);
+      if (p === sh.answer) right++;
+    });
+    return { right, asked };
+  }
 
   function start() {
     setEngine(createState(game.setup));
@@ -67,11 +142,34 @@ export function SqlConsole({
     setMatched(false);
     setMissesThisTask(0);
     setFirstTry(0);
+    setPredictPicks({});
+    setAssembling(false);
+    setPlaced([]);
+    setAssisted(new Set());
     setOpen(true);
   }
 
+  /** Take the fallback: mark the task assisted and open the puzzle (or reveal). */
+  function assist() {
+    setAssisted((a) => new Set(a).add(idx));
+    if (canAssemble) {
+      setAssembling(true);
+      setPlaced([]);
+    } else {
+      // Nothing to assemble — hand over the statement itself.
+      setText(task.solution);
+    }
+  }
+
+  /** Move the assembled statement into the editor; the student still runs it. */
+  function useAssembled() {
+    setText(builtSql);
+    setAssembling(false);
+    setPlaced([]);
+  }
+
   function execute() {
-    if (!task || !text.trim()) return;
+    if (!task || !text.trim() || mustPredict) return;
     const work = cloneState(engine);
     const batch = runBatch(work, text);
     setRun(batch);
@@ -99,9 +197,12 @@ export function SqlConsole({
     setRun(null);
     setMatched(false);
     setMissesThisTask(0);
+    setAssembling(false);
+    setPlaced([]);
     if (idx + 1 >= total) {
       setPhase("done");
-      const finalSummary = `${game.title} — ran all ${total} tasks on the mini server, ${firstTry}/${total} on the first run.`;
+      const { right, asked } = predictTally();
+      const finalSummary = `${game.title} — ran all ${total} tasks on the mini server, ${firstTry}/${total} on the first run.${asked > 0 ? ` Predictions: ${right}/${asked} right before running.` : ""}${assisted.size > 0 ? ` Assembled ${assisted.size} from mixed-up pieces after getting stuck.` : ""}`;
       void submit({ content: finalSummary });
     } else {
       setIdx(idx + 1);
@@ -145,6 +246,48 @@ export function SqlConsole({
                 <p className="mt-1 text-sm font-medium leading-relaxed">{task.goal}</p>
               </div>
 
+              {/* Commit-before-run prediction (PRIMM) */}
+              {task.predict && predict && (
+                <div className="mt-3 rounded-xl border border-amber-200/80 dark:border-amber-900 bg-amber-50/60 dark:bg-zinc-900/40 p-3">
+                  <p className="text-xs font-bold uppercase tracking-widest text-amber-600 dark:text-amber-400">
+                    Before you run — make a call
+                  </p>
+                  <p className="mt-1 text-sm font-medium leading-relaxed">{task.predict.question}</p>
+                  {pick === undefined ? (
+                    <ul className="mt-2 space-y-1">
+                      {predict.choices.map((choice, i) => (
+                        <li key={i}>
+                          <button
+                            type="button"
+                            onClick={() => setPredictPicks((p) => ({ ...p, [idx]: i }))}
+                            className="w-full rounded-lg border border-amber-300 dark:border-amber-800 bg-white/80 dark:bg-zinc-900/60 px-2.5 py-1.5 text-left text-sm leading-relaxed transition-colors hover:border-amber-500 hover:bg-amber-50 dark:hover:bg-amber-950/30"
+                          >
+                            {choice}
+                          </button>
+                        </li>
+                      ))}
+                    </ul>
+                  ) : (
+                    <div className="mt-2 text-sm leading-relaxed">
+                      <p className="font-semibold">
+                        {pick === predict.answer
+                          ? "✅ That's the call the server will make."
+                          : "Not this time — here's what to expect:"}
+                      </p>
+                      <p className="mt-1">
+                        Expect: <span className="font-medium">{predict.choices[predict.answer]}</span>
+                      </p>
+                      {task.predict.explain && (
+                        <p className="mt-1">{task.predict.explain}</p>
+                      )}
+                      <p className="mt-1 text-xs text-zinc-600 dark:text-zinc-400">
+                        Either way, now run it and watch the server prove it.
+                      </p>
+                    </div>
+                  )}
+                </div>
+              )}
+
               {/* The console itself */}
               <div className="mt-3 overflow-hidden rounded-xl border border-zinc-700 bg-zinc-950 shadow-inner">
                 <div className="flex items-center justify-between border-b border-zinc-800 px-3 py-1.5">
@@ -183,11 +326,13 @@ export function SqlConsole({
                   className="block w-full resize-y bg-transparent p-3 font-mono text-sm text-emerald-300 placeholder:text-zinc-600 focus:outline-none"
                 />
                 <div className="flex items-center justify-between border-t border-zinc-800 px-3 py-2">
-                  <p className="text-[11px] text-zinc-500">Ctrl+Enter runs too</p>
+                  <p className="text-[11px] text-zinc-500">
+                    {mustPredict ? "Pick your prediction first — then Run unlocks" : "Ctrl+Enter runs too"}
+                  </p>
                   <button
                     type="button"
                     onClick={execute}
-                    disabled={phase !== "task"}
+                    disabled={phase !== "task" || mustPredict}
                     className="rounded-lg bg-emerald-600 px-4 py-1.5 text-xs font-bold text-white transition-colors hover:bg-emerald-500 disabled:opacity-40"
                   >
                     ⚡ Run
@@ -272,6 +417,93 @@ export function SqlConsole({
                     <p className="mt-2 text-sm leading-relaxed">
                       💡 <span className="font-medium">Hint:</span> {task.hint}
                     </p>
+                  )}
+                  {/* The stuck exit — offered quietly, only after real attempts,
+                      and never the fastest route, so it doesn't become the
+                      default path for students who could have finished. */}
+                  {stuck && !assembling && !assisted.has(idx) && (
+                    <div className="mt-3 border-t border-indigo-200 pt-3 dark:border-indigo-900">
+                      <button
+                        type="button"
+                        onClick={assist}
+                        className="rounded-lg border border-indigo-300 bg-white/80 px-3 py-1.5 text-sm font-medium transition-colors hover:border-indigo-500 hover:bg-indigo-50 dark:border-indigo-800 dark:bg-zinc-900/60 dark:hover:bg-indigo-950/30"
+                      >
+                        {canAssemble
+                          ? "🧩 Stuck? Build it from pieces instead"
+                          : "🔑 Stuck? Show me the command"}
+                      </button>
+                      <p className="mt-1.5 text-xs text-zinc-600 dark:text-zinc-400">
+                        {canAssemble
+                          ? "You'll put the statement together from mixed-up parts, then run it yourself."
+                          : "This one is a single command — there's nothing to take apart."}
+                      </p>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Parsons fallback: assemble the statement from its own clauses. */}
+              {assembling && (
+                <div className="mt-3 rounded-xl border border-amber-300 bg-amber-50/70 p-3 dark:border-amber-900 dark:bg-zinc-900/40">
+                  <p className="text-xs font-bold uppercase tracking-widest text-amber-600 dark:text-amber-400">
+                    Build it from pieces
+                  </p>
+                  <p className="mt-1 text-sm leading-relaxed">
+                    Click the parts in the order they belong. Click a placed part to take it back out.
+                  </p>
+
+                  <div className="mt-2 min-h-[2.5rem] rounded-lg border border-amber-300 bg-white/70 p-2 dark:border-amber-800 dark:bg-zinc-950/60">
+                    {placed.length === 0 ? (
+                      <p className="text-xs italic text-zinc-500">Your statement will appear here…</p>
+                    ) : (
+                      <div className="flex flex-wrap gap-1.5">
+                        {placed.map((f, pos) => (
+                          <button
+                            key={`${f}-${pos}`}
+                            type="button"
+                            onClick={() => setPlaced(placed.filter((_, p) => p !== pos))}
+                            className="rounded-md bg-amber-200 px-2 py-1 font-mono text-xs text-zinc-900 transition-colors hover:bg-amber-300 dark:bg-amber-900/70 dark:text-amber-50"
+                          >
+                            {fragments[f]}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="mt-2 flex flex-wrap gap-1.5">
+                    {shuffledFragments
+                      .filter((f) => !placed.includes(f))
+                      .map((f) => (
+                        <button
+                          key={f}
+                          type="button"
+                          onClick={() => setPlaced([...placed, f])}
+                          className="rounded-md border border-amber-300 bg-white px-2 py-1 font-mono text-xs transition-colors hover:border-amber-500 hover:bg-amber-100 dark:border-amber-800 dark:bg-zinc-900 dark:hover:bg-amber-950/40"
+                        >
+                          {fragments[f]}
+                        </button>
+                      ))}
+                  </div>
+
+                  {placed.length === fragments.length && (
+                    <div className="mt-3">
+                      {builtRight ? (
+                        <>
+                          <p className="text-sm font-semibold">
+                            ✅ That&apos;s the statement — now run it yourself and watch what it does.
+                          </p>
+                          <button type="button" onClick={useAssembled} className="btn-primary mt-2">
+                            Put it in the editor →
+                          </button>
+                        </>
+                      ) : (
+                        <p className="text-sm leading-relaxed">
+                          Not that order yet. SQL reads in a fixed sequence — what has to be named
+                          before it can be filtered or sorted? Take a part back out and try again.
+                        </p>
+                      )}
+                    </div>
                   )}
                 </div>
               )}

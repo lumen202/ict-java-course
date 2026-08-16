@@ -148,7 +148,7 @@ export default async function StudentSubmissionsPage({
         <p className="mt-1 text-sm text-zinc-600 dark:text-zinc-400">
           {name} —{" "}
           {expected
-            ? `${dayWork.length} of ${expected} turned in`
+            ? `${Math.min(dayWork.length, expected)} of ${expected} turned in`
             : `${dayWork.length} turn-in${dayWork.length === 1 ? "" : "s"}`}
           , in the order they were worked.
         </p>
@@ -365,7 +365,7 @@ export default async function StudentSubmissionsPage({
                           complete ? "text-emerald-700 dark:text-emerald-400 font-medium" : undefined
                         }
                       >
-                        {d.count} of {expected} turned in
+                        {Math.min(d.count, expected)} of {expected} turned in
                       </span>
                     ) : (
                       `${d.count} turn-in${d.count === 1 ? "" : "s"}`

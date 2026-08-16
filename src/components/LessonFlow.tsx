@@ -99,6 +99,13 @@ export type FlowStep = {
   title: string;
   /** Steps with no built-in completion signal (videos, text cards) get a "continue" button. */
   manual?: boolean;
+  /**
+   * Challenge-tier step: badged, and skippable at the frontier without asking
+   * the teacher. The skip is self-serve on purpose — a gate that only opens on
+   * success traps whoever can't succeed, and optional stretch work must never
+   * be that gate.
+   */
+  optional?: boolean;
   /** Server-known completion (a saved turn-in) — pre-unlocks past this step. */
   done?: boolean;
   /** The last node gets the ✓ styling. */
@@ -215,6 +222,11 @@ export function LessonFlow({
             >
               {s.final ? "✓" : i + 1}
             </span>
+            {s.optional && (
+              <p className="mb-2 inline-flex items-center gap-1.5 rounded-full bg-violet-100 px-3 py-1 text-[11px] font-bold uppercase tracking-wider text-violet-700 dark:bg-violet-950/60 dark:text-violet-300">
+                ⭐ Challenge — optional
+              </p>
+            )}
             {children[i]}
             {gated &&
               i === unlocked - 1 &&
@@ -226,6 +238,16 @@ export function LessonFlow({
                   className="btn-ghost mt-3"
                 >
                   ✅ Done with this — continue
+                </button>
+              ) : s.optional ? (
+                // Optional challenge: the way past is a self-serve skip, not a
+                // teacher flag — stretch work must never block the day.
+                <button
+                  type="button"
+                  onClick={() => complete(s.key)}
+                  className="btn-ghost mt-3"
+                >
+                  ⏭️ Skip this challenge — continue
                 </button>
               ) : asked === s.key ? (
                 // The flag went through — no way to skip themselves past it,
@@ -261,6 +283,7 @@ export function LessonFlow({
             <div className="rounded-2xl border border-dashed border-zinc-300 dark:border-zinc-700 p-4">
               <p className="text-sm font-semibold text-zinc-600 dark:text-zinc-300">
                 Up next: {steps[unlocked].title}
+                {steps[unlocked].optional ? " (optional challenge)" : ""}
               </p>
               <p className="mt-1 text-xs text-zinc-500">
                 Finish the step above to unlock it

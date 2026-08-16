@@ -3,6 +3,7 @@
 import { useState } from "react";
 import type { OrderGame as OrderGameData } from "@/lib/content/types";
 import { useTurnIn } from "@/lib/game/useTurnIn";
+import { seededShuffle } from "@/lib/game/shuffle";
 import { GameDoor, GameModal, GameModalHeader, GameModalBody } from "@/components/GameModal";
 
 // Arrange-the-lines: shuffled SQL statements (or the lines of one statement)
@@ -10,6 +11,13 @@ import { GameDoor, GameModal, GameModalHeader, GameModalBody } from "@/component
 // click a placed line to send it back. Teaches sequence and structure — a
 // .sql file's order, a query's clause order — which no fill-in-the-blank can.
 // Result auto-saves as a turn-in under the game's id.
+//
+// A round may carry `distractors` — wrong lines mixed into the pool that must
+// be left OUT of the build. In the pool they're encoded as indices past the
+// end of `lines` (index `lines.length + d` = distractor d). Clicking one
+// strikes it red and it stays unpickable; the round clears when every real
+// line is placed in order, struck or untouched distractors both count as
+// correctly left out.
 //
 // The lesson shows a door card; play happens in the full-screen modal.
 // Closing the modal pauses — state is kept, the card offers "Continue".
@@ -42,6 +50,7 @@ export function OrderGame({
   const [pool, setPool] = useState<number[]>([]);
   const [placed, setPlaced] = useState<number[]>([]);
   const [wrongAt, setWrongAt] = useState<Set<number>>(new Set());
+  const [struck, setStruck] = useState<Set<number>>(new Set());
   const [checked, setChecked] = useState(false);
   const [missedThisRound, setMissedThisRound] = useState(false);
   const [firstTry, setFirstTry] = useState(0);
@@ -49,12 +58,25 @@ export function OrderGame({
 
   const round = game.rounds[idx];
   const playing = phase === "round" || phase === "cleared";
+  // Pool entries past the end of `lines` are distractors.
+  const isDistractor = (line: number) => round != null && line >= round.lines.length;
+  const lineText = (line: number) =>
+    isDistractor(line) ? round.distractors![line - round.lines.length] : round.lines[line];
 
   function initRound(i: number) {
+    const r = game.rounds[i];
     setIdx(i);
-    setPool(shuffled(game.rounds[i].lines.length));
+    setPool(
+      r.distractors?.length
+        ? seededShuffle(
+            Array.from({ length: r.lines.length + r.distractors.length }, (_, n) => n),
+            `${game.id}:${i}`,
+          )
+        : shuffled(r.lines.length),
+    );
     setPlaced([]);
     setWrongAt(new Set());
+    setStruck(new Set());
     setChecked(false);
     setMissedThisRound(false);
     setPhase("round");
@@ -67,6 +89,12 @@ export function OrderGame({
   }
 
   function place(line: number) {
+    if (isDistractor(line)) {
+      // A wrong pick — strike it out where it sits; it never joins the build.
+      setStruck((s) => new Set(s).add(line));
+      setMissedThisRound(true);
+      return;
+    }
     setPool((p) => p.filter((x) => x !== line));
     setPlaced((p) => [...p, line]);
     setWrongAt(new Set());
@@ -178,18 +206,28 @@ export function OrderGame({
                       <li key={line}>
                         <button
                           type="button"
+                          disabled={struck.has(line)}
                           onClick={() => place(line)}
-                          className="w-full rounded-lg border border-dashed border-rose-300 dark:border-rose-800 bg-white/80 dark:bg-zinc-900/60 px-2.5 py-1.5 text-left font-mono text-xs leading-relaxed whitespace-pre-wrap transition-colors hover:border-rose-500 hover:bg-rose-50 dark:hover:bg-rose-950/30"
+                          className={`w-full rounded-lg border border-dashed px-2.5 py-1.5 text-left font-mono text-xs leading-relaxed whitespace-pre-wrap transition-colors ${
+                            struck.has(line)
+                              ? "pointer-events-none border-red-300 dark:border-red-900 bg-red-50/70 dark:bg-red-950/30 text-red-500 dark:text-red-400 line-through"
+                              : "border-rose-300 dark:border-rose-800 bg-white/80 dark:bg-zinc-900/60 hover:border-rose-500 hover:bg-rose-50 dark:hover:bg-rose-950/30"
+                          }`}
                         >
-                          {round.lines[line]}
+                          {lineText(line)}
                         </button>
+                        {struck.has(line) && (
+                          <p className="mt-0.5 px-2.5 text-xs text-red-600 dark:text-red-400">
+                            ✗ That line doesn&apos;t belong in this build — leave it out.
+                          </p>
+                        )}
                       </li>
                     ))}
                   </ul>
                 </div>
               )}
 
-              {phase === "round" && pool.length === 0 && (
+              {phase === "round" && placed.length === round.lines.length && (
                 <div className="mt-3 text-center">
                   <button type="button" onClick={check} className="btn-primary">
                     Run it ▶

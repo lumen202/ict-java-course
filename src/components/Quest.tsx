@@ -1,7 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import type { QuestGame } from "@/lib/content/types";
+import { shuffledChoices } from "@/lib/game/shuffle";
 import { GameDoor, GameModal, GameModalHeader, GameModalBody } from "@/components/GameModal";
 import { useTurnIn } from "@/lib/game/useTurnIn";
 
@@ -30,6 +31,24 @@ export function Quest({
   game: QuestGame;
 }) {
   const total = game.missions.length;
+  // Check choices are shuffled (seeded, so stable across re-renders) —
+  // authored checks had the right answer at index 0 consistently enough to
+  // be cleared by pattern-matching the first button.
+  const missions = useMemo(
+    () =>
+      game.missions.map((m, i) =>
+        m.check
+          ? {
+              ...m,
+              check: {
+                ...m.check,
+                ...shuffledChoices(m.check.choices, m.check.answer, `${game.id}:${i}`),
+              },
+            }
+          : m,
+      ),
+    [game],
+  );
   const [phase, setPhase] = useState<Phase>("intro");
   const [open, setOpen] = useState(false);
   const [idx, setIdx] = useState(0);
@@ -38,8 +57,8 @@ export function Quest({
   const [inputs, setInputs] = useState<Record<number, string>>({});
   const { submit, saved, onPaste } = useTurnIn({ weekSlug, dayNumber, item: game.id });
 
-  const mission = game.missions[idx];
-  const checksTotal = game.missions.filter((m) => m.check).length;
+  const mission = missions[idx];
+  const checksTotal = missions.filter((m) => m.check).length;
   const playing = phase === "mission" || phase === "cleared";
 
   function start() {

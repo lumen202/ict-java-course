@@ -12,7 +12,7 @@ import type { DayActivity, DayGame, DayPlan, Practice, VideoAssignment } from "@
 // week page decides how to draw it. Adding a kind here means adding a branch
 // there — deliberately, so a new kind can't be silently unrenderable.
 
-export type LessonStep = { key: string; title: string } & (
+export type LessonStep = { key: string; title: string; optional?: boolean } & (
   | { kind: "game"; game: DayGame }
   | { kind: "activity"; activity: DayActivity }
   | { kind: "video"; video: VideoAssignment; index: number; isLast: boolean }
@@ -81,8 +81,8 @@ export function daySteps(day: DayPlan): LessonStep[] {
   for (const a of day.activities ?? []) {
     steps.push(
       "kind" in a
-        ? { kind: "game", key: a.id, title: a.title, game: a }
-        : { kind: "activity", key: a.id, title: a.title, activity: a },
+        ? { kind: "game", key: a.id, title: a.title, optional: a.optional, game: a }
+        : { kind: "activity", key: a.id, title: a.title, optional: a.optional, activity: a },
     );
   }
 
@@ -113,9 +113,14 @@ export function daySteps(day: DayPlan): LessonStep[] {
  * `daySteps` exists: a hand-maintained number would drift the first time a day
  * gains an activity, and the drift would be invisible — a teacher would just
  * see a total that quietly stopped matching the lesson.
+ *
+ * Optional challenge steps are excluded: they're a ceiling for fast finishers,
+ * not owed work, so a student who skips them must still read as complete.
+ * (Their turn-ins still save and show — displays cap the fraction at the
+ * total so a challenge-doer never reads as "12 of 11".)
  */
 export function turnInCount(day: DayPlan): number {
-  return daySteps(day).filter((s) => stepItem(s) !== null).length;
+  return daySteps(day).filter((s) => stepItem(s) !== null && !s.optional).length;
 }
 
 /**

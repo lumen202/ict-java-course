@@ -1,7 +1,8 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { BossBattleGame } from "@/lib/content/types";
+import { shuffledChoices } from "@/lib/game/shuffle";
 import { GameModal } from "@/components/GameModal";
 import { Stickman } from "@/components/Stickman";
 import { useTurnIn } from "@/lib/game/useTurnIn";
@@ -52,6 +53,17 @@ export function BossBattle({
   game: BossBattleGame;
 }) {
   const total = game.questions.length;
+  // Choices are shuffled per question (seeded by game id + index, so the
+  // order is stable across re-renders and re-queues) — authored content had
+  // the right answer at index 0 often enough to be pattern-matched.
+  const questions = useMemo(
+    () =>
+      game.questions.map((q, i) => ({
+        ...q,
+        ...shuffledChoices(q.choices, q.answer, `${game.id}:${i}`),
+      })),
+    [game],
+  );
   const [phase, setPhase] = useState<Phase>("intro");
   const [open, setOpen] = useState(false);
   // The rules live in lib/game/combat.ts — this component only renders them.
@@ -62,7 +74,7 @@ export function BossBattle({
   const fx = useCombatFx();
 
   const currentIndex = currentQuestion(combat);
-  const current = currentIndex !== undefined ? game.questions[currentIndex] : null;
+  const current = currentIndex !== undefined ? questions[currentIndex] : null;
   const bossHp = bossHpOf(combat);
   const hearts = combat.hearts;
   const answering = phase === "question" || phase === "feedback";

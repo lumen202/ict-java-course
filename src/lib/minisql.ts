@@ -6,7 +6,10 @@
 // behind safe-update mode), PRIMARY KEY and AUTO_INCREMENT (column-level or
 // table-level in CREATE TABLE, via ALTER TABLE ADD [CONSTRAINT] PRIMARY KEY,
 // and ALTER TABLE t AUTO_INCREMENT = n), and INSERT with a column list
-// (`INSERT INTO t (a, b) VALUES …`). Errors mimic real MySQL codes and
+// (`INSERT INTO t (a, b) VALUES …`). Week 3: FOREIGN KEY (in CREATE TABLE
+// and via ALTER TABLE ADD/DROP, enforced on INSERT/UPDATE/DELETE/DROP TABLE)
+// and JOINs (INNER/LEFT/RIGHT, chainable, with qualified `table.col` names in
+// the select list, ON, WHERE and ORDER BY). Errors mimic real MySQL codes and
 // wording, because learning to read those messages is part of the curriculum.
 //
 // Used by `components/SqlConsole.tsx` (the in-page mini DB Fiddle). Pure and
@@ -15,12 +18,23 @@
 // in strict mode.
 
 export type MiniColumn = { name: string; type: string; pk?: boolean; autoInc?: boolean };
+export type MiniFk = {
+  /** Constraint name — defaults to MySQL's `<table>_ibfk_<n>`. */
+  name: string;
+  /** Child column in this table. */
+  col: string;
+  /** Referenced (parent) table and column. */
+  refTable: string;
+  refCol: string;
+};
 export type MiniTable = {
   name: string;
   columns: MiniColumn[];
   rows: (string | null)[][];
   /** Next AUTO_INCREMENT value. Present only when a column has autoInc. */
   autoIncNext?: number;
+  /** FOREIGN KEY constraints where this table is the child. */
+  fks?: MiniFk[];
 };
 export type MiniDb = { name: string; tables: MiniTable[] };
 export type MiniState = {
@@ -170,6 +184,15 @@ class Cursor {
     if (!t || t.t !== "word") this.fail(t);
     return (t as Tok).v;
   }
+  /** An identifier with an optional `table.` qualifier, kept as one dotted string. */
+  colRef(): string {
+    let name = this.ident();
+    if (this.peek()?.t === "punc" && this.peek()?.v === ".") {
+      this.next();
+      name += "." + this.ident();
+    }
+    return name;
+  }
   fail(t?: Tok | undefined): never {
     throw synErr(t ?? this.peek() ?? this.toks[this.toks.length - 1]);
   }
@@ -207,7 +230,7 @@ function parseUnary(c: Cursor): Expr {
     c.expectPunc(")");
     return e;
   }
-  const col = c.ident();
+  const col = c.colRef();
   const opTok = c.next();
   if (!opTok || opTok.t !== "op") c.fail(opTok);
   const valTok = c.next();
@@ -230,6 +253,7 @@ export function createState(setup?: {
       name: string;
       columns: { name: string; type: string; pk?: boolean; autoInc?: boolean }[];
       rows: (string | null)[][];
+      fks?: { name?: string; col: string; refTable: string; refCol: string }[];
     }[];
   }[];
   use?: string;
@@ -244,6 +268,14 @@ export function createState(setup?: {
           columns: t.columns.map((col) => ({ ...col })),
           rows: t.rows.map((r) => [...r] as (string | null)[]),
         };
+        if (t.fks && t.fks.length > 0) {
+          table.fks = t.fks.map((fk, n) => ({
+            name: fk.name ?? `${t.name.toLowerCase()}_ibfk_${n + 1}`,
+            col: fk.col,
+            refTable: fk.refTable,
+            refCol: fk.refCol,
+          }));
+        }
         const ai = table.columns.findIndex((col) => col.autoInc);
         if (ai !== -1) {
           const max = Math.max(0, ...table.rows.map((r) => Number(r[ai] ?? 0)));
@@ -266,6 +298,7 @@ export function cloneState(s: MiniState): MiniState {
         columns: t.columns.map((col) => ({ ...col })),
         rows: t.rows.map((r) => [...r]),
         ...(t.autoIncNext !== undefined ? { autoIncNext: t.autoIncNext } : {}),
+        ...(t.fks !== undefined ? { fks: t.fks.map((fk) => ({ ...fk })) } : {}),
       })),
     })),
     current: s.current,
@@ -290,6 +323,15 @@ function normalizeState(s: MiniState): string {
           })),
           rows: t.rows,
           autoIncNext: t.autoIncNext ?? null,
+          // Constraint names are deliberately left out: a correctly-placed FK
+          // under any name is the same table, judged by effect.
+          fks: (t.fks ?? [])
+            .map((fk) => ({
+              col: fk.col.toLowerCase(),
+              refTable: fk.refTable.toLowerCase(),
+              refCol: fk.refCol.toLowerCase(),
+            }))
+            .sort((a, b) => (a.col + a.refTable + a.refCol).localeCompare(b.col + b.refTable + b.refCol)),
         })),
     }));
   return JSON.stringify({ dbs, current: s.current?.toLowerCase() ?? null, safe: s.safeUpdates });
@@ -414,27 +456,57 @@ function parseColumnType(c: Cursor): string {
   );
 }
 
+// --------------------------------------------------------------- relations
+
+/**
+ * A "relation" is the row shape a SELECT reads from: one entry per column,
+ * remembering which table it came from. A plain SELECT reads a one-table
+ * relation; a JOIN reads the two tables' relations concatenated. Row arrays
+ * line up with the relation index-for-index.
+ */
+type RelCol = { tbl: string; col: MiniColumn };
+
+function relOf(t: MiniTable): RelCol[] {
+  return t.columns.map((col) => ({ tbl: t.name, col }));
+}
+
+/** Resolve a (possibly `table.col`-qualified) name to a relation index. */
+function resolveCol(rel: RelCol[], ref: string, clause: string): number {
+  const dot = ref.indexOf(".");
+  if (dot !== -1) {
+    const tbl = ref.slice(0, dot).toLowerCase();
+    const col = ref.slice(dot + 1).toLowerCase();
+    const i = rel.findIndex((rc) => rc.tbl.toLowerCase() === tbl && rc.col.name.toLowerCase() === col);
+    if (i === -1) throw new MiniSqlError(1054, `Error 1054: Unknown column '${ref}' in '${clause}'`);
+    return i;
+  }
+  const matches: number[] = [];
+  rel.forEach((rc, i) => {
+    if (rc.col.name.toLowerCase() === ref.toLowerCase()) matches.push(i);
+  });
+  if (matches.length === 0) throw new MiniSqlError(1054, `Error 1054: Unknown column '${ref}' in '${clause}'`);
+  if (matches.length > 1) throw new MiniSqlError(1052, `Error 1052: Column '${ref}' in ${clause} is ambiguous`);
+  return matches[0];
+}
+
 // ------------------------------------------------------------------- WHERE
 
-function evalExpr(expr: Expr, table: MiniTable, row: (string | null)[]): boolean {
+function evalExpr(expr: Expr, rel: RelCol[], row: (string | null)[]): boolean {
   switch (expr.k) {
     case "and":
-      return evalExpr(expr.l, table, row) && evalExpr(expr.r, table, row);
+      return evalExpr(expr.l, rel, row) && evalExpr(expr.r, rel, row);
     case "or":
-      return evalExpr(expr.l, table, row) || evalExpr(expr.r, table, row);
+      return evalExpr(expr.l, rel, row) || evalExpr(expr.r, rel, row);
     case "not":
-      return !evalExpr(expr.e, table, row);
+      return !evalExpr(expr.e, rel, row);
     case "cmp": {
-      const ci = table.columns.findIndex((col) => col.name.toLowerCase() === expr.col.toLowerCase());
-      if (ci === -1) {
-        throw new MiniSqlError(1054, `Error 1054: Unknown column '${expr.col}' in 'where clause'`);
-      }
+      const ci = resolveCol(rel, expr.col, "where clause");
       if (expr.val.t === "word" && expr.val.v.toUpperCase() !== "NULL") {
         throw new MiniSqlError(1054, `Error 1054: Unknown column '${expr.val.v}' in 'where clause'`);
       }
       const cell = row[ci];
       if (cell === null || expr.val.v.toUpperCase() === "NULL") return false;
-      const numeric = isIntType(table.columns[ci].type) && expr.val.t === "num";
+      const numeric = isIntType(rel[ci].col.type) && expr.val.t === "num";
       const a = numeric ? Number(cell) : cell.toLowerCase();
       const b = numeric ? Number(expr.val.v) : expr.val.v.toLowerCase();
       switch (expr.op) {
@@ -455,6 +527,104 @@ function evalExpr(expr: Expr, table: MiniTable, row: (string | null)[]): boolean
       }
     }
   }
+}
+
+// ------------------------------------------------------------ foreign keys
+
+function colIndexOf(t: MiniTable, name: string): number {
+  return t.columns.findIndex((col) => col.name.toLowerCase() === name.toLowerCase());
+}
+
+function fkFail(code: 1451 | 1452, dbName: string, child: MiniTable, fk: MiniFk): MiniSqlError {
+  const verb = code === 1452 ? "add or update a child" : "delete or update a parent";
+  return new MiniSqlError(
+    code,
+    `Error ${code}: Cannot ${verb} row: a foreign key constraint fails (\`${dbName.toLowerCase()}\`.\`${child.name}\`, CONSTRAINT \`${fk.name}\` FOREIGN KEY (\`${fk.col}\`) REFERENCES \`${fk.refTable}\` (\`${fk.refCol}\`))`,
+  );
+}
+
+/** Every (child table, fk) pair in `db` whose fk points at `parent`. */
+function fksReferencing(db: MiniDb, parent: MiniTable): { child: MiniTable; fk: MiniFk }[] {
+  const out: { child: MiniTable; fk: MiniFk }[] = [];
+  for (const child of db.tables) {
+    for (const fk of child.fks ?? []) {
+      if (fk.refTable.toLowerCase() === parent.name.toLowerCase()) out.push({ child, fk });
+    }
+  }
+  return out;
+}
+
+/** Throw 1452 unless `value` (when non-null) has a matching parent row. */
+function checkChildValue(
+  db: MiniDb,
+  child: MiniTable,
+  fk: MiniFk,
+  value: string | null,
+  pendingRows: (string | null)[][],
+) {
+  if (value === null) return;
+  const parent = db.tables.find((x) => x.name.toLowerCase() === fk.refTable.toLowerCase());
+  if (!parent) return; // unreachable: dropping a referenced parent is blocked
+  const ri = colIndexOf(parent, fk.refCol);
+  if (ri === -1) return;
+  const rows = parent === child ? [...parent.rows, ...pendingRows] : parent.rows;
+  if (!rows.some((r) => r[ri] !== null && r[ri] === value)) throw fkFail(1452, db.name, child, fk);
+}
+
+/**
+ * Validate one FOREIGN KEY definition and give it its name. `childName` /
+ * `childColumns` are passed separately because at CREATE TABLE time the child
+ * table object doesn't exist yet.
+ */
+function buildFk(
+  db: MiniDb,
+  childName: string,
+  childColumns: MiniColumn[],
+  def: { name: string | null; col: string; refTable: string; refCol: string },
+  seq: number,
+): MiniFk {
+  const name = def.name ?? `${childName.toLowerCase()}_ibfk_${seq}`;
+  const childCol = childColumns.find((x) => x.name.toLowerCase() === def.col.toLowerCase());
+  if (!childCol) {
+    throw new MiniSqlError(1072, `Error 1072: Key column '${def.col}' doesn't exist in table`);
+  }
+  const parentCols =
+    def.refTable.toLowerCase() === childName.toLowerCase()
+      ? childColumns
+      : db.tables.find((x) => x.name.toLowerCase() === def.refTable.toLowerCase())?.columns;
+  if (!parentCols) {
+    throw new MiniSqlError(1824, `Error 1824: Failed to open the referenced table '${def.refTable}'`);
+  }
+  const parentCol = parentCols.find((x) => x.name.toLowerCase() === def.refCol.toLowerCase());
+  if (!parentCol) {
+    throw new MiniSqlError(
+      3734,
+      `Error 3734: Failed to add the foreign key constraint. Missing column '${def.refCol}' for constraint '${name}' in the referenced table '${def.refTable}'`,
+    );
+  }
+  const family = (type: string) => (isIntType(type) ? "INT" : type.toUpperCase() === "DATE" ? "DATE" : "CHAR");
+  if (family(childCol.type) !== family(parentCol.type)) {
+    throw new MiniSqlError(
+      3780,
+      `Error 3780: Referencing column '${def.col}' and referenced column '${def.refCol}' in foreign key constraint '${name}' are incompatible.`,
+    );
+  }
+  return { name, col: def.col, refTable: def.refTable, refCol: def.refCol };
+}
+
+/** Parse `FOREIGN KEY (col) REFERENCES parent (col)` after any CONSTRAINT prefix. */
+function parseFkClause(c: Cursor, fkName: string | null): { name: string | null; col: string; refTable: string; refCol: string } {
+  c.expectWord("FOREIGN");
+  c.expectWord("KEY");
+  c.expectPunc("(");
+  const col = c.ident();
+  c.expectPunc(")");
+  c.expectWord("REFERENCES");
+  const refTable = c.ident();
+  c.expectPunc("(");
+  const refCol = c.ident();
+  c.expectPunc(")");
+  return { name: fkName, col, refTable, refCol };
 }
 
 // -------------------------------------------------------------- statements
@@ -497,14 +667,21 @@ export function runStatement(state: MiniState, sql: string): StatementOk {
         c.expectPunc("(");
         const columns: MiniColumn[] = [];
         let tablePk: string | null = null;
+        const fkDefs: { name: string | null; col: string; refTable: string; refCol: string }[] = [];
         for (;;) {
-          if (c.atWord("PRIMARY")) {
-            // Table-level constraint: PRIMARY KEY (col)
-            c.next();
-            c.expectWord("KEY");
-            c.expectPunc("(");
-            tablePk = c.ident();
-            c.expectPunc(")");
+          if (c.atWord("PRIMARY", "FOREIGN", "CONSTRAINT")) {
+            // Table-level constraint: [CONSTRAINT name] PRIMARY KEY (col)
+            //                       | [CONSTRAINT name] FOREIGN KEY (col) REFERENCES parent (col)
+            const consName = c.takeWord("CONSTRAINT") ? c.ident() : null;
+            if (c.atWord("FOREIGN")) {
+              fkDefs.push(parseFkClause(c, consName));
+            } else {
+              c.expectWord("PRIMARY");
+              c.expectWord("KEY");
+              c.expectPunc("(");
+              tablePk = c.ident();
+              c.expectPunc(")");
+            }
           } else {
             const colName = c.ident();
             const type = parseColumnType(c);
@@ -549,6 +726,9 @@ export function runStatement(state: MiniState, sql: string): StatementOk {
         }
         const table: MiniTable = { name, columns, rows: [] };
         if (autoCol) table.autoIncNext = 1;
+        if (fkDefs.length > 0) {
+          table.fks = fkDefs.map((def, n) => buildFk(db, name, columns, def, n + 1));
+        }
         db.tables.push(table);
         return { message: "Query OK, 0 rows affected" };
       }
@@ -575,6 +755,14 @@ export function runStatement(state: MiniState, sql: string): StatementOk {
         const db = currentDb(state);
         const t = db.tables.find((x) => x.name.toLowerCase() === name.toLowerCase());
         if (!t) throw new MiniSqlError(1051, `Error 1051: Unknown table '${db.name}.${name}'`);
+        // A self-referencing FK doesn't block the drop; another table's does.
+        const ref = fksReferencing(db, t).find((x) => x.child !== t);
+        if (ref) {
+          throw new MiniSqlError(
+            3730,
+            `Error 3730: Cannot drop table '${t.name}' referenced by a foreign key constraint '${ref.fk.name}' on table '${ref.child.name}'.`,
+          );
+        }
         db.tables = db.tables.filter((x) => x !== t);
         return { message: "Query OK, 0 rows affected" };
       }
@@ -631,7 +819,7 @@ export function runStatement(state: MiniState, sql: string): StatementOk {
             col.name,
             col.type.toLowerCase(),
             col.pk ? "NO" : "YES",
-            col.pk ? "PRI" : "",
+            col.pk ? "PRI" : (t.fks ?? []).some((fk) => fk.col.toLowerCase() === col.name.toLowerCase()) ? "MUL" : "",
             null,
             col.autoInc ? "auto_increment" : "",
           ]),
@@ -704,6 +892,10 @@ export function runStatement(state: MiniState, sql: string): StatementOk {
             if (v >= (t.autoIncNext ?? 1)) t.autoIncNext = v + 1;
           }
         }
+        for (const fk of t.fks ?? []) {
+          const ci = colIndexOf(t, fk.col);
+          if (ci !== -1) checkChildValue(currentDb(state), t, fk, row[ci], newRows);
+        }
         newRows.push(row);
         const p = c.peek();
         if (p?.t === "punc" && p.v === ",") {
@@ -725,7 +917,7 @@ export function runStatement(state: MiniState, sql: string): StatementOk {
         }
         const list: string[] = [];
         for (;;) {
-          list.push(c.ident());
+          list.push(c.colRef());
           const p = c.peek();
           if (p?.t === "punc" && p.v === ",") {
             c.next();
@@ -736,8 +928,62 @@ export function runStatement(state: MiniState, sql: string): StatementOk {
         return list;
       })();
       c.expectWord("FROM");
-      const name = c.ident();
-      const t = findTable(state, name);
+      const first = findTable(state, c.ident());
+      // The relation starts as the first table and grows once per JOIN.
+      let rel: RelCol[] = relOf(first);
+      let rows: (string | null)[][] = first.rows.map((r) => [...r]);
+      while (c.atWord("JOIN", "INNER", "LEFT", "RIGHT")) {
+        const kind = c.takeWord("LEFT") ? "left" : c.takeWord("RIGHT") ? "right" : "inner";
+        if (kind === "inner") c.takeWord("INNER");
+        else c.takeWord("OUTER");
+        c.expectWord("JOIN");
+        const t2 = findTable(state, c.ident());
+        c.expectWord("ON");
+        const lRef = c.colRef();
+        const eq = c.next();
+        if (!eq || eq.t !== "op" || eq.v !== "=") c.fail(eq);
+        const rRef = c.colRef();
+        const joined: RelCol[] = [...rel, ...relOf(t2)];
+        const li = resolveCol(joined, lRef, "on clause");
+        const ri = resolveCol(joined, rRef, "on clause");
+        const numeric = isIntType(joined[li].col.type) && isIntType(joined[ri].col.type);
+        const hits = (combined: (string | null)[]): boolean => {
+          const a = combined[li];
+          const b = combined[ri];
+          if (a === null || b === null) return false;
+          return numeric ? Number(a) === Number(b) : a.toLowerCase() === b.toLowerCase();
+        };
+        const width2 = t2.columns.length;
+        const out: (string | null)[][] = [];
+        if (kind === "right") {
+          // Every right row survives; unmatched ones get NULLs on the left.
+          for (const r2 of t2.rows) {
+            let matched = false;
+            for (const r1 of rows) {
+              const combined = [...r1, ...r2];
+              if (hits(combined)) {
+                out.push(combined);
+                matched = true;
+              }
+            }
+            if (!matched) out.push([...new Array<string | null>(rel.length).fill(null), ...r2]);
+          }
+        } else {
+          for (const r1 of rows) {
+            let matched = false;
+            for (const r2 of t2.rows) {
+              const combined = [...r1, ...r2];
+              if (hits(combined)) {
+                out.push(combined);
+                matched = true;
+              }
+            }
+            if (kind === "left" && !matched) out.push([...r1, ...new Array<string | null>(width2).fill(null)]);
+          }
+        }
+        rel = joined;
+        rows = out;
+      }
       let where: Expr | undefined;
       if (c.takeWord("WHERE")) where = parseExpr(c);
       let order: { col: string; desc: boolean }[] | undefined;
@@ -745,7 +991,7 @@ export function runStatement(state: MiniState, sql: string): StatementOk {
         c.expectWord("BY");
         order = [];
         for (;;) {
-          const col = c.ident();
+          const col = c.colRef();
           let desc = false;
           if (c.takeWord("DESC")) desc = true;
           else c.takeWord("ASC");
@@ -760,15 +1006,13 @@ export function runStatement(state: MiniState, sql: string): StatementOk {
       }
       end(c);
 
-      const colIdx = (colName: string, clause: string): number => {
-        const i = t.columns.findIndex((col) => col.name.toLowerCase() === colName.toLowerCase());
-        if (i === -1) throw new MiniSqlError(1054, `Error 1054: Unknown column '${colName}' in '${clause}'`);
-        return i;
-      };
-      const picked = cols === "*" ? t.columns.map((_, i) => i) : cols.map((n) => colIdx(n, "field list"));
-      const orderIdx = (order ?? []).map((o) => ({ i: colIdx(o.col, "order clause"), desc: o.desc }));
+      const picked = cols === "*" ? rel.map((_, i) => i) : cols.map((n) => resolveCol(rel, n, "field list"));
+      const orderIdx = (order ?? []).map((o) => ({ i: resolveCol(rel, o.col, "order clause"), desc: o.desc }));
 
-      let rows = t.rows.filter((r) => (where ? evalExpr(where, t, r) : true));
+      if (where) {
+        const w = where;
+        rows = rows.filter((r) => evalExpr(w, rel, r));
+      }
       if (orderIdx.length > 0) {
         rows = [...rows].sort((ra, rb) => {
           for (const { i, desc } of orderIdx) {
@@ -777,7 +1021,7 @@ export function runStatement(state: MiniState, sql: string): StatementOk {
             if (a === b) continue;
             if (a === null) return desc ? 1 : -1;
             if (b === null) return desc ? -1 : 1;
-            const numeric = isIntType(t.columns[i].type);
+            const numeric = isIntType(rel[i].col.type);
             const cmp = numeric ? Number(a) - Number(b) : a.toLowerCase() < b.toLowerCase() ? -1 : 1;
             if (cmp !== 0) return desc ? -cmp : cmp;
           }
@@ -787,7 +1031,9 @@ export function runStatement(state: MiniState, sql: string): StatementOk {
       return {
         message: `${rows.length} row(s) returned`,
         result: {
-          columns: picked.map((i) => t.columns[i].name),
+          // Like MySQL, the header is the bare column name even when the
+          // select list qualified it.
+          columns: picked.map((i) => rel[i].col.name),
           rows: rows.map((r) => picked.map((i) => r[i])),
           ordered: orderIdx.length > 0,
         },
@@ -813,10 +1059,40 @@ export function runStatement(state: MiniState, sql: string): StatementOk {
         }
         return { message: "Query OK, 0 rows affected" };
       }
+      // ALTER TABLE t DROP FOREIGN KEY name
+      if (c.takeWord("DROP")) {
+        c.expectWord("FOREIGN");
+        c.expectWord("KEY");
+        const fkName = c.ident();
+        end(c);
+        const fk = (t.fks ?? []).find((x) => x.name.toLowerCase() === fkName.toLowerCase());
+        if (!fk) {
+          throw new MiniSqlError(1091, `Error 1091: Can't DROP FOREIGN KEY '${fkName}'; check that it exists`);
+        }
+        t.fks = (t.fks ?? []).filter((x) => x !== fk);
+        if (t.fks.length === 0) delete t.fks;
+        return { message: `Query OK, ${t.rows.length} row(s) affected` };
+      }
       c.expectWord("ADD");
-      // ALTER TABLE t ADD [CONSTRAINT] PRIMARY KEY (col)
-      if (c.atWord("CONSTRAINT", "PRIMARY")) {
-        c.takeWord("CONSTRAINT");
+      // ALTER TABLE t ADD [CONSTRAINT [name]] PRIMARY KEY (col)
+      //                                     | FOREIGN KEY (col) REFERENCES p (col)
+      const hadConstraint = c.takeWord("CONSTRAINT");
+      const consName = hadConstraint && !c.atWord("PRIMARY", "FOREIGN") ? c.ident() : null;
+      if (c.atWord("FOREIGN")) {
+        const def = parseFkClause(c, consName);
+        end(c);
+        const db = currentDb(state);
+        const fk = buildFk(db, t.name, t.columns, def, (t.fks ?? []).length + 1);
+        if ((t.fks ?? []).some((x) => x.name.toLowerCase() === fk.name.toLowerCase())) {
+          throw new MiniSqlError(1826, `Error 1826: Duplicate foreign key constraint name '${fk.name}'`);
+        }
+        // Existing rows must already satisfy the constraint (1452).
+        const ci = colIndexOf(t, fk.col);
+        for (const r of t.rows) checkChildValue(db, t, fk, r[ci], []);
+        t.fks = [...(t.fks ?? []), fk];
+        return { message: `Query OK, ${t.rows.length} row(s) affected` };
+      }
+      if (hadConstraint || c.atWord("PRIMARY")) {
         c.expectWord("PRIMARY");
         c.expectWord("KEY");
         c.expectPunc("(");
@@ -889,7 +1165,8 @@ export function runStatement(state: MiniState, sql: string): StatementOk {
       }
       // Coerce once up front so a bad value can't leave a half-updated table.
       const coerced = sets.map((s) => ({ i: s.i, v: coerce(t.columns[s.i], s.val, 1) }));
-      const matching = t.rows.filter((r) => (where ? evalExpr(where, t, r) : true));
+      const rel = relOf(t);
+      const matching = t.rows.filter((r) => (where ? evalExpr(where, rel, r) : true));
       // PRIMARY KEY rules checked before anything changes, so an error can't
       // half-update the table.
       const pi = pkIndex(t);
@@ -902,6 +1179,30 @@ export function runStatement(state: MiniState, sql: string): StatementOk {
         // collide; one match collides only with a different row holding it.
         if (matching.length > 1 || t.rows.some((r) => !matching.includes(r) && r[pi] === pkSet.v)) {
           throw new MiniSqlError(1062, `Error 1062: Duplicate entry '${pkSet.v}' for key '${t.name}.PRIMARY'`);
+        }
+      }
+      // FOREIGN KEY rules, also checked before anything changes.
+      const db = currentDb(state);
+      for (const s of coerced) {
+        // As a child: the new value must exist in the parent (1452).
+        for (const fk of t.fks ?? []) {
+          if (fk.col.toLowerCase() === t.columns[s.i].name.toLowerCase()) {
+            checkChildValue(db, t, fk, s.v, []);
+          }
+        }
+        // As a parent: a referenced key can't be changed away from its
+        // children (1451).
+        for (const { child, fk } of fksReferencing(db, t)) {
+          if (fk.refCol.toLowerCase() !== t.columns[s.i].name.toLowerCase()) continue;
+          const ci = colIndexOf(child, fk.col);
+          if (ci === -1) continue;
+          for (const r of matching) {
+            const old = r[s.i];
+            if (old === null || old === s.v) continue;
+            if (child.rows.some((cr) => cr[ci] !== null && cr[ci] === old)) {
+              throw fkFail(1451, db.name, child, fk);
+            }
+          }
         }
       }
       for (const r of matching) {
@@ -923,8 +1224,25 @@ export function runStatement(state: MiniState, sql: string): StatementOk {
           "Error 1175: You are using safe update mode and you tried to update a table without a WHERE that uses a KEY column. To disable safe mode: SET SQL_SAFE_UPDATES = 0;",
         );
       }
+      const rel = relOf(t);
+      const doomed = t.rows.filter((r) => (where ? evalExpr(where, rel, r) : true));
+      // A parent row with children can't go (1451). Checked before anything
+      // changes; a self-referencing child that is itself being deleted is fine.
+      const db = currentDb(state);
+      for (const { child, fk } of fksReferencing(db, t)) {
+        const ri = colIndexOf(t, fk.refCol);
+        const ci = colIndexOf(child, fk.col);
+        if (ri === -1 || ci === -1) continue;
+        const survivors = child === t ? child.rows.filter((r) => !doomed.includes(r)) : child.rows;
+        for (const r of doomed) {
+          const v = r[ri];
+          if (v !== null && survivors.some((cr) => cr[ci] !== null && cr[ci] === v)) {
+            throw fkFail(1451, db.name, child, fk);
+          }
+        }
+      }
       const before = t.rows.length;
-      t.rows = t.rows.filter((r) => (where ? !evalExpr(where, t, r) : false));
+      t.rows = t.rows.filter((r) => !doomed.includes(r));
       // Note: the AUTO_INCREMENT counter deliberately does NOT reset — the
       // "ghost of deleted rows" is a week-2 teaching point.
       return { message: `Query OK, ${before - t.rows.length} row(s) affected` };
