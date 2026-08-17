@@ -674,8 +674,20 @@ create policy "teachers grant unlocks"
   to authenticated
   with check (public.is_teacher() and public.same_cohort(user_id));
 
--- Students cannot grant themselves one — there is no student-side insert
--- policy, and no update policy for anybody (grant or revoke, nothing else).
+-- Re-granting against a different `open_past` is an upsert, and Postgres runs
+-- the ON CONFLICT branch of INSERT ... ON CONFLICT DO UPDATE against the
+-- table's UPDATE policies, not its INSERT policy. Without this the second
+-- grant for the same student/week/day fails with 42501 and the "Let them past"
+-- button looks like it did nothing — the first grant is the only one that ever
+-- lands. Students still cannot grant themselves anything: there is no
+-- student-side insert or update policy here.
+drop policy if exists "teachers change unlocks" on public.day_unlocks;
+create policy "teachers change unlocks"
+  on public.day_unlocks for update
+  to authenticated
+  using (public.is_teacher() and public.same_cohort(user_id))
+  with check (public.is_teacher() and public.same_cohort(user_id));
+
 drop policy if exists "teachers revoke unlocks" on public.day_unlocks;
 create policy "teachers revoke unlocks"
   on public.day_unlocks for delete
