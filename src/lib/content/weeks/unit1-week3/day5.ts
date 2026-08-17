@@ -373,9 +373,9 @@ export const day5: DayPlan = {
             "Four loans — the two Dekada 70 already had, plus the two you repaired into it. A join, a filter and a sort in one statement, composed from nothing but the question.",
         },
         {
-          goal: "Last one, entirely your own: prove the ledger is clean. Show every loan id together with its book's title, ordered by loan id — and confirm the only blank left is the one you chose to keep.",
+          goal: "Last one, entirely your own: prove the ledger is clean. Show every loan id together with its book's title, ordered by the book's title — and confirm the only blank left is the one you chose to keep.",
           solution:
-            "SELECT loans.loan_id, books.title FROM loans LEFT JOIN books ON loans.book_id = books.book_id ORDER BY loans.loan_id;",
+            "SELECT loans.loan_id, books.title FROM loans LEFT JOIN books ON loans.book_id = books.book_id ORDER BY books.title;",
           explain:
             "Eight loans, one NULL — loan 5, the honest unknown. You started with three unexplained rows and finished with a locked pair of tables where only the truth can be written. That's the week.",
         },

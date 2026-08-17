@@ -285,15 +285,15 @@ export const day5: DayPlan = {
             "Id 2 — the machine kept counting. Reading the error and correcting it is the actual skill; nobody writes it right every time.",
         },
         {
-          goal: "No help from here. The Robotics club wants its roster: every Robotics member's name and year level, lowest year level first.",
+          goal: "No help from here. The Robotics club wants its roster: every Robotics member's name and year level, highest year level first.",
           solution:
-            "SELECT name, year_level FROM club_members WHERE club = 'Robotics' ORDER BY year_level;",
+            "SELECT name, year_level FROM club_members WHERE club = 'Robotics' ORDER BY year_level DESC;",
           explain:
             "Three of week 1's clauses working together on a table you repaired yourself — including Paolo, the member you moved on Monday.",
         },
         {
-          goal: "Last one, entirely your own: the adviser wants the Debate club listed with the highest year level first. Answer it.",
-          solution: "SELECT * FROM club_members WHERE club = 'Debate' ORDER BY year_level DESC;",
+          goal: "Last one, entirely your own: the adviser wants the Chess club listed with the lowest year level first. Answer it.",
+          solution: "SELECT * FROM club_members WHERE club = 'Chess' ORDER BY year_level;",
           explain:
             "You started this console with a table full of contradictions and finished able to ask it anything. Every verb of week 2 ran at least once — on data you had never seen before today.",
         },

@@ -266,7 +266,7 @@ export const day4: DayPlan = {
       id: "order-modern-recipe",
       title: "🧩 Puzzle: the modern recipe",
       intro:
-        "Week 1's recipes built tables the old way. These builds use everything week 2 added — keys, machines, the ritual — and like every recipe, they only run in one order. Assemble each so it runs top to bottom without an error.",
+        "Week 1's recipes built tables the old way. These builds use everything week 2 added — keys, machines, the ritual. Each has exactly one right order, but not always for the same reason: sometimes nothing else would run at all, and sometimes every order runs and only one is safe. Read each prompt for which kind you're facing.",
       rounds: [
         {
           prompt:

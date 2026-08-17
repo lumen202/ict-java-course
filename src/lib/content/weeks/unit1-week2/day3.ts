@@ -323,8 +323,8 @@ export const day3: DayPlan = {
             "1 row affected — Miguel is in. The lock checked id 6 against every existing id automatically and let him straight through, the same way it will for every enrolment from now on.",
         },
         {
-          goal: "See who's left in grade level 9 after today's corrections — list them, ordered by id.",
-          solution: "SELECT * FROM students WHERE grade_level = 9 ORDER BY id;",
+          goal: "See who's left in grade level 9 after today's corrections.",
+          solution: "SELECT * FROM students WHERE grade_level = 9;",
           explain:
             "Just Jen — grade 9 is thinner than it looks once Ana's fix is counted. Nobody showed you this query; you turned a real question about the roster into SQL yourself. That's the whole job.",
         },

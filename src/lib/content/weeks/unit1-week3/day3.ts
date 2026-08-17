@@ -219,12 +219,12 @@ export const day3: DayPlan = {
             "9 rows. Read the grid slowly: two names sit beside NULL — Gulaman and Pastillas, present in the snack notebook, absent from every sale. The INNER JOIN never told you they existed.",
         },
         {
-          goal: "Make the flops easier to spot: run the same LEFT JOIN sorted by snack_id, so each snack's rows sit together.",
+          goal: "Make the flops easier to spot: run the same LEFT JOIN sorted by the snack's NAME, so the grid reads like a list you could check off.",
           solution:
-            "SELECT snacks.name, sales.sale_id, sales.qty FROM snacks LEFT JOIN sales ON snacks.snack_id = sales.snack_id ORDER BY snacks.snack_id;",
-          hint: "Same join as before — then aim an ORDER BY at snacks.snack_id.",
+            "SELECT snacks.name, sales.sale_id, sales.qty FROM snacks LEFT JOIN sales ON snacks.snack_id = sales.snack_id ORDER BY snacks.name;",
+          hint: "Same join as before — then aim an ORDER BY at snacks.name.",
           explain:
-            "Now the story reads top to bottom: Banana cue three times, Turon once, Kwek-kwek twice, Gulaman — NULL. Siopao once, Pastillas — NULL. A sorted LEFT JOIN is an audit report.",
+            "The grid just rearranged itself: Banana cue three times, then Gulaman — NULL, Kwek-kwek twice, Pastillas — NULL, Siopao, Turon. Alphabetical order scatters the two flops into the middle of the list, which is exactly where an auditor needs them — you read down the names you know and stop at each NULL. A sorted LEFT JOIN is an audit report.",
         },
         {
           goal: "Flip the direction: every SALE with its snack's name, keeping sales that no snack can explain. Show sale_id, the sale's snack_id, and the name.",
@@ -538,9 +538,9 @@ export const day3: DayPlan = {
         },
         {
           goal:
-            "Patient 5 — refuses to run:  SELECT snacks.name, sales.qty FROM snacks LEFT JOIN sales ON snacks.snack_id = sales.snack_id ORDER BY snack_id;  Run the corrected statement, ordered by the snack's number.",
+            "Patient 5 — refuses to run:  SELECT snacks.name, sales.qty FROM snacks LEFT JOIN sales ON snacks.snack_id = sales.snack_id ORDER BY snack_id;  Run the corrected statement, ordered by the snack's number — highest first.",
           solution:
-            "SELECT snacks.name, sales.qty FROM snacks LEFT JOIN sales ON snacks.snack_id = sales.snack_id ORDER BY snacks.snack_id;",
+            "SELECT snacks.name, sales.qty FROM snacks LEFT JOIN sales ON snacks.snack_id = sales.snack_id ORDER BY snacks.snack_id DESC;",
           explain:
             "1052 in the order clause. Outer joins get no exemption from the dot rule — both notebooks still carry a snack_id, and the server still refuses to guess which you meant.",
         },
