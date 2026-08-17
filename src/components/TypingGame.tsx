@@ -3,6 +3,7 @@
 import { useState } from "react";
 import type { TypingGame as TypingGameData } from "@/lib/content/types";
 import { useTurnIn } from "@/lib/game/useTurnIn";
+import { answersMatch } from "@/lib/game/answerMatch";
 import { GameDoor, GameModal, GameModalHeader, GameModalBody } from "@/components/GameModal";
 
 // Fill-in-the-blank SQL typing game. Each round shows a goal in words and the
@@ -31,9 +32,9 @@ function parseTemplate(template: string): Segment[] {
   return segments;
 }
 
-function normalize(s: string): string {
-  return s.trim().replace(/\s+/g, " ").toLowerCase();
-}
+// What counts as the same command lives in @/lib/game/answerMatch, so it can be
+// tested without a DOM — see BUG-021, where a stricter rule here made a correct
+// answer unpassable.
 
 export function TypingGame({
   weekSlug,
@@ -73,7 +74,7 @@ export function TypingGame({
     e.preventDefault();
     const wrong = new Set<number>();
     blanks.forEach((b, i) => {
-      if (normalize(typed[i] ?? "") !== normalize(b.blank)) wrong.add(i);
+      if (!answersMatch(typed[i] ?? "", b.blank)) wrong.add(i);
     });
     if (wrong.size === 0) {
       if (!missedThisRound) setFirstTry((n) => n + 1);
