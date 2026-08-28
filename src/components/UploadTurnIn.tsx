@@ -73,6 +73,15 @@ export function UploadTurnIn({
         setStatus("error");
         setMessage("That file is over 2 MB — export just this week's database, not the whole server.");
         return;
+      } else {
+        // storage-js ignores the `contentType` upload option entirely once the
+        // body is a Blob/File — it hands the object straight to FormData,
+        // whose part gets its Content-Type from the Blob's own `.type`, not
+        // from that option. So the browser/OS's raw guess for `.sql` (e.g.
+        // Android's `application/x-sql`, not in the bucket's allowlist) would
+        // still reach Supabase even with the option set correctly below.
+        // Rewrapping in a fresh Blob is the only way to actually change it.
+        body = new Blob([file], { type: "text/plain" });
       }
 
       const supabase = createClient();
@@ -90,9 +99,12 @@ export function UploadTurnIn({
       // the owner's uuid — every storage policy checks it.
       const path = `${user.id}/${weekSlug}/${dayNumber}/${task.id}.${extension}`;
 
+      // `body.type` is trustworthy here — both branches above rewrap into a
+      // Blob whose type we set ourselves, rather than passing through the
+      // browser/OS's own guess for the original File.
       const { error: uploadError } = await supabase.storage
         .from("turn-ins")
-        .upload(path, body, { contentType: body.type || "application/octet-stream", upsert: true });
+        .upload(path, body, { contentType: body.type, upsert: true });
 
       if (uploadError) {
         // A student can only ever report "it didn't work" — this puts the
