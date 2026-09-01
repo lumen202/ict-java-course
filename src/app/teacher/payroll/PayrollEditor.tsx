@@ -106,7 +106,7 @@ function Editor({
   const [beforeCheckAll, setBeforeCheckAll] = useState<PayrollRow[] | null>(null);
   const [header, setHeader] = useState(initialHeader);
   const [cap, setCap] = useState(initialCap);
-  const [busy, setBusy] = useState(false);
+  const [busy, setBusy] = useState<"xlsx" | "pdf" | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const dropped = useMemo(() => new Set(excluded), [excluded]);
@@ -203,11 +203,11 @@ function Editor({
     setBeforeCheckAll(null);
   }
 
-  async function download() {
-    setBusy(true);
+  async function download(format: "xlsx" | "pdf") {
+    setBusy(format);
     setError(null);
     try {
-      const response = await fetch("/api/payroll", {
+      const response = await fetch(`/api/payroll${format === "pdf" ? "?format=pdf" : ""}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(sheet),
@@ -224,13 +224,13 @@ function Editor({
       const url = URL.createObjectURL(await response.blob());
       const link = document.createElement("a");
       link.href = url;
-      link.download = named ?? `Payroll ${period}.xlsx`;
+      link.download = named ?? `Payroll ${period}.${format}`;
       link.click();
       URL.revokeObjectURL(url);
     } catch {
       setError("Couldn't reach the server.");
     } finally {
-      setBusy(false);
+      setBusy(null);
     }
   }
 
@@ -306,19 +306,40 @@ function Editor({
               {rows.length === 1 ? "student" : "students"}
             </div>
           </div>
+          {/* Two files, one form. The spreadsheet is for checking — its totals
+              are live formulas. The PDF is for filing: it renders the same on
+              every machine, where an .xlsx picks up the reader's own fonts and
+              print settings. */}
           <button
             type="button"
-            className="btn-primary"
-            onClick={download}
-            disabled={busy || days.length === 0}
+            className="btn-ghost px-3 py-2"
+            onClick={() => download("xlsx")}
+            disabled={busy !== null || days.length === 0}
+            title="Editable copy, with the totals as formulas"
           >
-            {busy ? (
+            {busy === "xlsx" ? (
               <>
                 <Spinner />
                 Building…
               </>
             ) : (
-              "Download .xlsx"
+              ".xlsx"
+            )}
+          </button>
+          <button
+            type="button"
+            className="btn-primary"
+            onClick={() => download("pdf")}
+            disabled={busy !== null || days.length === 0}
+            title="Print-ready copy for filing"
+          >
+            {busy === "pdf" ? (
+              <>
+                <Spinner />
+                Building…
+              </>
+            ) : (
+              "Download PDF"
             )}
           </button>
         </div>

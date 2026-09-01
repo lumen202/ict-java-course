@@ -1,9 +1,16 @@
 import { getCurrentUser } from "@/lib/auth";
 import { parseSheet } from "@/lib/payroll/model";
+import { payrollPdf, payrollPdfFileName } from "@/lib/payroll/pdf";
 import { payrollFileName, payrollWorkbook } from "@/lib/payroll/workbook";
 
 // POST /api/payroll — turns the roll the teacher just edited on
-// /teacher/payroll into General Form No. 7(A) as an .xlsx download.
+// /teacher/payroll into General Form No. 7(A) as a download.
+//
+// `?format=pdf` returns the same form as a PDF instead of an .xlsx. Both are
+// drawn from one description (`lib/payroll/form.ts`) and both take their
+// numbers from `model.ts`, so the two files can't disagree: the spreadsheet is
+// the copy someone checks (its totals are live formulas), the PDF is the copy
+// that gets filed (it renders identically everywhere).
 //
 // A POST rather than a GET with query parameters because the sheet is the
 // whole preview: every tick, every rate, every dropped holiday. Nothing here
@@ -34,12 +41,15 @@ export async function POST(request: Request) {
     return Response.json({ error: parsed.error }, { status: 400 });
   }
 
-  const bytes = payrollWorkbook(parsed.sheet);
-  const fileName = payrollFileName(parsed.sheet);
+  const wantsPdf = new URL(request.url).searchParams.get("format") === "pdf";
+  const bytes = wantsPdf ? payrollPdf(parsed.sheet) : payrollWorkbook(parsed.sheet);
+  const fileName = wantsPdf ? payrollPdfFileName(parsed.sheet) : payrollFileName(parsed.sheet);
 
   return new Response(new Blob([bytes as BlobPart]), {
     headers: {
-      "Content-Type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+      "Content-Type": wantsPdf
+        ? "application/pdf"
+        : "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
       "Content-Disposition": `attachment; filename="${fileName}"`,
       "Content-Length": String(bytes.length),
       "Cache-Control": "no-store",
