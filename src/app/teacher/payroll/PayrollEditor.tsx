@@ -103,6 +103,7 @@ function Editor({
     }));
   });
   const [excluded, setExcluded] = useState<string[]>([]);
+  const [beforeCheckAll, setBeforeCheckAll] = useState<PayrollRow[] | null>(null);
   const [header, setHeader] = useState(initialHeader);
   const [cap, setCap] = useState(initialCap);
   const [busy, setBusy] = useState(false);
@@ -183,6 +184,25 @@ function Editor({
     setRows((current) => current.map((row) => ({ ...row, [field]: value })));
   }
 
+  /** Ticks every remaining class day for every row — the bulk version of
+   * clicking each weekday letter, for when attendance is "everyone, every day"
+   * and the per-day turn-in prefill would otherwise leave gaps to fix by hand. */
+  function checkAll() {
+    setBeforeCheckAll(rows);
+    setRows((current) =>
+      current.map((row) => {
+        const kept = row.present.filter((date) => dropped.has(date));
+        return { ...row, present: [...kept, ...days.map((d) => d.date)] };
+      }),
+    );
+  }
+
+  function undoCheckAll() {
+    if (!beforeCheckAll) return;
+    setRows(beforeCheckAll);
+    setBeforeCheckAll(null);
+  }
+
   async function download() {
     setBusy(true);
     setError(null);
@@ -252,6 +272,31 @@ function Editor({
           label="Meal rate for everyone"
           onCommit={(value) => setRateForEveryone("mealRate", value)}
         />
+
+        <div>
+          <span className="mb-1 block text-xs font-medium text-zinc-500">Attendance</span>
+          <div className="flex gap-2">
+            <button
+              type="button"
+              className="btn-ghost px-3 py-2"
+              onClick={checkAll}
+              disabled={days.length === 0 || rows.length === 0}
+              title="Tick every remaining class day for every student"
+            >
+              Check all present
+            </button>
+            {beforeCheckAll && (
+              <button
+                type="button"
+                className="btn-ghost px-3 py-2"
+                onClick={undoCheckAll}
+                title="Undo check all present"
+              >
+                Undo
+              </button>
+            )}
+          </div>
+        </div>
 
         <div className="ml-auto flex items-center gap-4">
           <div className="text-right text-sm">
