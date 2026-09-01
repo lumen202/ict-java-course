@@ -4,7 +4,7 @@ import { weekdaysOfMonth } from "./calendar";
 import { DEFAULT_CAP, DEFAULT_HEADER, parseSheet, totalReceived, type PayrollSheet } from "./model";
 import { payrollFileName, payrollSpec } from "./workbook";
 import { assignedTransportRate, countAssigned } from "./rates";
-import { cellRef, columnName, type SheetSpec } from "../xlsx/sheet";
+import { cellRef, type SheetSpec } from "../xlsx/sheet";
 import { crc32, zipSync } from "../xlsx/zip";
 
 function sheetFor(month: number, drop: number[] = []): PayrollSheet {
@@ -47,31 +47,35 @@ function columnOf(name: string): number {
 }
 
 describe("payroll layout", () => {
-  test("the sheet is as wide as the month has class days", () => {
-    // Six fixed columns on the left, one per class day, eight on the right.
-    // August 2025 has 21 weekdays and September 22, so a layout that ignored
-    // the month would fail one of these.
-    assert.equal(widthOf(payrollSpec(sheetFor(8))), 6 + 21 + 8);
-    assert.equal(widthOf(payrollSpec(sheetFor(9))), 6 + 22 + 8);
+  test("the sheet is always the template's fixed width, whatever the month", () => {
+    // The template's roll always spans G:AC — 23 slots — with the totals at
+    // AD:AK. August 2025 (21 weekdays) and September (22) fill different
+    // numbers of slots, but the sheet itself never changes shape.
+    assert.equal(widthOf(payrollSpec(sheetFor(8))), 37);
+    assert.equal(widthOf(payrollSpec(sheetFor(9))), 37);
   });
 
-  test("dropping a day removes its column and shifts everything after it", () => {
+  test("dropping a day empties a slot instead of reshaping the sheet", () => {
     const full = payrollSpec(sheetFor(8));
     const dropped = payrollSpec(sheetFor(8, [6, 21]));
-    assert.equal(widthOf(full) - widthOf(dropped), 2);
+    assert.equal(widthOf(full), widthOf(dropped));
+    const dates = (spec: SheetSpec) =>
+      spec.rows
+        .find((r) => r.row === 7)!
+        .cells.filter((c) => c.col >= 7 && c.col <= 29 && c.value?.kind === "number").length;
+    assert.equal(dates(full) - dates(dropped), 2);
   });
 
-  test("the Date row prints the days of the month, and the day count beside them", () => {
+  test("the Date row prints the days of the month, and the day count at AD7", () => {
     const spec = payrollSpec(sheetFor(8, [6]));
     const dateRow = spec.rows.find((r) => r.row === 7);
     assert.ok(dateRow);
     const numbers = dateRow.cells
-      .filter((c) => c.col >= 7 && c.value?.kind === "number")
+      .filter((c) => c.col >= 7 && c.col <= 29 && c.value?.kind === "number")
       .map((c) => (c.value as { value: number }).value);
-    // 20 day columns, then the "Total No. of Days" header cell.
-    assert.equal(numbers.length, 21);
-    assert.equal(numbers.at(-1), 20);
-    assert.ok(!numbers.slice(0, -1).includes(6));
+    assert.equal(numbers.length, 20);
+    assert.ok(!numbers.includes(6));
+    assert.deepEqual(cellAt(spec, "AD7")?.value, { kind: "number", value: 20 });
   });
 
   test("week bands are numbered by position, so a dropped week leaves no gap", () => {
@@ -86,15 +90,19 @@ describe("payroll layout", () => {
     assert.deepEqual(numbers, [1, 2, 3, 4]);
   });
 
-  test("totals are formulas pointing at this row's own cells", () => {
+  test("totals are formulas at the template's own cells", () => {
     const spec = payrollSpec(sheetFor(8));
-    const lastDay = columnName(6 + 21);
-    const count = cellAt(spec, `${columnName(6 + 21 + 1)}8`);
-    assert.deepEqual(count?.value, { kind: "formula", value: `COUNTIF(G8:${lastDay}8,"✓")` });
-
-    const received = cellAt(spec, `${columnName(6 + 21 + 6)}8`);
-    assert.equal(received?.value?.kind, "formula");
-    assert.match((received?.value as { value: string }).value, /^MIN\([A-Z]+8\+[A-Z]+8,1300\)$/);
+    assert.deepEqual(cellAt(spec, "AD8")?.value, {
+      kind: "formula",
+      value: 'COUNTIF(G8:AC8,"✓")',
+    });
+    assert.deepEqual(cellAt(spec, "AF8")?.value, { kind: "formula", value: "AD8*AE8" });
+    assert.deepEqual(cellAt(spec, "AI8")?.value, {
+      kind: "formula",
+      value: "MIN(AF8+AH8,1300)",
+    });
+    // Ten ruled lines, subtotal beneath them at the template's row 18.
+    assert.deepEqual(cellAt(spec, "AI18")?.value, { kind: "formula", value: "SUM(AI8:AI17)" });
   });
 
   test("blank lines are ruled but carry no arithmetic", () => {

@@ -54,7 +54,14 @@ export type SheetSpec = {
   /** Rows/columns held still while the rest scrolls. */
   freeze?: { rows: number; columns: number };
   showGridLines?: boolean;
-  page?: { orientation?: "portrait" | "landscape"; fitToWidth?: boolean };
+  page?: {
+    orientation?: "portrait" | "landscape";
+    fitToWidth?: boolean;
+    /** ECMA-376 paper size code; 9 is A4, 5 is legal. */
+    paperSize?: number;
+    /** Centre the print on the page, both ways. */
+    centered?: boolean;
+  };
 };
 
 /** 1 -> A, 27 -> AA. */
@@ -255,10 +262,11 @@ function sheetXml(spec: SheetSpec, styleIndex: Record<string, number>): string {
           .map((ref) => `<mergeCell ref="${ref}"/>`)
           .join("")}</mergeCells>`
       : "") +
+    (spec.page?.centered ? `<printOptions horizontalCentered="1" verticalCentered="1"/>` : "") +
     `<pageMargins left="0.25" right="0.25" top="0.5" bottom="0.5" header="0.3" footer="0.3"/>` +
-    `<pageSetup orientation="${spec.page?.orientation ?? "portrait"}" paperSize="9"${
-      spec.page?.fitToWidth ? ' fitToWidth="1" fitToHeight="0"' : ""
-    }/>` +
+    `<pageSetup orientation="${spec.page?.orientation ?? "portrait"}" paperSize="${
+      spec.page?.paperSize ?? 9
+    }"${spec.page?.fitToWidth ? ' fitToWidth="1" fitToHeight="0"' : ""}/>` +
     `</worksheet>`
   );
 }

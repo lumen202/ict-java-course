@@ -1,7 +1,6 @@
 import {
   buildWorkbook,
   cellRef,
-  columnName,
   type Cell,
   type Row,
   type SheetSpec,
@@ -11,24 +10,39 @@ import { periodLabel } from "./calendar";
 import { PRESENT_MARK, type PayrollSheet } from "./model";
 
 // Renders a PayrollSheet as General Form No. 7(A) — the Time Book and Payroll
-// the coordinator files each month. The paper form is fixed in every respect
-// except its width: the time roll is one column per class day, so a 21-weekday
-// month and a 23-weekday month are different sheets. Everything to the right of
-// the roll is therefore positioned relative to the last day column rather than
-// at a hard-coded letter.
+// the coordinator files each month, laid out cell-for-cell like the teacher's
+// own workbook (` E2PS ICT PHASE 2 Payroll 2026-2027.xlsx`, AUGUST sheet).
+//
+// The template's geometry is FIXED, not month-shaped: the time roll always
+// spans G:AC — 23 slots, enough for the widest possible month — and the class
+// days fill in from G, leaving the leftover slots ruled but empty. Everything
+// to the right (Total No. of Days through Signature) sits at hard-coded
+// columns AD:AK, and the certification block sits at fixed cells below the
+// roll. The teacher's own AUGUST sheet uses 18 of the 23 slots; a column that
+// moved with the month would put every total somewhere the checker isn't
+// looking for it.
 //
 // The totals are written as formulas, not as numbers. The teacher hands this
-// file on to someone who will check it, and a payroll whose arithmetic can't be
-// followed in the cells is one they have to re-key.
+// file on to someone who will check it, and a payroll whose arithmetic can't
+// be followed in the cells is one they have to re-key.
 
-// Fixed left-hand columns.
-const COL_NO = 1;
-const COL_LAST = 2;
-const COL_FIRST = 3;
-const COL_MIDDLE = 4;
-const COL_LABEL = 5;
-const COL_LABEL_PAD = 6;
-const COL_FIRST_DAY = 7;
+// Columns, exactly as the template rules them.
+const COL_NO = 1; // A
+const COL_LAST = 2; // B
+const COL_FIRST = 3; // C
+const COL_MIDDLE = 4; // D
+const COL_LABEL = 5; // E — "Week" / "Day" / "Date"
+const COL_LABEL_PAD = 6; // F — a 0.38-wide sliver merged into E
+const COL_FIRST_DAY = 7; // G
+const COL_LAST_DAY = 29; // AC — 23 roll slots, the widest month possible
+const COL_TOTAL_DAYS = 30; // AD
+const COL_T_RATE = 31; // AE
+const COL_T_AMOUNT = 32; // AF
+const COL_M_RATE = 33; // AG
+const COL_M_AMOUNT = 34; // AH
+const COL_TOTAL = 35; // AI
+const COL_NO_2 = 36; // AJ
+const COL_SIGN = 37; // AK
 
 const ROW_FORM_NO = 1;
 const ROW_PERIOD = 2;
@@ -45,113 +59,147 @@ const ROW_FIRST_STUDENT = 8;
  */
 const MIN_STUDENT_ROWS = 10;
 
-type Layout = ReturnType<typeof layoutOf>;
-
-function layoutOf(sheet: PayrollSheet) {
-  const dayCount = sheet.days.length;
-  const lastDay = COL_FIRST_DAY + dayCount - 1;
-  const studentRows = Math.max(sheet.rows.length, MIN_STUDENT_ROWS);
-  const lastStudentRow = ROW_FIRST_STUDENT + studentRows - 1;
-  const width = lastDay + 8;
-
-  return {
-    dayCount,
-    lastDay,
-    studentRows,
-    lastStudentRow,
-    width,
-    totalDays: lastDay + 1,
-    transportRate: lastDay + 2,
-    transportAmount: lastDay + 3,
-    mealRate: lastDay + 4,
-    mealAmount: lastDay + 5,
-    totalReceived: lastDay + 6,
-    number: lastDay + 7,
-    signature: lastDay + 8,
-    subtotalRow: lastStudentRow + 1,
-  };
-}
-
-/** The three signature blocks under the roll, spread across the sheet's width. */
-function band(layout: Layout, index: 0 | 1 | 2): { from: number; to: number } {
-  const third = Math.floor(layout.width / 3);
-  const from = index * third + 1;
-  const to = index === 2 ? layout.width : (index + 1) * third;
-  return { from, to };
-}
-
 const STYLES: Record<string, Style> = {
-  formNo: { font: { size: 8 }, align: { horizontal: "left", vertical: "center" } },
-  title: { font: { size: 12, bold: true }, align: { horizontal: "center", vertical: "center" } },
-  period: { font: { size: 9 }, align: { horizontal: "left", vertical: "center" } },
+  // Row 1-2 — the running head.
+  formNo: { font: { size: 8 }, align: { vertical: "bottom" } },
+  title: { font: { size: 16, bold: true }, align: { vertical: "bottom" } },
+  labelRight: {
+    font: { name: "Arial Narrow", size: 10 },
+    align: { horizontal: "right", vertical: "bottom" },
+  },
+  labelCenter: {
+    font: { name: "Arial Narrow", size: 10 },
+    align: { horizontal: "center", vertical: "bottom" },
+  },
+  labelLeft: {
+    font: { name: "Arial Narrow", size: 10 },
+    align: { horizontal: "left", vertical: "bottom" },
+  },
+  fillIn: {
+    font: { name: "Arial Narrow", size: 11 },
+    align: { horizontal: "center", vertical: "bottom" },
+    border: { bottom: true },
+  },
+  period: {
+    font: { name: "Arial Narrow", size: 12, bold: true },
+    align: { horizontal: "center", vertical: "bottom" },
+    border: { bottom: true },
+  },
 
+  // Rows 4-7 — the column headers.
   head: {
-    font: { size: 7, bold: true },
+    font: { name: "Arial Narrow", size: 10 },
+    align: { horizontal: "center", vertical: "center" },
+    border: { top: true, bottom: true, left: true, right: true },
+  },
+  headBold: {
+    font: { name: "Arial Narrow", size: 10, bold: true },
     align: { horizontal: "center", vertical: "center", wrap: true },
     border: { top: true, bottom: true, left: true, right: true },
   },
-  headTiny: {
-    font: { size: 6, bold: true },
+  headSmall: {
+    font: { name: "Arial Narrow", size: 9 },
     align: { horizontal: "center", vertical: "center", wrap: true },
     border: { top: true, bottom: true, left: true, right: true },
   },
-  headDay: {
-    font: { size: 6 },
+  timeRoll: {
+    font: { size: 12, bold: true },
+    align: { horizontal: "center", vertical: "center" },
+    border: { top: true, bottom: true, left: true, right: true },
+  },
+  labelBox: {
+    font: { name: "Arial Narrow", size: 9 },
+    align: { horizontal: "center", vertical: "center" },
+    border: { top: true, bottom: true, left: true, right: true },
+  },
+  dayHead: {
+    font: { name: "Arial Narrow", size: 8 },
+    align: { horizontal: "center", vertical: "bottom" },
+    border: { bottom: true, left: true, right: true },
+  },
+  dayDate: {
+    font: { name: "Arial Narrow", size: 9 },
+    align: { horizontal: "center", vertical: "center" },
+    border: { top: true, bottom: true, left: true, right: true },
+  },
+  countHead: {
+    font: { name: "Arial Narrow", size: 12, bold: true },
     align: { horizontal: "center", vertical: "center" },
     border: { top: true, bottom: true, left: true, right: true },
   },
 
+  // Rows 8-17 — the roll itself.
   bodyNo: {
-    font: { size: 8 },
+    font: { name: "Arial Narrow", size: 10 },
     align: { horizontal: "center", vertical: "center" },
-    border: { top: true, bottom: true, left: true, right: true },
+    border: { bottom: true, left: true, right: true },
   },
   bodyName: {
-    font: { size: 8 },
-    align: { horizontal: "left", vertical: "center" },
-    border: { top: true, bottom: true, left: true, right: true },
+    font: { size: 11 },
+    align: { horizontal: "left", vertical: "center", wrap: true },
+    border: { bottom: true, left: true, right: true },
+  },
+  bodyMiddle: {
+    font: { size: 11 },
+    align: { horizontal: "center", vertical: "center" },
+    border: { bottom: true, left: true, right: true },
   },
   bodyMark: {
-    font: { size: 8 },
+    font: { size: 11, bold: true },
     align: { horizontal: "center", vertical: "center" },
-    border: { top: true, bottom: true, left: true, right: true },
+    border: { bottom: true, left: true, right: true },
   },
   bodyCount: {
-    font: { size: 8 },
+    font: { name: "Arial Narrow", size: 12 },
     align: { horizontal: "center", vertical: "center" },
-    border: { top: true, bottom: true, left: true, right: true },
+    border: { bottom: true, left: true, right: true },
+    numberFormat: "#,##0",
+  },
+  bodyRate: {
+    font: { size: 9 },
+    align: { horizontal: "right", vertical: "center" },
+    border: { bottom: true, left: true, right: true },
+    numberFormat: "#,##0.00",
   },
   bodyMoney: {
-    font: { size: 8 },
+    font: { name: "Arial Narrow", size: 10 },
     align: { horizontal: "right", vertical: "center" },
-    border: { top: true, bottom: true, left: true, right: true },
+    border: { bottom: true, left: true, right: true },
     numberFormat: "#,##0.00",
   },
-  bodyBlank: { border: { top: true, bottom: true, left: true, right: true } },
+  bodyBlank: { border: { bottom: true, left: true, right: true } },
 
   subtotalLabel: {
-    font: { size: 8, bold: true },
+    font: { name: "Arial Narrow", size: 12, bold: true, italic: true },
     align: { horizontal: "right", vertical: "center" },
-    border: { top: true, bottom: true, left: true, right: true },
+    border: { bottom: true, left: true, right: true },
   },
   subtotalValue: {
-    font: { size: 8, bold: true },
-    align: { horizontal: "right", vertical: "center" },
-    border: { top: true, bottom: true, left: true, right: true },
+    font: { name: "Arial Narrow", size: 12, bold: true },
+    align: { horizontal: "center", vertical: "center" },
+    border: { bottom: true, left: true, right: true },
     numberFormat: "#,##0.00",
   },
 
-  certify: { font: { size: 8 }, align: { horizontal: "left", vertical: "top", wrap: true } },
-  signName: {
-    font: { size: 8, bold: true },
-    align: { horizontal: "center", vertical: "center" },
-    border: { top: true },
+  // The certification block.
+  certNum: {
+    font: { name: "Arial Narrow", size: 8 },
+    align: { horizontal: "right", vertical: "bottom" },
   },
-  signTitle: { font: { size: 7 }, align: { horizontal: "center", vertical: "center" } },
-  note: { font: { size: 6 }, align: { horizontal: "left", vertical: "top", wrap: true } },
+  cert: { font: { name: "Arial Narrow", size: 8 }, align: { vertical: "bottom" } },
+  signName: {
+    font: { name: "Arial Narrow", size: 12, bold: true },
+    align: { horizontal: "center", vertical: "bottom" },
+    border: { bottom: true },
+  },
+  signTitle: {
+    font: { name: "Arial Narrow", size: 10, italic: true },
+    align: { horizontal: "center", vertical: "bottom" },
+  },
+  note: { font: { name: "Arial Narrow", size: 9 }, align: { vertical: "bottom" } },
   motto: {
-    font: { size: 9, bold: true, italic: true },
-    align: { horizontal: "center", vertical: "center" },
+    font: { name: "Arial Narrow", size: 11, bold: true },
+    align: { horizontal: "center", vertical: "bottom" },
   },
 };
 
@@ -181,56 +229,56 @@ function pushMerge(merges: string[], fromCol: number, fromRow: number, toCol: nu
   merges.push(range(fromCol, fromRow, toCol, toRow));
 }
 
-function columns(layout: Layout) {
-  return [
-    { from: COL_NO, to: COL_NO, width: 4 },
-    { from: COL_LAST, to: COL_LAST, width: 14 },
-    { from: COL_FIRST, to: COL_FIRST, width: 16 },
-    { from: COL_MIDDLE, to: COL_MIDDLE, width: 4 },
-    { from: COL_LABEL, to: COL_LABEL, width: 5 },
-    { from: COL_LABEL_PAD, to: COL_LABEL_PAD, width: 1.5 },
-    { from: COL_FIRST_DAY, to: layout.lastDay, width: 2.9 },
-    { from: layout.totalDays, to: layout.totalDays, width: 5.5 },
-    { from: layout.transportRate, to: layout.transportRate, width: 7 },
-    { from: layout.transportAmount, to: layout.transportAmount, width: 9 },
-    { from: layout.mealRate, to: layout.mealRate, width: 7 },
-    { from: layout.mealAmount, to: layout.mealAmount, width: 9 },
-    { from: layout.totalReceived, to: layout.totalReceived, width: 10 },
-    { from: layout.number, to: layout.number, width: 4 },
-    { from: layout.signature, to: layout.signature, width: 16 },
-  ];
-}
+// The template's own column widths, verbatim.
+const COLUMNS = [
+  { from: COL_NO, to: COL_NO, width: 2.75 },
+  { from: COL_LAST, to: COL_LAST, width: 12.38 },
+  { from: COL_FIRST, to: COL_FIRST, width: 22 },
+  { from: COL_MIDDLE, to: COL_MIDDLE, width: 3.13 },
+  { from: COL_LABEL, to: COL_LABEL, width: 3.88 },
+  { from: COL_LABEL_PAD, to: COL_LABEL_PAD, width: 0.38 },
+  { from: COL_FIRST_DAY, to: COL_LAST_DAY, width: 2.38 },
+  { from: COL_TOTAL_DAYS, to: COL_TOTAL_DAYS, width: 4.38 },
+  { from: COL_T_RATE, to: COL_T_RATE, width: 6.38 },
+  { from: COL_T_AMOUNT, to: COL_T_AMOUNT, width: 8 },
+  { from: COL_M_RATE, to: COL_M_AMOUNT, width: 5.38 },
+  { from: COL_TOTAL, to: COL_TOTAL, width: 13.13 },
+  { from: COL_NO_2, to: COL_NO_2, width: 2.88 },
+  { from: COL_SIGN, to: COL_SIGN, width: 14.25 },
+];
 
-function headerRows(sheet: PayrollSheet, layout: Layout, merges: string[]): Row[] {
+function headerRows(sheet: PayrollSheet, merges: string[]): Row[] {
   const period = periodLabel(sheet.year, sheet.month);
   const { header } = sheet;
 
-  pushMerge(merges, COL_NO, ROW_FORM_NO, COL_LABEL_PAD, ROW_FORM_NO);
-  pushMerge(merges, COL_FIRST_DAY, ROW_FORM_NO, layout.width, ROW_FORM_NO);
-  pushMerge(merges, COL_NO, ROW_PERIOD, layout.width, ROW_PERIOD);
+  // Row 2 is composed of fixed fragments with the fill-ins underlined, the way
+  // the printed form reads: For labor on _-_ <project>, at <venue>,
+  // Philippines, for the period, <PERIOD>.
+  pushMerge(merges, 9, ROW_PERIOD, 15, ROW_PERIOD); // I2:O2 project
+  pushMerge(merges, 17, ROW_PERIOD, COL_TOTAL_DAYS, ROW_PERIOD); // Q2:AD2 venue
+  pushMerge(merges, 34, ROW_PERIOD, 36, ROW_PERIOD); // AH2:AJ2 period
 
-  // The header block: four rows deep, so every label above the roll lines up
-  // with the roll's own three rows of Week / Day / Date.
-  pushMerge(merges, COL_NO, ROW_HEAD_TOP, COL_NO, ROW_DATE);
-  pushMerge(merges, COL_LAST, ROW_HEAD_TOP, COL_MIDDLE, ROW_DATE);
-  pushMerge(merges, COL_LABEL, ROW_HEAD_TOP, layout.lastDay, ROW_HEAD_TOP);
-  pushMerge(merges, COL_LABEL, ROW_WEEK, COL_LABEL_PAD, ROW_WEEK);
-  pushMerge(merges, COL_LABEL, ROW_WEEKDAY, COL_LABEL_PAD, ROW_WEEKDAY);
-  pushMerge(merges, COL_LABEL, ROW_DATE, COL_LABEL_PAD, ROW_DATE);
-  pushMerge(merges, layout.totalDays, ROW_HEAD_TOP, layout.totalDays, ROW_WEEKDAY);
-  pushMerge(merges, layout.transportRate, ROW_HEAD_TOP, layout.transportAmount, ROW_WEEK);
-  pushMerge(merges, layout.transportRate, ROW_WEEKDAY, layout.transportRate, ROW_DATE);
-  pushMerge(merges, layout.transportAmount, ROW_WEEKDAY, layout.transportAmount, ROW_DATE);
-  pushMerge(merges, layout.mealRate, ROW_HEAD_TOP, layout.mealAmount, ROW_WEEK);
-  pushMerge(merges, layout.mealRate, ROW_WEEKDAY, layout.mealRate, ROW_DATE);
-  pushMerge(merges, layout.mealAmount, ROW_WEEKDAY, layout.mealAmount, ROW_DATE);
-  pushMerge(merges, layout.totalReceived, ROW_HEAD_TOP, layout.totalReceived, ROW_DATE);
-  pushMerge(merges, layout.number, ROW_HEAD_TOP, layout.number, ROW_DATE);
-  pushMerge(merges, layout.signature, ROW_HEAD_TOP, layout.signature, ROW_DATE);
+  // The header block over the roll and the totals.
+  pushMerge(merges, COL_NO, ROW_HEAD_TOP, COL_NO, ROW_DATE); // A4:A7
+  pushMerge(merges, COL_LAST, ROW_HEAD_TOP, COL_MIDDLE, ROW_DATE); // B4:D7
+  pushMerge(merges, COL_LABEL, ROW_HEAD_TOP, COL_LAST_DAY, ROW_HEAD_TOP); // E4:AC4
+  pushMerge(merges, COL_LABEL, ROW_WEEK, COL_LABEL_PAD, ROW_WEEK); // E5:F5
+  pushMerge(merges, COL_LABEL, ROW_WEEKDAY, COL_LABEL_PAD, ROW_WEEKDAY); // E6:F6
+  pushMerge(merges, COL_LABEL, ROW_DATE, COL_LABEL_PAD, ROW_DATE); // E7:F7
+  pushMerge(merges, COL_TOTAL_DAYS, ROW_HEAD_TOP, COL_TOTAL_DAYS, ROW_WEEKDAY); // AD4:AD6
+  pushMerge(merges, COL_T_RATE, ROW_HEAD_TOP, COL_T_AMOUNT, ROW_WEEK); // AE4:AF5
+  pushMerge(merges, COL_M_RATE, ROW_HEAD_TOP, COL_M_AMOUNT, ROW_WEEK); // AG4:AH5
+  pushMerge(merges, COL_T_RATE, ROW_WEEKDAY, COL_T_RATE, ROW_DATE); // AE6:AE7
+  pushMerge(merges, COL_T_AMOUNT, ROW_WEEKDAY, COL_T_AMOUNT, ROW_DATE); // AF6:AF7
+  pushMerge(merges, COL_M_RATE, ROW_WEEKDAY, COL_M_RATE, ROW_DATE); // AG6:AG7
+  pushMerge(merges, COL_M_AMOUNT, ROW_WEEKDAY, COL_M_AMOUNT, ROW_DATE); // AH6:AH7
+  pushMerge(merges, COL_TOTAL, ROW_HEAD_TOP, COL_TOTAL, ROW_DATE); // AI4:AI7
+  pushMerge(merges, COL_NO_2, ROW_HEAD_TOP, COL_NO_2, ROW_DATE); // AJ4:AJ7
+  pushMerge(merges, COL_SIGN, ROW_HEAD_TOP, COL_SIGN, ROW_DATE); // AK4:AK7
 
-  // Week bands across the roll. Numbered by position rather than by the day's
-  // own week index, so dropping a whole week (a holiday break) doesn't leave a
-  // gap in the numbering the way it would leave one in the calendar.
+  // Week bands over the days that exist. Numbered by position rather than by
+  // the day's own week index, so dropping a whole week (a holiday break)
+  // doesn't leave a gap in the numbering.
   const weekCells: Cell[] = [];
   let groupStart = 0;
   let weekNumber = 0;
@@ -241,276 +289,296 @@ function headerRows(sheet: PayrollSheet, layout: Layout, merges: string[]): Row[
     const from = COL_FIRST_DAY + groupStart;
     const to = COL_FIRST_DAY + i - 1;
     pushMerge(merges, from, ROW_WEEK, to, ROW_WEEK);
-    weekCells.push(number(from, weekNumber, "headDay"));
-    for (let col = from + 1; col <= to; col++) weekCells.push(blank(col, "headDay"));
+    weekCells.push(number(from, weekNumber, "dayHead"));
+    for (let col = from + 1; col <= to; col++) weekCells.push(blank(col, "dayHead"));
     groupStart = i;
+  }
+  // The slots the month doesn't reach stay ruled but empty, like the template.
+  for (let col = COL_FIRST_DAY + sheet.days.length; col <= COL_LAST_DAY; col++) {
+    weekCells.push(blank(col, "dayHead"));
+  }
+
+  const spareSlots: Cell[] = [];
+  for (let col = COL_FIRST_DAY + sheet.days.length; col <= COL_LAST_DAY; col++) {
+    spareSlots.push(blank(col, "dayHead"));
+  }
+  const spareDates: Cell[] = [];
+  for (let col = COL_FIRST_DAY + sheet.days.length; col <= COL_LAST_DAY; col++) {
+    spareDates.push(blank(col, "dayDate"));
   }
 
   return [
     {
       row: ROW_FORM_NO,
-      height: 18,
-      cells: [text(COL_NO, header.formNo, "formNo"), text(COL_FIRST_DAY, header.title, "title")],
+      height: 32.25,
+      cells: [text(COL_NO, header.formNo, "formNo"), text(14, header.title, "title")],
     },
     {
       row: ROW_PERIOD,
-      height: 15,
+      height: 18,
       cells: [
-        text(
-          COL_NO,
-          `For labor on ${header.project}, at ${header.venue}, Philippines, for the period, ${period}`,
-          "period",
-        ),
+        text(3, "For labor on", "labelRight"),
+        text(8, "-", "labelCenter"),
+        text(9, header.project, "fillIn"),
+        text(16, ",at", "labelCenter"),
+        text(17, header.venue, "fillIn"),
+        text(31, ", Philippines, for the period,", "labelLeft"),
+        text(34, period, "period"),
       ],
     },
+    { row: 3, height: 10.5, cells: [] },
     {
       row: ROW_HEAD_TOP,
+      height: 15.75,
       cells: [
-        text(COL_NO, "No.", "headTiny"),
+        text(COL_NO, "No.", "head"),
         text(COL_LAST, "Name", "head"),
-        text(COL_LABEL, "TIME ROLL", "head"),
-        text(layout.totalDays, "Total No. of Days", "headTiny"),
-        text(layout.transportRate, "Transportation", "headTiny"),
-        text(layout.mealRate, "Meal Allowance", "headTiny"),
-        text(layout.totalReceived, "Total Amount Received", "headTiny"),
-        text(layout.number, "No.", "headTiny"),
-        text(layout.signature, "Signature", "headTiny"),
+        text(COL_LABEL, "TIME ROLL", "timeRoll"),
+        text(COL_TOTAL_DAYS, "Total No. of Days", "headSmall"),
+        text(COL_T_RATE, "Transportation", "headSmall"),
+        text(COL_M_RATE, "Meal Allowance", "headSmall"),
+        text(COL_TOTAL, "Total Amount Received", "headBold"),
+        text(COL_NO_2, "No.", "head"),
+        text(COL_SIGN, "Signature", "headBold"),
       ],
     },
     {
       row: ROW_WEEK,
-      cells: [text(COL_LABEL, "Week", "headDay"), blank(COL_LABEL_PAD, "headDay"), ...weekCells],
+      height: 13.5,
+      cells: [text(COL_LABEL, "Week", "labelBox"), ...weekCells],
     },
     {
       row: ROW_WEEKDAY,
+      height: 15,
       cells: [
-        text(COL_LABEL, "Day", "headDay"),
-        blank(COL_LABEL_PAD, "headDay"),
-        ...sheet.days.map((d, i) => text(COL_FIRST_DAY + i, d.weekday, "headDay")),
-        text(layout.transportRate, "Daily Rate", "headTiny"),
-        text(layout.transportAmount, "Amount Due", "headTiny"),
-        text(layout.mealRate, "Daily Rate", "headTiny"),
-        text(layout.mealAmount, "Amount", "headTiny"),
+        text(COL_LABEL, "Day", "labelBox"),
+        ...sheet.days.map((d, i) => text(COL_FIRST_DAY + i, d.weekday, "dayHead")),
+        ...spareSlots,
+        text(COL_T_RATE, "Daily Rate", "headSmall"),
+        text(COL_T_AMOUNT, "Amount Due", "headSmall"),
+        text(COL_M_RATE, "Daily Rate", "headSmall"),
+        text(COL_M_AMOUNT, "Amount", "headSmall"),
       ],
     },
     {
       row: ROW_DATE,
+      height: 16.5,
       cells: [
-        text(COL_LABEL, "Date", "headDay"),
-        blank(COL_LABEL_PAD, "headDay"),
-        ...sheet.days.map((d, i) => number(COL_FIRST_DAY + i, d.day, "headDay")),
-        number(layout.totalDays, layout.dayCount, "headDay"),
+        text(COL_LABEL, "Date", "labelBox"),
+        ...sheet.days.map((d, i) => number(COL_FIRST_DAY + i, d.day, "dayDate")),
+        ...spareDates,
+        number(COL_TOTAL_DAYS, sheet.days.length, "countHead"),
       ],
     },
   ];
 }
 
-function studentRows(sheet: PayrollSheet, layout: Layout): Row[] {
+function studentRows(sheet: PayrollSheet, merges: string[]): { rows: Row[]; lastRow: number } {
   const rows: Row[] = [];
+  const count = Math.max(sheet.rows.length, MIN_STUDENT_ROWS);
 
-  for (let i = 0; i < layout.studentRows; i++) {
+  for (let i = 0; i < count; i++) {
     const row = ROW_FIRST_STUDENT + i;
     const student = sheet.rows[i];
     const cells: Cell[] = [];
 
+    pushMerge(merges, COL_LABEL, row, COL_LABEL_PAD, row); // E:F, every ruled line
+
     if (!student) {
       // A ruled but empty line. No formulas: a blank row that reports 0.00 in
       // three columns reads as a person who was paid nothing.
-      for (let col = COL_NO; col <= layout.signature; col++) cells.push(blank(col, "bodyBlank"));
-      rows.push({ row, cells });
+      for (let col = COL_NO; col <= COL_SIGN; col++) cells.push(blank(col, "bodyBlank"));
+      rows.push({ row, height: 24.75, cells });
       continue;
     }
 
     const marked = new Set(student.present);
-    const rollRange = range(COL_FIRST_DAY, row, layout.lastDay, row);
-    const daysRef = cellRef(layout.totalDays, row);
-    const transportAmountRef = cellRef(layout.transportAmount, row);
-    const mealAmountRef = cellRef(layout.mealAmount, row);
+    const rollRange = range(COL_FIRST_DAY, row, COL_LAST_DAY, row);
+    const countRef = cellRef(COL_TOTAL_DAYS, row);
 
     cells.push(number(COL_NO, i + 1, "bodyNo"));
     cells.push(text(COL_LAST, student.last, "bodyName"));
     cells.push(text(COL_FIRST, student.first, "bodyName"));
-    cells.push(text(COL_MIDDLE, student.middle, "bodyNo"));
+    cells.push(text(COL_MIDDLE, student.middle, "bodyMiddle"));
     cells.push(blank(COL_LABEL, "bodyBlank"));
     cells.push(blank(COL_LABEL_PAD, "bodyBlank"));
 
-    sheet.days.forEach((day, dayIndex) => {
-      const col = COL_FIRST_DAY + dayIndex;
+    // Every one of the 23 roll slots is a bordered cell; the month's days fill
+    // in from the left and the leftovers stay empty, like the template.
+    for (let col = COL_FIRST_DAY; col <= COL_LAST_DAY; col++) {
+      const day = sheet.days[col - COL_FIRST_DAY];
       cells.push(
-        marked.has(day.date) ? text(col, PRESENT_MARK, "bodyMark") : blank(col, "bodyMark"),
+        day && marked.has(day.date) ? text(col, PRESENT_MARK, "bodyMark") : blank(col, "bodyMark"),
       );
-    });
+    }
 
-    cells.push(formula(layout.totalDays, `COUNTIF(${rollRange},"${PRESENT_MARK}")`, "bodyCount"));
+    cells.push(formula(COL_TOTAL_DAYS, `COUNTIF(${rollRange},"${PRESENT_MARK}")`, "bodyCount"));
     cells.push(
       student.transportRate > 0
-        ? number(layout.transportRate, student.transportRate, "bodyMoney")
-        : blank(layout.transportRate, "bodyMoney"),
+        ? number(COL_T_RATE, student.transportRate, "bodyRate")
+        : blank(COL_T_RATE, "bodyRate"),
     );
+    cells.push(formula(COL_T_AMOUNT, `${countRef}*${cellRef(COL_T_RATE, row)}`, "bodyMoney"));
     cells.push(
-      formula(
-        layout.transportAmount,
-        `${daysRef}*${cellRef(layout.transportRate, row)}`,
-        "bodyMoney",
-      ),
+      student.mealRate > 0
+        ? number(COL_M_RATE, student.mealRate, "bodyRate")
+        : blank(COL_M_RATE, "bodyRate"),
     );
     cells.push(
       student.mealRate > 0
-        ? number(layout.mealRate, student.mealRate, "bodyMoney")
-        : blank(layout.mealRate, "bodyMoney"),
+        ? formula(COL_M_AMOUNT, `${countRef}*${cellRef(COL_M_RATE, row)}`, "bodyMoney")
+        : blank(COL_M_AMOUNT, "bodyMoney"),
     );
-    cells.push(
-      formula(layout.mealAmount, `${daysRef}*${cellRef(layout.mealRate, row)}`, "bodyMoney"),
-    );
-    // The paper form caps transportation on its own, because its meal column
-    // was never filled in. Summing both first gives the same number whenever
-    // meal is empty and the right one when it isn't.
+    // The template's own formula caps transportation alone, because its meal
+    // column was never filled in. Summing both first gives the same number
+    // whenever meal is empty and the right one when it isn't. A blank meal
+    // amount adds as zero.
     cells.push(
       formula(
-        layout.totalReceived,
-        `MIN(${transportAmountRef}+${mealAmountRef},${sheet.cap})`,
+        COL_TOTAL,
+        `MIN(${cellRef(COL_T_AMOUNT, row)}+${cellRef(COL_M_AMOUNT, row)},${sheet.cap})`,
         "bodyMoney",
       ),
     );
-    cells.push(number(layout.number, i + 1, "bodyNo"));
-    cells.push(blank(layout.signature, "bodyBlank"));
+    cells.push(number(COL_NO_2, i + 1, "bodyNo"));
+    cells.push(blank(COL_SIGN, "bodyBlank"));
 
-    rows.push({ row, cells });
+    rows.push({ row, height: 24.75, cells });
   }
 
-  return rows;
+  return { rows, lastRow: ROW_FIRST_STUDENT + count - 1 };
 }
 
-function footerRows(sheet: PayrollSheet, layout: Layout, merges: string[]): Row[] {
+function footerRows(sheet: PayrollSheet, lastStudentRow: number, merges: string[]): Row[] {
   const { header } = sheet;
-  const subtotal = layout.subtotalRow;
-  const totalColumn = columnName(layout.totalReceived);
+  const subtotal = lastStudentRow + 1;
 
-  pushMerge(merges, COL_NO, subtotal, layout.totalReceived - 1, subtotal);
+  pushMerge(merges, COL_NO, subtotal, COL_M_AMOUNT, subtotal); // A18:AH18
 
   const rows: Row[] = [
     {
       row: subtotal,
+      height: 24.75,
       cells: [
         text(COL_NO, "SUB - TOTAL FOR THIS PAGE", "subtotalLabel"),
         formula(
-          layout.totalReceived,
-          `SUM(${totalColumn}${ROW_FIRST_STUDENT}:${totalColumn}${layout.lastStudentRow})`,
+          COL_TOTAL,
+          `SUM(AI${ROW_FIRST_STUDENT}:AI${lastStudentRow})`,
           "subtotalValue",
         ),
-        blank(layout.number, "bodyBlank"),
-        blank(layout.signature, "bodyBlank"),
+        blank(COL_NO_2, "bodyBlank"),
+        blank(COL_SIGN, "bodyBlank"),
       ],
     },
+    { row: subtotal + 1, height: 6, cells: [] },
   ];
 
-  const left = band(layout, 0);
-  const middle = band(layout, 1);
-  const right = band(layout, 2);
-
-  const certifyRow = subtotal + 2;
-  const nameRow = certifyRow + 4;
-  const titleRow = nameRow + 1;
-  const noteRow = titleRow + 2;
-  const mottoRow = noteRow + 2;
-
-  pushMerge(merges, left.from, certifyRow, left.to, certifyRow);
-  pushMerge(merges, middle.from, certifyRow, middle.to, certifyRow);
-  pushMerge(merges, right.from, certifyRow, right.to, certifyRow + 2);
-  pushMerge(merges, left.from, certifyRow + 1, left.to, certifyRow + 1);
-
+  // The three numbered certifications, at the template's own anchors: the roll
+  // certification at B, APPROVED at M, the payment certification wrapped over
+  // three rows starting at Z.
+  const certRow = subtotal + 2;
   rows.push({
-    row: certifyRow,
-    height: 14,
+    row: certRow,
+    height: 11.25,
     cells: [
+      text(COL_NO, "1.", "certNum"),
+      text(COL_LAST, "I  HEREBY  CERTIFY  on my official oath to the correctness of the above roll.", "cert"),
+      text(12, "2.", "certNum"),
+      text(13, "APPROVED :", "cert"),
       text(
-        left.from,
-        "1.  I HEREBY CERTIFY on my official oath to the correctness of the above roll.",
-        "certify",
-      ),
-      text(middle.from, "2.  APPROVED :", "certify"),
-      text(
-        right.from,
-        "3.  I HEREBY CERTIFY on my official oath that I have this ________ day of" +
-          " ______________, paid in cash to each man whose name appears on the above roll," +
-          " the amount set opposite his name, he having presented himself, established his" +
-          " identity and affixed his signature or thumbmark on the space provided thereof.",
-        "certify",
+        26,
+        "3. I HEREBY CERTIFY on my official oath that I have this ________ day of ______________, paid in cash to each man whose",
+        "cert",
       ),
     ],
   });
   rows.push({
-    row: certifyRow + 1,
-    height: 14,
+    row: certRow + 1,
+    height: 11.25,
     cells: [
+      text(COL_LAST, "Payment is also hereby approved from the appropriation indicated.", "cert"),
       text(
-        left.from,
-        "     Payment is also hereby approved from the appropriation indicated.",
-        "certify",
+        26,
+        "    name appears  on the above  roll,  the  amount  set opposite his name,  he  having presented himself established his identity",
+        "cert",
       ),
     ],
   });
+  rows.push({
+    row: certRow + 2,
+    height: 11.25,
+    cells: [
+      text(26, "    and  affixed  his signature  or  thumbmark  on the  space  provided thereof. ", "cert"),
+    ],
+  });
 
-  for (const [row, pick] of [
-    [nameRow, "name"],
-    [titleRow, "title"],
-  ] as const) {
-    pushMerge(merges, left.from, row, left.to, row);
-    pushMerge(merges, middle.from, row, middle.to, row);
-    pushMerge(merges, right.from, row, right.to, row);
-    const style = pick === "name" ? "signName" : "signTitle";
-    rows.push({
-      row,
-      height: pick === "name" ? 16 : 12,
-      cells: [
-        text(left.from, header.certifier[pick], style),
-        text(middle.from, header.approver[pick], style),
-        text(right.from, header.payer[pick], style),
-      ],
-    });
-  }
+  // Signature lines: name over an underline, title beneath.
+  const nameRow = certRow + 3;
+  const titleRow = certRow + 4;
+  pushMerge(merges, 3, nameRow, 7, nameRow); // C:G certifier
+  pushMerge(merges, 12, nameRow, 24, nameRow); // L:X approver
+  pushMerge(merges, 30, nameRow, 33, nameRow); // AD:AG payer
+  pushMerge(merges, 3, titleRow, 7, titleRow);
+  pushMerge(merges, 13, titleRow, 23, titleRow); // M:W
+  pushMerge(merges, 30, titleRow, 33, titleRow);
+  rows.push({
+    row: nameRow,
+    height: 30,
+    cells: [
+      text(3, header.certifier.name, "signName"),
+      text(12, header.approver.name, "signName"),
+      text(30, header.payer.name, "signName"),
+    ],
+  });
+  rows.push({
+    row: titleRow,
+    height: 13.5,
+    cells: [
+      text(3, header.certifier.title, "signTitle"),
+      text(13, header.approver.title, "signTitle"),
+      text(30, header.payer.title, "signTitle"),
+    ],
+  });
 
-  pushMerge(merges, COL_NO, noteRow, layout.width, noteRow);
+  const noteRow = titleRow + 1;
   rows.push({
     row: noteRow,
-    height: 22,
+    height: 13.5,
     cells: [
       text(
         COL_NO,
-        "*NOTE: Where thumbmark is to be used in place of signature, and the space available is" +
-          " not sufficient, the thumbmark may be impressed on the back hereof with proper" +
-          " indication of the corresponding student's number and on the corresponding line on the" +
-          ' payroll a remark, "see thumbmark on the back" should be written.',
+        "*NOTE:Where thumbmark is to be used in place of signature, and the space available is not sufficient, the thumbmark may be impressed on the back hereof with proper indication of the corresponding student's number and on the corresponding line on the payroll",
         "note",
       ),
     ],
   });
+  rows.push({
+    row: noteRow + 1,
+    height: 13.5,
+    cells: [text(COL_NO, 'a remark, "see thumbmark on the back" should be written.', "note")],
+  });
 
-  pushMerge(merges, COL_NO, mottoRow, layout.width, mottoRow);
-  rows.push({ row: mottoRow, height: 18, cells: [text(COL_NO, header.motto, "motto")] });
+  const mottoRow = noteRow + 2;
+  pushMerge(merges, COL_NO, mottoRow, COL_SIGN, mottoRow); // A27:AK27
+  rows.push({ row: mottoRow, height: 13.5, cells: [text(COL_NO, header.motto, "motto")] });
 
   return rows;
 }
 
 /** The sheet as it will be laid out — the same description the preview mirrors. */
 export function payrollSpec(sheet: PayrollSheet): SheetSpec {
-  const layout = layoutOf(sheet);
   const merges: string[] = [];
+  const header = headerRows(sheet, merges);
+  const { rows: students, lastRow } = studentRows(sheet, merges);
+  const footer = footerRows(sheet, lastRow, merges);
 
   return {
     name: periodLabel(sheet.year, sheet.month),
-    columns: columns(layout),
-    rows: [
-      ...headerRows(sheet, layout, merges),
-      ...studentRows(sheet, layout),
-      ...footerRows(sheet, layout, merges),
-    ],
+    columns: COLUMNS,
+    rows: [...header, ...students, ...footer],
     merges,
-    // The names and the Week/Day/Date labels stay put while the roll scrolls —
-    // a 23-column month is wider than any screen it'll be checked on.
-    freeze: { rows: ROW_DATE, columns: COL_LABEL_PAD },
-    showGridLines: false,
-    page: { orientation: "landscape", fitToWidth: true },
+    // Legal paper in landscape, centred on the page — the template's own setup.
+    page: { orientation: "landscape", paperSize: 5, centered: true },
   };
 }
 
