@@ -207,6 +207,7 @@ function synErr(t?: Tok): MiniSqlError {
 
 type Expr =
   | { k: "cmp"; col: string; op: string; val: { t: "str" | "num" | "word"; v: string } }
+  | { k: "isnull"; col: string; negated: boolean }
   | { k: "and" | "or"; l: Expr; r: Expr }
   | { k: "not"; e: Expr };
 
@@ -231,6 +232,14 @@ function parseUnary(c: Cursor): Expr {
     return e;
   }
   const col = c.colRef();
+  // `x IS NULL` / `x IS NOT NULL` — the only way to test for NULL, because a
+  // comparison against NULL is never true (that's MySQL, and it's the point of
+  // the anti-join lesson).
+  if (c.takeWord("IS")) {
+    const negated = c.takeWord("NOT");
+    if (!c.takeWord("NULL")) c.fail(c.peek());
+    return { k: "isnull", col, negated };
+  }
   const opTok = c.next();
   if (!opTok || opTok.t !== "op") c.fail(opTok);
   const valTok = c.next();
@@ -499,6 +508,10 @@ function evalExpr(expr: Expr, rel: RelCol[], row: (string | null)[]): boolean {
       return evalExpr(expr.l, rel, row) || evalExpr(expr.r, rel, row);
     case "not":
       return !evalExpr(expr.e, rel, row);
+    case "isnull": {
+      const ci = resolveCol(rel, expr.col, "where clause");
+      return (row[ci] === null) !== expr.negated;
+    }
     case "cmp": {
       const ci = resolveCol(rel, expr.col, "where clause");
       if (expr.val.t === "word" && expr.val.v.toUpperCase() !== "NULL") {

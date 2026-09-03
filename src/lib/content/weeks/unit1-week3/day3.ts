@@ -7,7 +7,7 @@ import type { DayPlan } from "../../types";
 
 export const day3: DayPlan = {
   day: "Day 3",
-  focus: "What the join hid: see every row with LEFT and RIGHT JOIN",
+  focus: "What the join hid: LEFT and RIGHT JOIN, and naming the missing with IS NULL",
   warmupGame: {
     kind: "row-hunt",
     id: "warmup-day3",
@@ -127,6 +127,43 @@ export const day3: DayPlan = {
             "{SELECT snacks.name, sales.qty FROM sales INNER JOIN snacks ON sales.snack_id = snacks.snack_id;}",
           explain:
             "Three joins, one skeleton, one word of difference. What changes is only the answer to: who is allowed to survive without a partner?",
+        },
+        {
+          prompt:
+            "New words. Reading NULLs off the screen with your eyes works for 6 snacks and not for 6000 — so ask the server instead. Type the test for emptiness.",
+          template: "SELECT sale_id FROM sales WHERE snack_id {IS NULL};",
+          explain:
+            "IS NULL, not = NULL. NULL means 'unknown', and asking whether an unknown equals an unknown is itself unknown — so = NULL is never true and quietly returns zero rows. IS NULL is a different question: is this box empty?",
+        },
+        {
+          prompt: "And its opposite — every sale that DOES name a snack.",
+          template: "SELECT sale_id FROM sales WHERE snack_id {IS NOT NULL};",
+          explain:
+            "IS NOT NULL. Two spellings, and between them they split any column into the filled and the empty — no third case.",
+        },
+        {
+          prompt:
+            "Now the pattern that makes today professional: keep every snack, then throw away the ones that DID sell. Type the filter.",
+          template:
+            "SELECT snacks.name FROM snacks LEFT JOIN sales ON snacks.snack_id = sales.snack_id WHERE {sales.sale_id IS NULL};",
+          explain:
+            "This is called an ANTI-JOIN, and it has a name because everyone needs it. The LEFT JOIN hands you all 6 snacks; the WHERE keeps only the rows whose sale side came back empty. The answer is now the result, not something you spot by squinting.",
+        },
+        {
+          prompt:
+            "Careful — which column do you test? Type the filter that finds snacks with no sale, using the SALES side's id.",
+          template:
+            "SELECT snacks.name FROM snacks LEFT JOIN sales ON snacks.snack_id = sales.snack_id WHERE {sales.sale_id} IS NULL;",
+          explain:
+            "Always test a column from the OPTIONAL side — the table that was allowed to come back empty. Testing snacks.name IS NULL would ask whether the snack has no name, which is a different (and here, always false) question.",
+        },
+        {
+          prompt:
+            "From memory: the other anti-join — every sale that no snack can explain. Show sales.sale_id, start FROM sales, and test the snack side's id.",
+          template:
+            "{SELECT sales.sale_id FROM sales LEFT JOIN snacks ON sales.snack_id = snacks.snack_id WHERE snacks.snack_id IS NULL;}",
+          explain:
+            "Same shape, mirrored: protect sales, drop everything that found a partner, and what's left is the ghost list. Two queries — parent-side and child-side anti-join — answer most data-quality questions you will ever be handed.",
         },
       ],
     },
@@ -320,7 +357,177 @@ export const day3: DayPlan = {
           solution:
             "SELECT sales.sale_id, snacks.name FROM sales LEFT JOIN snacks ON sales.snack_id = snacks.snack_id;",
           explain:
-            "Sales 4, 7 and 10 — NULL where a name should be. Two point at a snack that was never in the notebook, one points at nothing. Tomorrow you repair all three and lock the ledger so this can never happen again.",
+            "Sales 4, 7 and 10 — NULL where a name should be. Two point at a snack that was never in the notebook, one points at nothing. Reading them off the screen worked here. It will not work on Monday's real ledger, so the rest of this console teaches the server to find them for you.",
+        },
+        {
+          goal:
+            "Six snacks fit on a screen; six thousand don't. Ask the server for the flops directly: every snack that never sold, name only. Keep the LEFT JOIN, then add WHERE sales.sale_id IS NULL.",
+          solution:
+            "SELECT snacks.name FROM snacks LEFT JOIN sales ON snacks.snack_id = sales.snack_id WHERE sales.sale_id IS NULL;",
+          hint: "SELECT snacks.name FROM snacks LEFT JOIN sales ON snacks.snack_id = sales.snack_id WHERE sales.sale_id IS NULL;",
+          predict: {
+            question:
+              "The LEFT JOIN gave 9 rows. Adding WHERE sales.sale_id IS NULL leaves how many?",
+            choices: [
+              "2 — only the rows whose sale side came back empty",
+              "9 — a WHERE on a LEFT JOIN changes nothing",
+              "0 — nothing is ever equal to NULL",
+            ],
+            answer: 0,
+            explain:
+              "Of the 9 rows, 7 found a sale and 2 didn't. IS NULL keeps exactly the 2 — and it is a real test, not a comparison, which is why it isn't 0.",
+          },
+          explain:
+            "Gulaman and Pastillas, and nothing else. This shape has a name — an ANTI-JOIN: join to find partners, then keep only the rows that failed to find one. You just turned 'I can see two NULLs' into a query that would still work over a million snacks.",
+        },
+        {
+          goal:
+            "Now see why it must be IS NULL. Run the same query with WHERE sales.sale_id = NULL instead, and watch what the natural-looking version does.",
+          solution:
+            "SELECT snacks.name FROM snacks LEFT JOIN sales ON snacks.snack_id = sales.snack_id WHERE sales.sale_id = NULL;",
+          hint: "Type it exactly as written in the goal — the point is to see the result, not to avoid it.",
+          predict: {
+            question: "What will = NULL return?",
+            choices: [
+              "The same 2 rows — = NULL and IS NULL mean the same thing",
+              "0 rows, with no error at all",
+              "Error 1054 — NULL isn't a column",
+            ],
+            answer: 1,
+            explain:
+              "NULL means 'unknown'. Asking whether an unknown equals NULL is itself unknown, which is not true — so no row passes, and MySQL sees nothing worth complaining about.",
+          },
+          explain:
+            "0 rows, no error, no warning. This is the quietest bug in SQL: your query looks right, runs clean, and reports that the canteen has no flops. NULL is not a value you can compare to — IS NULL is the only question the server will answer.",
+        },
+        {
+          goal:
+            "The other half of the audit, as one query: every sale no snack can explain. Show sale_id and the sale's snack_id, start FROM sales, and test the SNACK side's id for NULL.",
+          solution:
+            "SELECT sales.sale_id, sales.snack_id FROM sales LEFT JOIN snacks ON sales.snack_id = snacks.snack_id WHERE snacks.snack_id IS NULL;",
+          hint: "Protect sales with the LEFT JOIN, then keep only rows where snacks.snack_id came back empty.",
+          explain:
+            "Sales 4, 7 and 10 — the ghost list, computed. Note which column you tested: snacks.snack_id, from the OPTIONAL side. Testing sales.snack_id would have asked a different question and found only the smudge.",
+        },
+        {
+          goal:
+            "Prove that last point to yourself: same sales-side LEFT JOIN, but test sales.snack_id IS NULL instead. Show sale_id and sales.snack_id.",
+          solution:
+            "SELECT sales.sale_id, sales.snack_id FROM sales LEFT JOIN snacks ON sales.snack_id = snacks.snack_id WHERE sales.snack_id IS NULL;",
+          predict: {
+            question: "Which sales come back this time?",
+            choices: [
+              "4, 7 and 10 — same as before, the column doesn't matter",
+              "Only 7 — the smudged sale is the only one whose own snack_id is empty",
+              "None — sales.snack_id is never NULL",
+            ],
+            answer: 1,
+            explain:
+              "Sales 4 and 10 DO have a snack_id: 9. It's a lie, but it's filled in. Only sale 7's own box is empty.",
+          },
+          explain:
+            "One row. Both queries are valid English about the data — 'sales with no snack recorded' versus 'sales whose snack doesn't exist' — and they are different questions. The side you test decides which one you asked.",
+        },
+        {
+          goal:
+            "The trap that catches professionals. Someone wants every snack with its price and quantity, and filters out empty quantities: run  SELECT snacks.name, snacks.price, sales.qty FROM snacks LEFT JOIN sales ON snacks.snack_id = sales.snack_id WHERE sales.qty > 0;  Run it and count what survives.",
+          solution:
+            "SELECT snacks.name, snacks.price, sales.qty FROM snacks LEFT JOIN sales ON snacks.snack_id = sales.snack_id WHERE sales.qty > 0;",
+          predict: {
+            question: "The LEFT JOIN protects all 6 snacks. How many DISTINCT snack names will you see?",
+            choices: [
+              "6 — the LEFT JOIN guaranteed every snack a row",
+              "4 — Gulaman and Pastillas are thrown away again by the WHERE",
+              "2 — only the flops survive a qty filter",
+            ],
+            answer: 1,
+            explain:
+              "The LEFT JOIN did give them rows — with NULL in qty. Then the WHERE asked 'is NULL > 0?', which is not true, so those rows were discarded after the fact.",
+          },
+          explain:
+            "7 rows, and only 4 names. A WHERE aimed at the OPTIONAL side of an outer join silently turns it back into an INNER JOIN — everything the LEFT JOIN protected is deleted one line later. The rule to memorise: filter the protected side in WHERE; anything you want to say about the optional side belongs in the ON clause, or must allow for NULL.",
+        },
+        {
+          goal:
+            "Flip the anti-join to get its complement: every snack that HAS sold, name and sale id, using IS NOT NULL.",
+          solution:
+            "SELECT snacks.name, sales.sale_id FROM snacks LEFT JOIN sales ON snacks.snack_id = sales.snack_id WHERE sales.sale_id IS NOT NULL;",
+          explain:
+            "7 rows — the same 7 the INNER JOIN gave you at the top of the console. LEFT JOIN + IS NOT NULL is a long way to spell INNER JOIN, and seeing that they land on the same grid is the proof that outer joins really are 'inner, plus the leftovers'.",
+        },
+        {
+          goal:
+            "Compose it all, no hints: the canteen keeper wants ONE list she can act on — the names of snacks that never sold, cheapest first, with the price beside each.",
+          solution:
+            "SELECT snacks.name, snacks.price FROM snacks LEFT JOIN sales ON snacks.snack_id = sales.snack_id WHERE sales.sale_id IS NULL ORDER BY snacks.price;",
+          explain:
+            "Pastillas at 8, then Gulaman at 10. Join, anti-filter, order — three clauses, one decision made. That is the whole job: not 'run a query', but hand somebody a list they can act on without asking you a follow-up question.",
+        },
+      ],
+    },
+    {
+      kind: "order",
+      id: "order-antijoin",
+      title: "🧩 Puzzle: build the anti-join, clause by clause",
+      intro:
+        "You've now typed the anti-join and run it. This is the third pass, and the one that makes it stick: assemble it from loose clauses, with wrong-but-tempting lines mixed in. Every round has exactly one clause order that a server will accept — SELECT, FROM, the join, ON, WHERE, ORDER BY — and every distractor is a mistake somebody makes for real.",
+      rounds: [
+        {
+          prompt:
+            "The flop-finder: every snack that never sold, name only. One line in the pile is the = NULL version — leave it out.",
+          lines: [
+            "SELECT snacks.name",
+            "FROM snacks",
+            "LEFT JOIN sales",
+            "ON snacks.snack_id = sales.snack_id",
+            "WHERE sales.sale_id IS NULL;",
+          ],
+          distractors: ["WHERE sales.sale_id = NULL;"],
+          explain:
+            "= NULL is the distractor because it is the one wrong answer that never announces itself: it runs, returns nothing, and lets you report that the canteen has no flops. IS NULL asks whether the box is empty; = NULL asks whether an unknown equals an unknown, which is never true.",
+        },
+        {
+          prompt:
+            "The ghost-finder: every sale no snack can explain, showing the sale id. Two lines in the pile test the wrong column — leave both out.",
+          lines: [
+            "SELECT sales.sale_id",
+            "FROM sales",
+            "LEFT JOIN snacks",
+            "ON sales.snack_id = snacks.snack_id",
+            "WHERE snacks.snack_id IS NULL;",
+          ],
+          distractors: ["WHERE sales.snack_id IS NULL;", "WHERE snacks.name = NULL;"],
+          explain:
+            "Test the OPTIONAL side — the table the LEFT JOIN allowed to come back empty. sales.snack_id IS NULL finds only the smudged sale, because the ghosts do have a snack_id (9); it's just a lie. The column you test is the question you asked.",
+        },
+        {
+          prompt:
+            "The list the canteen keeper can act on: flops with their prices, cheapest first. ORDER BY comes after WHERE, always. One line would quietly undo the LEFT JOIN — leave it out.",
+          lines: [
+            "SELECT snacks.name, snacks.price",
+            "FROM snacks",
+            "LEFT JOIN sales",
+            "ON snacks.snack_id = sales.snack_id",
+            "WHERE sales.sale_id IS NULL",
+            "ORDER BY snacks.price;",
+          ],
+          distractors: ["AND sales.qty > 0"],
+          explain:
+            "qty > 0 is the outer-join killer. Every row this query keeps has NULL in qty, and NULL > 0 is not true — so that one extra condition would have thrown away all the rows you were looking for and returned an empty, blameless-looking result.",
+        },
+        {
+          prompt:
+            "Last round, from memory of the shape rather than the story: the same flop-finder written so the RIGHT JOIN protects snacks. The join words move, the survivor doesn't.",
+          lines: [
+            "SELECT snacks.name",
+            "FROM sales",
+            "RIGHT JOIN snacks",
+            "ON sales.snack_id = snacks.snack_id",
+            "WHERE sales.sale_id IS NULL;",
+          ],
+          distractors: ["FROM snacks", "RIGHT JOIN sales"],
+          explain:
+            "The protected table has to sit where the join word points, so snacks moves to the right and sales moves to the FROM. Same rows, mirror spelling — and the WHERE clause didn't change at all, because the anti-join filter is about the optional side no matter how the join is written.",
         },
       ],
     },
@@ -372,6 +579,31 @@ export const day3: DayPlan = {
             "The canteen keeper asks: 'which snacks should I stop stocking?' Which of the three joins answers that question, and which rows of its result ARE the answer?",
           note: "This one is the whole day in one question — take your time.",
         },
+        {
+          question:
+            "Add WHERE sales.sale_id IS NULL to the snacks LEFT JOIN sales query. How many rows, and which snacks?",
+          note: "Predict from the 9-row grid you already have: which of those rows survive a test for an empty sale side?",
+        },
+        {
+          question:
+            "Now change that IS NULL to = NULL and run it again. How many rows come back, and is there an error message?",
+          note: "Write down what you EXPECTED before running, even if it turns out wrong — this specific surprise is the one worth remembering.",
+        },
+        {
+          question:
+            "sales LEFT JOIN snacks WHERE snacks.snack_id IS NULL, versus the same query with WHERE sales.snack_id IS NULL. Predict both results, then run both. Why do they differ?",
+          note: "One of these finds three sales and one finds one. Predict which is which before you run anything.",
+        },
+        {
+          question:
+            "Take snacks LEFT JOIN sales and add WHERE sales.qty > 0. How many rows, and how many DIFFERENT snack names appear? What happened to Gulaman and Pastillas?",
+          note: "This is the day's nastiest result. If your prediction survives contact with the real output, you understand outer joins.",
+        },
+        {
+          question:
+            "Write, from scratch, the query you would send the canteen keeper if she asked 'which snacks should I drop, cheapest first?' — then run it and paste exactly what came back.",
+          note: "One query, no eyeballing, result ready to act on. If she'd have to ask you a follow-up question, it isn't finished.",
+        },
       ],
     },
     {
@@ -396,9 +628,27 @@ export const day3: DayPlan = {
           },
         },
         {
-          task: "Now the part that makes the sheet earn its keep: a which-join-answers-which-question table. Three rows: 'rows that exist in BOTH notebooks' → INNER · 'which parents have no children (snacks that never sold)' → parent LEFT JOIN child, look for NULL · 'which children have no parent (sales nothing explains)' → child LEFT JOIN parent, look for NULL. Write each row with the canteen example beside it.",
+          task: "Now the part that makes the sheet earn its keep: a which-join-answers-which-question table. Three rows: 'rows that exist in BOTH notebooks' → INNER · 'which parents have no children (snacks that never sold)' → parent LEFT JOIN child, then WHERE child.id IS NULL · 'which children have no parent (sales nothing explains)' → child LEFT JOIN parent, then WHERE parent.id IS NULL. Write each row with the canteen example beside it.",
+        },
+        {
+          task: "Add the NULL rules, because they are the part everyone gets wrong. Write three lines: (1) IS NULL / IS NOT NULL are the ONLY ways to test for NULL — = NULL returns nothing and raises no error; (2) in an anti-join, test a column from the OPTIONAL side, not the protected one; (3) a WHERE aimed at the optional side turns a LEFT JOIN back into an INNER JOIN.",
+          check: {
+            question:
+              "A colleague's report says 'no unsold products found' and you don't believe it. Which line do you check first?",
+            choices: [
+              "The SELECT — they may have picked the wrong columns",
+              "The WHERE — a = NULL or a filter on the optional side returns an empty result with no error either way",
+              "The ON — the join keys are probably mistyped",
+            ],
+            answer: 1,
+            explain:
+              "A mistyped ON usually errors (1054) or returns obviously wrong counts. = NULL and an optional-side filter both return a clean, confident, empty answer — which is why an empty result should make you MORE suspicious, not less.",
+          },
+        },
+        {
+          task: "Finish the sheet with the two anti-join templates written out in full, with blanks where the table and column names go: SELECT … FROM parent LEFT JOIN child ON parent.key = child.key WHERE child.key IS NULL;  and the child-side mirror. Under them, write in your own words when you'd reach for each.",
           input:
-            "Paste your Day 3 section — the three one-line pictures, the flip rule, and your which-join-for-which-question table",
+            "Paste your whole Day 3 section — the three one-line pictures, the flip rule, the which-join-for-which-question table, the three NULL rules, and both anti-join templates",
         },
       ],
     },
@@ -452,19 +702,46 @@ export const day3: DayPlan = {
           },
         },
         {
-          task: "Record it: add a '-- Day 3' section to week3.sql — the sales-side audit query, the snacks-side flop-finder, and your RIGHT JOIN rewrite, each with a comment saying what question it answers.",
+          task: "Stop reading NULLs off the screen. On your real pair, run the anti-join: SELECT snacks.name FROM snacks LEFT JOIN sales ON snacks.snack_id = sales.snack_id WHERE sales.sale_id IS NULL; — the result IS your flop list, with no squinting. Then run it once more with = NULL instead of IS NULL and note what you get.",
+          check: {
+            question: "What did the = NULL version give you on YOUR data?",
+            choices: [
+              "The same flop list — MySQL accepts both spellings",
+              "An empty result and no error — which is how a wrong report gets sent to a real person",
+              "Error 1054, unknown column NULL",
+            ],
+            answer: 1,
+            explain:
+              "Zero rows, no complaint. If you had shipped that, the canteen keeper would have been told her whole menu was selling. Remember the feeling, not just the rule.",
+          },
+        },
+        {
+          task: "Now the deliberate mistake, on your own data: take your working anti-join and add AND sales.qty > 0 to the WHERE. Run it, look at the result, then explain to yourself what the extra condition did to your LEFT JOIN.",
+          check: {
+            question: "Why did the flops disappear?",
+            choices: [
+              "Their qty is NULL, and NULL > 0 is not true — so the filter deleted the exact rows the LEFT JOIN had protected",
+              "qty > 0 is invalid syntax inside a WHERE that already has IS NULL",
+              "Adding AND to a WHERE always converts a LEFT JOIN to an INNER JOIN, whatever the condition",
+            ],
+            answer: 0,
+            explain:
+              "Not the AND, and not a syntax rule — the CONDITION. It asked something about the optional side, and NULL cannot satisfy any comparison, so every protected row failed it. A condition on the protected side (snacks.price > 0) would have been perfectly safe.",
+          },
+        },
+        {
+          task: "Record it: add a '-- Day 3' section to week3.sql — the sales-side audit query, the snacks-side flop-finder, both anti-joins with IS NULL, and your RIGHT JOIN rewrite, each with a comment saying what question it answers.",
           input:
-            "Paste your Day 3 section of week3.sql, plus two sentences: which snacks are YOUR flops, and why your real audit found only one unexplained sale where the mini server found three",
+            "Paste your Day 3 section of week3.sql, plus three sentences: which snacks are YOUR flops, why your real audit found only one unexplained sale where the mini server found three, and what = NULL did on your own data",
         },
       ],
     },
     {
       kind: "sql-console",
       id: "bug-hospital",
-      optional: true,
-      title: "🏥 Challenge: the bug hospital",
+      title: "🏥 The bug hospital",
       intro:
-        "Six patients, all outer joins that lost something. Each task shows the broken statement — diagnose it and run the CORRECTED version. Today's ward is harder than Monday's on purpose: half of these RUN without a single red line and still answer the wrong question, because the rows they dropped left no trace. Gulaman has never sold, and sale 4 points at a snack that doesn't exist.",
+        "Nine patients, all outer joins that lost something. Each task shows the broken statement — diagnose it and run the CORRECTED version. Today's ward is harder than Monday's on purpose: most of these RUN without a single red line and still answer the wrong question, because the rows they dropped left no trace. Gulaman has never sold, and sale 4 points at a snack that doesn't exist.",
       setup: {
         databases: [
           {
@@ -550,15 +827,38 @@ export const day3: DayPlan = {
           solution:
             "SELECT sales.qty, snacks.name FROM sales LEFT JOIN snacks ON sales.snack_id = snacks.snack_id;",
           explain:
-            "1054 — snacks has no flavour column; the auditor invented it. Read the error's column name before you start rewriting the join: this one's LEFT JOIN was already perfect, and only the column was wrong. Six patients, and the joins themselves were correct in three of them.",
+            "1054 — snacks has no flavour column; the auditor invented it. Read the error's column name before you start rewriting the join: this one's LEFT JOIN was already perfect, and only the column was wrong. Six patients so far, and the joins themselves were correct in three of them.",
+        },
+        {
+          goal:
+            "Patient 7 — the report that says everything is fine. The auditor wanted the snacks that never sold and wrote:  SELECT snacks.name FROM snacks LEFT JOIN sales ON snacks.snack_id = sales.snack_id WHERE sales.sale_id = NULL;  It returns nothing, so the report reads 'no unsold snacks'. Run the corrected statement.",
+          solution:
+            "SELECT snacks.name FROM snacks LEFT JOIN sales ON snacks.snack_id = sales.snack_id WHERE sales.sale_id IS NULL;",
+          explain:
+            "Gulaman, and she'd been told there was nobody. Nothing is ever equal to NULL — not even NULL — so = NULL is a filter that rejects every row on earth, silently. Any time a query confidently returns zero rows, check that clause first.",
+        },
+        {
+          goal:
+            "Patient 8 — the ghost hunt that found no ghosts. Wanted: every sale no snack can explain. The script says:  SELECT sales.sale_id FROM sales LEFT JOIN snacks ON sales.snack_id = snacks.snack_id WHERE sales.snack_id IS NULL;  It returns nothing, though sale 4 points at snack 9. Run the corrected statement.",
+          solution:
+            "SELECT sales.sale_id FROM sales LEFT JOIN snacks ON sales.snack_id = snacks.snack_id WHERE snacks.snack_id IS NULL;",
+          explain:
+            "Sale 4. IS NULL was right, the side was wrong. Sale 4's own snack_id is filled in — it says 9 — so testing the sales side found nothing. The empty box is on the SNACKS side, where the join failed to find a partner. Anti-joins always test the optional table.",
+        },
+        {
+          goal:
+            "Patient 9, last one — wanted every snack with the quantity of each sale, unsold ones included, sorted by name. The script says:  SELECT snacks.name, sales.qty FROM snacks LEFT JOIN sales ON snacks.snack_id = sales.snack_id WHERE sales.qty IS NOT NULL ORDER BY snacks.name;  Gulaman is missing. Run the corrected statement.",
+          solution:
+            "SELECT snacks.name, sales.qty FROM snacks LEFT JOIN sales ON snacks.snack_id = sales.snack_id ORDER BY snacks.name;",
+          explain:
+            "The filter was the whole bug — delete it, don't fix it. IS NOT NULL on the optional side keeps only rows that matched, which is an INNER JOIN written the long way. Nine patients: three were the wrong join, three were the wrong column, and three ran perfectly while answering a question nobody asked.",
         },
       ],
     },
     {
       kind: "quest",
       id: "full-reconciliation",
-      optional: true,
-      title: "🔎 Challenge: the full reconciliation report",
+      title: "🔎 The full reconciliation report",
       intro:
         "Real auditors end with a written reconciliation: every single discrepancy between the two records, each with the evidence that exposes it. Write the canteen's — using the mini server's messy ledger, where all the problems still exist.",
       missions: [
@@ -577,9 +877,24 @@ export const day3: DayPlan = {
           },
         },
         {
-          task: "Write the report as five numbered lines. Each line: WHAT is wrong (in plain words), WHICH rows prove it (names or sale_ids), and the exact query that exposes it. Two queries cover all five lines — say which query exposes which discrepancies.",
+          task: "Write the report as five numbered lines. Each line: WHAT is wrong (in plain words), WHICH rows prove it (names or sale_ids), and the exact query that exposes it. Use the two ANTI-JOINS as your evidence queries — the result of each should be the list itself, not a grid you read NULLs out of.",
+          check: {
+            question:
+              "Your two evidence queries return 2 rows and 3 rows. Why is that better evidence than the 9-row and 10-row grids you ran earlier, which contain exactly the same information?",
+            choices: [
+              "It isn't — fewer rows just means less detail for the reader",
+              "Because the query itself states the finding, so it can't be misread, and it works identically on a table with a million rows",
+              "Because MySQL runs shorter results faster",
+            ],
+            answer: 1,
+            explain:
+              "An audit finding has to survive being read by someone tired. 'Here are 9 rows, look for the NULLs' is a request; 'here are the 2 flops' is a finding. And the second one still works when nobody could ever read the grid.",
+          },
+        },
+        {
+          task: "Now write the closing paragraph a real auditor is actually paid for: for each of the three problem types, one sentence saying what should CHANGE so it stops happening. One of the three cannot be prevented by a constraint at all — say which, and say what would have to change instead.",
           input:
-            "Paste your five-line reconciliation report, with the two queries and which lines each one proves",
+            "Paste your five-line reconciliation report with both anti-join queries, plus your closing recommendations",
         },
       ],
     },
@@ -682,6 +997,52 @@ export const day3: DayPlan = {
           "NULL never equals anything, so the ON finds no partner — but sales is protected, so the row still arrives, NULLs and all. Dropped is what the INNER JOIN would do.",
       },
       {
+        prompt:
+          "The keeper wants a LIST of never-sold snacks, not a grid to squint at. Which query hands her the answer itself?",
+        choices: [
+          "snacks LEFT JOIN sales ON … WHERE sales.sale_id IS NULL",
+          "snacks LEFT JOIN sales ON … WHERE sales.sale_id = NULL",
+          "snacks INNER JOIN sales ON … WHERE sales.sale_id IS NULL",
+        ],
+        answer: 0,
+        explain:
+          "The anti-join: keep everything, then throw away whatever found a partner. The INNER version is self-cancelling — it only keeps matches, then asks for the non-matches, so it can only ever return nothing.",
+      },
+      {
+        prompt: "WHERE sales.sale_id = NULL on a LEFT JOIN returns…",
+        choices: [
+          "Error 1054 — NULL is not a column",
+          "0 rows, silently — nothing is ever equal to NULL, not even NULL",
+          "The same rows as IS NULL — the two spellings are interchangeable",
+        ],
+        answer: 1,
+        explain:
+          "No error, no warning, no rows. This is why a confidently empty result deserves more suspicion than an error does: the error tells you something is wrong, the empty grid lets you file the report.",
+      },
+      {
+        prompt:
+          "In sales LEFT JOIN snacks, which column do you test with IS NULL to find sales no snack explains?",
+        choices: [
+          "sales.snack_id — the sale's own reference",
+          "sales.sale_id — the protected table's key",
+          "snacks.snack_id — a column from the optional side, where the join failed",
+        ],
+        answer: 2,
+        explain:
+          "Always the optional side. The ghost sales DO have a snack_id (9) — it's just fake — so testing the sales side finds only the smudged row. The empty box appears where the join came back with nothing.",
+      },
+      {
+        prompt: "Why does adding WHERE sales.qty > 0 to a snacks LEFT JOIN sales throw the flops away?",
+        choices: [
+          "Their qty is NULL, and no comparison against NULL is true — so the WHERE deletes rows the join had protected",
+          "WHERE always runs before the join, so the flops never entered",
+          "qty > 0 forces MySQL to convert the query into a RIGHT JOIN",
+        ],
+        answer: 0,
+        explain:
+          "The join protected them, then the filter removed them anyway — a LEFT JOIN turned back into an INNER JOIN, one line later and in silence. Filter the protected side freely; a condition on the optional side either belongs in the ON clause or must allow for NULL.",
+      },
+      {
         prompt: "Day-2 recall: the INNER JOIN returned 7 rows from 10 sales. Where did the other 3 go?",
         choices: [
           "They were deleted from the sales table",
@@ -731,10 +1092,12 @@ export const day3: DayPlan = {
     intro: "Exit ticket — type these into the turn-in box below:",
     steps: [
       "The three joins, one line each in your own words: which rows each keeps, and where the NULLs appear.",
+      "The two anti-joins, written out from memory: the one that finds parents with no children, and the one that finds children with no parent.",
+      "Why = NULL is worse than a syntax error, in one sentence.",
       "What surprised you or broke today, and why it happened.",
       "One question you still have.",
       "Paste today's SQL too.",
     ],
-    note: "You can now see every problem in the ledger — the flops, the ghosts, the smudge, each with the query that exposes it. Tomorrow you fix all of it, and lock the ledger so it stays fixed.",
+    note: "You can now not only SEE every problem in the ledger — the flops, the ghosts, the smudge — you can hand someone the list without them having to read a grid. Tomorrow you fix all of it, and lock the ledger so it stays fixed.",
   },
 };

@@ -419,3 +419,73 @@ describe("runBatch", () => {
     assert.deepEqual(batch.result?.rows, [["1"]]);
   });
 });
+
+describe("IS NULL / IS NOT NULL — the anti-join filter", () => {
+  function withLedger(): MiniState {
+    const s = fresh();
+    run(s, "CREATE DATABASE school");
+    run(s, "USE school");
+    run(s, "CREATE TABLE snacks (snack_id INT PRIMARY KEY, name VARCHAR(20))");
+    run(s, "INSERT INTO snacks VALUES (1, 'Banana cue')");
+    run(s, "INSERT INTO snacks VALUES (2, 'Gulaman')");
+    run(s, "CREATE TABLE sales (sale_id INT PRIMARY KEY, snack_id INT)");
+    run(s, "INSERT INTO sales VALUES (1, 1)");
+    run(s, "INSERT INTO sales (sale_id) VALUES (2)");
+    return s;
+  }
+
+  test("IS NULL finds the row a comparison can never reach", () => {
+    const s = withLedger();
+    const result = run(s, "SELECT sale_id FROM sales WHERE snack_id IS NULL").result!;
+    assert.deepEqual(result.rows, [["2"]]);
+  });
+
+  test("IS NOT NULL is its exact complement", () => {
+    const s = withLedger();
+    const result = run(s, "SELECT sale_id FROM sales WHERE snack_id IS NOT NULL").result!;
+    assert.deepEqual(result.rows, [["1"]]);
+  });
+
+  test("= NULL matches nothing — the mistake IS NULL exists to prevent", () => {
+    const s = withLedger();
+    const result = run(s, "SELECT sale_id FROM sales WHERE snack_id = NULL").result!;
+    assert.deepEqual(result.rows, []);
+  });
+
+  test("the anti-join: LEFT JOIN + IS NULL returns rows with no partner", () => {
+    const s = withLedger();
+    const result = run(
+      s,
+      "SELECT snacks.name FROM snacks LEFT JOIN sales ON snacks.snack_id = sales.snack_id WHERE sales.sale_id IS NULL",
+    ).result!;
+    assert.deepEqual(result.rows, [["Gulaman"]]);
+  });
+
+  test("IS NULL combines with AND/NOT like any other condition", () => {
+    const s = withLedger();
+    const result = run(s, "SELECT sale_id FROM sales WHERE NOT snack_id IS NULL AND sale_id = 1").result!;
+    assert.deepEqual(result.rows, [["1"]]);
+  });
+
+  test("an ambiguous column in IS NULL still raises 1052", () => {
+    const s = withLedger();
+    assert.equal(
+      errCode(() =>
+        run(s, "SELECT * FROM snacks LEFT JOIN sales ON snacks.snack_id = sales.snack_id WHERE snack_id IS NULL"),
+      ),
+      1052,
+    );
+  });
+
+  test("IS without NULL is a syntax error, not a silent pass", () => {
+    const s = withLedger();
+    assert.equal(errCode(() => run(s, "SELECT * FROM sales WHERE snack_id IS 1")), 1064);
+  });
+
+  test("DELETE can use IS NULL", () => {
+    const s = withLedger();
+    run(s, "DELETE FROM sales WHERE snack_id IS NULL");
+    const result = run(s, "SELECT sale_id FROM sales").result!;
+    assert.deepEqual(result.rows, [["1"]]);
+  });
+});
