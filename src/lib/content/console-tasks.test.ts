@@ -44,7 +44,12 @@ describe("authored console tasks run on the real engine", () => {
             const where = `${game.id} task ${i + 1}: ${task.goal.slice(0, 60)}…`;
             const work = cloneState(engine);
             const batch = runBatch(work, task.solution);
-            if (batch.error && !ANNOUNCES_FAILURE.test(JSON.stringify(task))) {
+            // Only the author's own description of the outcome counts. Scanning
+            // the whole task let a *distractor choice* containing the word
+            // "error" excuse a task that genuinely failed to parse (w4d3, an
+            // escaped-quote literal the engine can't read).
+            const announced = [task.goal, task.explain ?? "", task.predict?.explain ?? ""].join(" ");
+            if (batch.error && !ANNOUNCES_FAILURE.test(announced)) {
               assert.fail(`${where}\n  solution failed: ${batch.error.message}`);
             }
             engine = work;

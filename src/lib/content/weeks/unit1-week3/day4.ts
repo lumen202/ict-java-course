@@ -208,6 +208,34 @@ export const day4: DayPlan = {
         },
         {
           goal:
+            "Turn that grid into a worklist. Yesterday's anti-join: the same LEFT JOIN, filtered down to only the rows that found no partner. Show sale_id and the sale's snack_id.",
+          solution:
+            "SELECT sales.sale_id, sales.snack_id FROM sales LEFT JOIN snacks ON sales.snack_id = snacks.snack_id WHERE snacks.snack_id IS NULL;",
+          hint: "Keep the LEFT JOIN; add WHERE snacks.snack_id IS NULL — test the optional side.",
+          explain:
+            "3 rows: sales 4, 7 and 10. Ten rows became three, and those three are the entire job. On a ledger of ten you could have squinted at the previous grid; a repair list is what you'd need on a ledger of ten thousand, and it's the same two lines of SQL either way.",
+        },
+        {
+          goal:
+            "Now the distinction the whole week has been building to. Two of those three rows are LIES (a snack_id that names nothing) and one is an honest UNKNOWN (no snack_id at all). Get just the lies: add AND sales.snack_id IS NOT NULL.",
+          solution:
+            "SELECT sales.sale_id, sales.snack_id FROM sales LEFT JOIN snacks ON sales.snack_id = snacks.snack_id WHERE snacks.snack_id IS NULL AND sales.snack_id IS NOT NULL;",
+          predict: {
+            question: "Which sales survive both conditions?",
+            choices: [
+              "All three — 4, 7 and 10",
+              "Only 7 — it's the one with a NULL",
+              "4 and 10 — they have a snack_id (9), it just doesn't exist; sale 7 has none at all",
+            ],
+            answer: 2,
+            explain:
+              "IS NULL on the snacks side means 'found no partner'. IS NOT NULL on the sales side means 'did claim something'. Together: claimed something, and the claim was false.",
+          },
+          explain:
+            "Sales 4 and 10 — and this is your ACTUAL repair list, because sale 7 must not be repaired. A row that says 'I don't know' is telling the truth and needs nothing from you; a row that names snack 9 is wrong and needs fixing. Two IS NULLs on opposite sides told those apart, and that difference is the difference between an audit and a mess.",
+        },
+        {
+          goal:
             "Story beat: Aling Nena remembers now — the ghost sales were really Kwek-kwek, just mis-written as snack 9. Repair sale 4: set its snack_id to 3.",
           solution: "UPDATE sales SET snack_id = 3 WHERE sale_id = 4;",
           hint: "UPDATE sales SET snack_id = 3 WHERE sale_id = 4;",
@@ -240,6 +268,25 @@ export const day4: DayPlan = {
           },
           explain:
             "10 rows, 1 NULL name now — sale 7, still honestly unknown. That's fine. Unlike the ghosts, this row was never a lie, so there's nothing to repair. Time to try the lock again.",
+        },
+        {
+          goal:
+            "Check it properly, the way you'd have to on a real ledger: re-run the LIES-ONLY query — the anti-join with AND sales.snack_id IS NOT NULL. An empty result is the green light.",
+          solution:
+            "SELECT sales.sale_id, sales.snack_id FROM sales LEFT JOIN snacks ON sales.snack_id = snacks.snack_id WHERE snacks.snack_id IS NULL AND sales.snack_id IS NOT NULL;",
+          predict: {
+            question: "You repaired both ghosts. What should this return now?",
+            choices: [
+              "0 rows — no sale claims a snack that doesn't exist any more",
+              "1 row — sale 7, which still has no snack",
+              "3 rows — the query doesn't know about the repairs until you reload",
+            ],
+            answer: 0,
+            explain:
+              "Sale 7 is filtered out by IS NOT NULL, and the two ghosts now find Kwek-kwek. Nothing left to report — which is the answer you want from an audit query, and the only time an empty result is good news.",
+          },
+          explain:
+            "0 rows. Notice the discipline here: you did not decide the ledger was clean by looking at it, you asked the question that would have shown you if it wasn't. That is the difference between 'it looks fine' and 'I checked' — and the lock is about to check exactly the same thing.",
         },
         {
           goal: "Lock it: add the FOREIGN KEY again.",
@@ -402,7 +449,7 @@ export const day4: DayPlan = {
       missions: [
         {
           task:
-            "Add a Day 4 heading. From memory, write the cleanup ritual as three numbered steps: 1) find every ghost with a LEFT JOIN from the child, 2) repair each one with an aimed UPDATE, 3) lock with ALTER TABLE … ADD FOREIGN KEY. Under it, one line: what happens if you try step 3 before steps 1–2?",
+            "Add a Day 4 heading. From memory, write the cleanup ritual as four numbered steps: 1) find every unexplained child row with the anti-join — child LEFT JOIN parent WHERE parent.key IS NULL, 2) narrow it to the LIES with AND child.key IS NOT NULL, 3) repair each one with an aimed UPDATE, 4) lock with ALTER TABLE … ADD FOREIGN KEY. Under it, one line: what happens if you try step 4 before steps 1–3?",
           check: {
             question: "What belongs on the sheet as step 1 of the ritual?",
             choices: [
@@ -417,15 +464,32 @@ export const day4: DayPlan = {
         },
         {
           task:
-            "Side-by-side entry: 1451 vs 1452, one line each, worded so you'd never confuse them at 2am — plus a NULL-in-FK note: 'a foreign key blocks fakes, never unknowns.'",
+            "Side-by-side entry: 1451 vs 1452, one line each, worded so you'd never confuse them at 2am — plus the NULL-in-FK note: 'a foreign key blocks fakes, never unknowns', and beside it the query proof, 'the same distinction step 2 makes with IS NOT NULL'.",
+          check: {
+            question:
+              "Why does the ritual have step 2 at all, instead of repairing everything step 1 finds?",
+            choices: [
+              "Step 1 is unreliable and step 2 double-checks it",
+              "Step 1 also finds rows whose key is honestly NULL — those are legal under the lock and must not be repaired",
+              "Step 2 is only needed on tables with more than one foreign key",
+            ],
+            answer: 1,
+            explain:
+              "Repairing a NULL would be inventing data. The lock will accept that row exactly as it is, because unknown is not the same as fake — so the query that drives your repairs has to make the same distinction the constraint does.",
+          },
+        },
+        {
+          task:
+            "Last entry: write out the finished repair-list query in full, with blanks where the table and column names go, and one line saying why you would run it BEFORE the lock and again AFTER.",
           input:
-            "Paste your Day 4 section — the three-step ritual, the 'before step 1–2' line, the 1451/1452 side-by-side, and the NULL note",
+            "Paste your Day 4 section — the four-step ritual, the 'before step 1–3' line, the 1451/1452 side-by-side, the NULL note, and the repair-list query",
         },
       ],
     },
     {
       kind: "quest",
       id: "real-lab",
+      inline: true,
       title: "🛠️ Real lab: design and build your own linked pair",
       intro:
         "Your canteen pair was born locked on Monday, so it never needed today's repair ritual. This lab is where the day's other half happens: you become the designer. Your week-2 table (the one you built with AUTO_INCREMENT) becomes a PARENT — you design and build a CHILD for it, linked with your own foreign key, from scratch.",
@@ -519,8 +583,7 @@ export const day4: DayPlan = {
     {
       kind: "sql-console",
       id: "bug-hospital",
-      optional: true,
-      title: "🏥 Challenge: the bug hospital",
+      title: "🏥 The bug hospital",
       intro:
         "Six patients from the locking ward — every one of them a link that won't go on, won't come off, or won't let go. Each task shows the broken statement; diagnose it and run the CORRECTED version. The two notebooks are here unlinked, and sale 3 still points at a snack that never existed.",
       setup: {
@@ -608,8 +671,8 @@ export const day4: DayPlan = {
     {
       kind: "quest",
       id: "second-child",
-      optional: true,
-      title: "🏔️ Challenge: a second child, or a broken-statement gauntlet",
+      inline: true,
+      title: "🏔️ A second child, or a broken-statement gauntlet",
       intro:
         "Pick ONE path. Both stretch the same muscle further: real design judgement, applied without a script to follow.",
       missions: [
@@ -630,6 +693,29 @@ export const day4: DayPlan = {
       "The Ledger Wrecker's whole strategy is timing: lock a table before it's clean, delete a parent before its children are dealt with, ask for the wrong join and trust nobody checks the row count. You've spent four days learning exactly this order. Finish it off.",
     boss: { name: "the Ledger Wrecker", emoji: "🧨" },
     questions: [
+      {
+        prompt: "Step 1 of the cleanup ritual, on a ledger you've never seen. Which query gives you the repair list?",
+        choices: [
+          "SELECT * FROM sales WHERE snack_id = 9 — find the bad id and filter on it",
+          "sales LEFT JOIN snacks ON … WHERE snacks.snack_id IS NULL AND sales.snack_id IS NOT NULL",
+          "sales INNER JOIN snacks ON … — whatever is missing from the result is the repair list",
+        ],
+        answer: 1,
+        explain:
+          "WHERE snack_id = 9 needs someone to have told you the answer first, and the INNER JOIN hands you the rows that are FINE. The anti-join hands you the broken ones, and the second condition keeps the honest blanks off a list you're about to start editing.",
+      },
+      {
+        prompt:
+          "Your repair list has three rows: two name a snack that doesn't exist, one names no snack at all. How many do you repair?",
+        choices: [
+          "Two — the blank is honest; repairing it would mean inventing data, and the lock accepts it as is",
+          "Three — the lock will refuse the blank as well",
+          "None — repairs are the librarian's job, not the auditor's",
+        ],
+        answer: 0,
+        explain:
+          "A foreign key forbids fakes, not unknowns. The NULL row passes the lock untouched, so touching it would be replacing a truthful 'I don't know' with a guess.",
+      },
       {
         prompt: "You try ALTER TABLE sales ADD FOREIGN KEY (snack_id) REFERENCES snacks(snack_id); on a table that still has ghost rows. What happens?",
         choices: [

@@ -161,6 +161,18 @@ export type QuestGame = {
   id: string;
   title: string;
   intro: string;
+  /**
+   * Render on the page instead of behind a door in the full-screen modal.
+   *
+   * Set it for quests whose work happens on the student's OWN MACHINE — the
+   * real labs. A modal takes the browser window over and locks page scroll,
+   * which is right for a game demanding full attention and wrong for
+   * instructions you need visible beside an editor while you type. The mission
+   * flow is identical either way; only the container changes.
+   *
+   * Opt-in, so every quest authored before this existed keeps its door.
+   */
+  inline?: boolean;
   missions: QuestMission[];
 };
 
@@ -189,6 +201,19 @@ export type TypingGame = {
   id: string;
   title: string;
   intro: string;
+  /**
+   * Judge the typed text case-sensitively. Set it for **Java** rounds and
+   * leave it off for SQL: matching is meant to accept whatever the language
+   * would accept, and `preparedstatement` is a compile error where
+   * `select` is not.
+   *
+   * ⚠️ `{` and `}` are the blank markers in `template`, so a Java template can
+   * never contain a block brace — write the round as a single statement or as
+   * a block *header* (`while (rs.next())`, `try (…)`) with no trailing `{`.
+   * A stray brace silently becomes part of a blank rather than failing loudly;
+   * `content-integrity.test.ts` catches it.
+   */
+  caseSensitive?: boolean;
   rounds: TypingRound[];
 };
 

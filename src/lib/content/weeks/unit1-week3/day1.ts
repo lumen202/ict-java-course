@@ -256,6 +256,43 @@ export const day1: DayPlan = {
         },
         {
           goal:
+            "Deleting isn't the only way to strand a child. Try RENUMBERING a referenced parent instead: UPDATE snacks SET snack_id = 99 WHERE snack_id = 1;",
+          solution: "UPDATE snacks SET snack_id = 99 WHERE snack_id = 1;",
+          predict: {
+            question:
+              "You're not deleting Banana cue — just changing its id. Sales still say snack_id 1. What does the server do?",
+            choices: [
+              "Accepts it, and updates the matching sales to 99 automatically",
+              "Accepts it — a foreign key only watches DELETE, not UPDATE",
+              "Refuses with 1451 — moving the parent's id would leave the sales pointing at nothing",
+            ],
+            answer: 2,
+            explain:
+              "Read the error's own wording: 'Cannot delete or update a parent row'. Both verbs, one guard. What the constraint protects is the RELATIONSHIP, not the row.",
+          },
+          explain:
+            "Error 1451, from an UPDATE — and the message is word for word the one the DELETE got. This is worth more than it looks: the lock isn't a rule about deleting, it's a rule that the reference must keep working. Any statement that would break it gets stopped, whatever verb it used.",
+        },
+        {
+          goal:
+            "One more door to test: try to remove the parent table entirely. DROP TABLE snacks;",
+          solution: "DROP TABLE snacks;",
+          predict: {
+            question: "sales has a foreign key pointing at snacks. What happens to DROP TABLE snacks?",
+            choices: [
+              "Refused with a new error, 3730 — you can't drop a table another table's key depends on",
+              "Accepted, and the foreign key on sales is quietly removed with it",
+              "Accepted — DROP is more powerful than a constraint",
+            ],
+            answer: 0,
+            explain:
+              "A third door, a third error code. The child's promise names the parent table by name; take the table away and the promise refers to nothing.",
+          },
+          explain:
+            "Error 3730: Cannot drop table 'snacks' referenced by a foreign key constraint. Three refusals now, all from one link: 1452 stops a fake child coming IN, 1451 stops a referenced parent moving or leaving, 3730 stops the parent table itself being destroyed. And note the order it implies — you build parent first, so you have to demolish CHILD first. Creation and destruction run in opposite directions.",
+        },
+        {
+          goal:
             "Keep the log going: sale 5 was 6 Turon (snack 2) on 2026-08-12. Log it.",
           solution: "INSERT INTO sales VALUES (5, 2, '2026-08-12', 6);",
           hint: "Same INSERT shape as before — one bracketed group this time.",
@@ -455,8 +492,7 @@ export const day1: DayPlan = {
     {
       kind: "sql-console",
       id: "bug-hospital",
-      optional: true,
-      title: "🏥 Challenge: the bug hospital",
+      title: "🏥 The bug hospital",
       intro:
         "Six patients, all suffering from broken links. Each task shows a statement that fails (or does the wrong thing) — your job is to diagnose the bug and run the CORRECTED version. The snack notebook is already on the server.",
       setup: {
@@ -541,6 +577,28 @@ export const day1: DayPlan = {
       "The Orphan Maker fills sales logs with ghosts and deletes parents out from under their children. Every trick it knows, a FOREIGN KEY refuses — and you watched the refusals happen today.",
     boss: { name: "the Orphan Maker", emoji: "👻" },
     questions: [
+      {
+        prompt: "A referenced parent row can't be deleted (1451). Can its key be UPDATED to a new value?",
+        choices: [
+          "No — the same 1451 fires; the error's own wording is 'cannot delete or update a parent row'",
+          "Yes — a foreign key only ever watches DELETE",
+          "Yes, and the children are renumbered to follow it automatically",
+        ],
+        answer: 0,
+        explain:
+          "What the constraint protects is the relationship, not the row. Any statement that would leave a child pointing at nothing gets stopped, whichever verb it used.",
+      },
+      {
+        prompt: "You try DROP TABLE snacks; while sales has a foreign key pointing at it.",
+        choices: [
+          "It works — DROP outranks a constraint",
+          "It works, and the constraint on sales is removed along with it",
+          "Refused with 3730 — a table can't be dropped while another table's key names it",
+        ],
+        answer: 2,
+        explain:
+          "Third door, third code: 1452 keeps fakes out, 1451 keeps a referenced parent in place, 3730 keeps the parent table itself alive. Build parent-first means demolish child-first.",
+      },
       {
         prompt: "What does a FOREIGN KEY promise about its column?",
         choices: [

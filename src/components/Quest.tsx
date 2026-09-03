@@ -18,6 +18,12 @@ import { useTurnIn } from "@/lib/game/useTurnIn";
 // full-screen modal. Closing pauses — missions and typed inputs are kept, the
 // card offers "Continue" — which matters here especially: missions send the
 // student to Workbench or a file, and they close the modal while they work.
+//
+// `inline` quests skip the door and the modal and render straight onto the
+// timeline. That is for REAL LABS, where the work happens in another window
+// entirely: a modal that owns the viewport and locks page scroll is the wrong
+// container for instructions you need to keep reading while typing in an
+// editor. Same state machine, same turn-in — only the wrapper differs.
 
 type Phase = "intro" | "mission" | "cleared" | "done";
 
@@ -104,31 +110,8 @@ export function Quest({
     }
   }
 
-  return (
+  const body = (
     <>
-      <GameDoor
-        tone="amber"
-        emoji="🗺️"
-        title={game.title}
-        intro={game.intro}
-        meta={`${total} missions · what you clear and paste turns in automatically`}
-        status={
-          playing && !open
-            ? `⏸ Paused at mission ${idx + 1}/${total} — pick up where you left off.`
-            : phase === "done"
-              ? `🏆 Quest complete — all ${total} missions cleared.${saved ? " ✓ Turned in." : ""}`
-              : null
-        }
-        buttonLabel={playing ? "▶ Continue the quest" : phase === "done" ? "Replay quest" : "▶ Start mission 1"}
-        onEnter={() => (playing ? setOpen(true) : start())}
-      />
-
-      <GameModal open={open} onClose={() => setOpen(false)} label={game.title}>
-        <GameModalHeader
-          title={game.title}
-          right={playing ? `Mission ${idx + 1}/${total}` : undefined}
-        />
-        <GameModalBody>
           {/* Progress bar — visible momentum is half the motivation. */}
           {phase !== "intro" && (
             <div className="mb-4 h-1.5 overflow-hidden rounded-full bg-amber-200/60 dark:bg-amber-900/40">
@@ -243,10 +226,16 @@ export function Quest({
                 {checksTotal > 0 ? ` — ${firstTry}/${checksTotal} checks right on the first try` : ""}.
               </p>
               <div className="mt-4 flex flex-wrap items-center justify-center gap-3">
-                <button type="button" onClick={() => setOpen(false)} className="btn-primary">
-                  Back to the lesson
-                </button>
-                <button type="button" onClick={start} className="btn-ghost">
+                {!game.inline && (
+                  <button type="button" onClick={() => setOpen(false)} className="btn-primary">
+                    Back to the lesson
+                  </button>
+                )}
+                <button
+                  type="button"
+                  onClick={start}
+                  className={game.inline ? "btn-primary" : "btn-ghost"}
+                >
                   Replay quest
                 </button>
               </div>
@@ -257,6 +246,70 @@ export function Quest({
               </p>
             </div>
           )}
+    </>
+  );
+
+  if (game.inline) {
+    return (
+      <section
+        aria-label={game.title}
+        className="rounded-2xl border border-amber-300/70 bg-amber-50/50 p-5 dark:border-amber-900/70 dark:bg-zinc-900/40"
+      >
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <p className="text-sm font-semibold">{game.title}</p>
+          {playing && (
+            <p className="text-xs font-medium text-zinc-500">
+              Mission {idx + 1}/{total}
+            </p>
+          )}
+        </div>
+
+        {phase === "intro" && (
+          <>
+            <p className="mt-3 text-sm leading-relaxed text-zinc-600 dark:text-zinc-400">
+              {game.intro}
+            </p>
+            <p className="mt-2 text-xs text-zinc-500">
+              {total} missions · this one happens on your own machine, so it stays on the page
+              while you work
+            </p>
+            <button type="button" onClick={start} className="btn-primary mt-4">
+              ▶ Start mission 1
+            </button>
+          </>
+        )}
+
+        {phase !== "intro" && <div className="mt-4">{body}</div>}
+      </section>
+    );
+  }
+
+  return (
+    <>
+      <GameDoor
+        tone="amber"
+        emoji="🗺️"
+        title={game.title}
+        intro={game.intro}
+        meta={`${total} missions · what you clear and paste turns in automatically`}
+        status={
+          playing && !open
+            ? `⏸ Paused at mission ${idx + 1}/${total} — pick up where you left off.`
+            : phase === "done"
+              ? `🏆 Quest complete — all ${total} missions cleared.${saved ? " ✓ Turned in." : ""}`
+              : null
+        }
+        buttonLabel={playing ? "▶ Continue the quest" : phase === "done" ? "Replay quest" : "▶ Start mission 1"}
+        onEnter={() => (playing ? setOpen(true) : start())}
+      />
+
+      <GameModal open={open} onClose={() => setOpen(false)} label={game.title}>
+        <GameModalHeader
+          title={game.title}
+          right={playing ? `Mission ${idx + 1}/${total}` : undefined}
+        />
+        <GameModalBody>
+          {body}
         </GameModalBody>
       </GameModal>
     </>

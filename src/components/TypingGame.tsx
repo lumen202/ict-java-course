@@ -74,7 +74,7 @@ export function TypingGame({
     e.preventDefault();
     const wrong = new Set<number>();
     blanks.forEach((b, i) => {
-      if (!answersMatch(typed[i] ?? "", b.blank)) wrong.add(i);
+      if (!answersMatch(typed[i] ?? "", b.blank, game.caseSensitive)) wrong.add(i);
     });
     if (wrong.size === 0) {
       if (!missedThisRound) setFirstTry((n) => n + 1);

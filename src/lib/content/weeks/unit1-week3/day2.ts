@@ -290,6 +290,53 @@ export const day2: DayPlan = {
         },
         {
           goal:
+            "Look at what the join did to the SNACK side. Ask for just the names of every matched sale: SELECT snacks.name FROM sales INNER JOIN snacks ON sales.snack_id = snacks.snack_id;",
+          solution:
+            "SELECT snacks.name FROM sales INNER JOIN snacks ON sales.snack_id = snacks.snack_id;",
+          predict: {
+            question:
+              "Banana cue is ONE row in the snacks notebook, and it was sold three times. How many times does its name appear here?",
+            choices: [
+              "Once — a snack is one row, so it appears once",
+              "Three times — the join outputs one row per PAIR, and Banana cue pairs with three sales",
+              "Six times — every snack pairs with every sale",
+            ],
+            answer: 1,
+            explain:
+              "A join returns pairs, not tables. One snack row paired with three sale rows is three pairs, so three output rows.",
+          },
+          explain:
+            "Banana cue three times, Kwek-kwek twice, Turon and Siopao once each — 7 rows out of a 6-row notebook. This is the most confusing thing about joins in real work: a result can have MORE rows than either table you started with, and nothing is wrong. A join's row count is the number of matching PAIRS, and nothing else.",
+        },
+        {
+          goal:
+            "Does the order of the tables matter? Run the same read starting FROM snacks instead: snacks.name and sales.qty, snacks INNER JOIN sales.",
+          solution:
+            "SELECT snacks.name, sales.qty FROM snacks INNER JOIN sales ON snacks.snack_id = sales.snack_id;",
+          predict: {
+            question: "You swapped which table is named first. What changes?",
+            choices: [
+              "Nothing — the same 7 pairs; INNER JOIN protects neither side, so neither table is privileged",
+              "You get 6 rows now, one per snack",
+              "Error — the ON clause no longer matches the table order",
+            ],
+            answer: 0,
+            explain:
+              "INNER keeps pairs and only pairs. With nothing to protect, there is no left or right that matters — which is exactly what stops being true tomorrow.",
+          },
+          explain:
+            "The same 7 rows. Remember this, because tomorrow it reverses: the moment a join has a protected side, which table you name first decides the whole answer. INNER JOIN is the one join where you can be careless about order, and that is not a habit worth forming.",
+        },
+        {
+          goal:
+            "Prove the pair-counting rule on one snack: show snacks.name and sales.sold_on for every Banana cue sale.",
+          solution:
+            "SELECT snacks.name, sales.sold_on FROM sales INNER JOIN snacks ON sales.snack_id = snacks.snack_id WHERE snacks.name = 'Banana cue';",
+          explain:
+            "3 rows, all saying Banana cue, each with a different date. One notebook entry, three real events. If anyone ever asks you 'why does my report list this product three times?', this is the answer — and the fix is a question about what they wanted counted, not a bug in the join.",
+        },
+        {
+          goal:
             "No help from here. The council asks: which snacks were sold on 2026-08-12, and how many of each? Answer with names and quantities.",
           solution:
             "SELECT snacks.name, sales.qty FROM sales INNER JOIN snacks ON sales.snack_id = snacks.snack_id WHERE sales.sold_on = '2026-08-12';",
@@ -463,8 +510,7 @@ export const day2: DayPlan = {
     {
       kind: "sql-console",
       id: "bug-hospital",
-      optional: true,
-      title: "🏥 Challenge: the bug hospital",
+      title: "🏥 The bug hospital",
       intro:
         "Six patients, all joins that don't do what their author meant. Each task shows the broken statement — diagnose it and run the CORRECTED version. Five of them fail loudly; one runs perfectly and answers the wrong question, which is the one worth slowing down for. Both notebooks are already on the server.",
       setup: {
@@ -559,8 +605,7 @@ export const day2: DayPlan = {
     {
       kind: "quest",
       id: "write-a-bug",
-      optional: true,
-      title: "🐞 Challenge: write a bug",
+      title: "🐞 Write a bug",
       intro:
         "Fixing bugs is skill; PLANTING one that fails exactly the way you intend is mastery. Author one broken join on purpose, predict its exact error, and prove your prediction in Workbench.",
       missions: [

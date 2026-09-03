@@ -1,4 +1,4 @@
-import { test } from "node:test";
+import { test, describe } from "node:test";
 import assert from "node:assert/strict";
 import { answersMatch } from "./answerMatch";
 
@@ -40,4 +40,26 @@ test("keyword-only blanks are unaffected", () => {
   assert.ok(answersMatch("show databases;", "SHOW DATABASES;"));
   assert.ok(answersMatch("VARCHAR (50)", "VARCHAR(50)"));
   assert.ok(!answersMatch("SHOW DATABASE;", "SHOW DATABASES;"));
+});
+
+describe("caseSensitive — Java rounds", () => {
+  test("case is forgiven by default, because MySQL forgives it", () => {
+    assert.equal(answersMatch("select * from t;", "SELECT * FROM t;"), true);
+  });
+
+  test("case is enforced when asked, because javac enforces it", () => {
+    assert.equal(answersMatch("preparedstatement", "PreparedStatement", true), false);
+    assert.equal(answersMatch("PreparedStatement", "PreparedStatement", true), true);
+  });
+
+  test("spacing is still forgiven in case-sensitive mode", () => {
+    assert.equal(
+      answersMatch("ps.setInt( 1 , id );", "ps.setInt(1, id);", true),
+      true,
+    );
+  });
+
+  test("a wrong identifier is still wrong either way", () => {
+    assert.equal(answersMatch("ps.setInteger(1, id);", "ps.setInt(1, id);", true), false);
+  });
 });

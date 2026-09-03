@@ -268,6 +268,34 @@ export const day5: DayPlan = {
             "Loans 3 and 7. The LEFT JOIN told you three loans were unexplained; this tells you exactly which two share a single cause. Loan 5's blank is a different problem, and you're going to leave that one alone.",
         },
         {
+          goal:
+            "That last query only worked because you already knew the bad number was 9. On a real ledger you don't. Get the same worklist without naming any book id: every loan that found no book, using the anti-join.",
+          solution:
+            "SELECT loans.loan_id, loans.book_id FROM loans LEFT JOIN books ON loans.book_id = books.book_id WHERE books.book_id IS NULL;",
+          hint: "LEFT JOIN books, then WHERE books.book_id IS NULL — test the optional side.",
+          explain:
+            "Loans 3, 5 and 7 — found without knowing a single thing about this library in advance. WHERE book_id = 9 answers a question you could only ask after somebody told you the answer; the anti-join asks the question you actually have.",
+        },
+        {
+          goal:
+            "Separate the lies from the honest unknowns, Thursday's distinction: from that same anti-join, keep only the loans that DID name a book. Show loan_id and book_id.",
+          solution:
+            "SELECT loans.loan_id, loans.book_id FROM loans LEFT JOIN books ON loans.book_id = books.book_id WHERE books.book_id IS NULL AND loans.book_id IS NOT NULL;",
+          predict: {
+            question: "Which loans survive both conditions?",
+            choices: [
+              "3, 5 and 7 — all the unexplained ones",
+              "3 and 7 — they name book 9, which is false; loan 5 names nothing, which is honest",
+              "Only 5 — it's the one holding a NULL",
+            ],
+            answer: 1,
+            explain:
+              "IS NULL on the books side means the join failed. IS NOT NULL on the loans side means the loan made a claim. A false claim needs repair; a blank does not.",
+          },
+          explain:
+            "Loans 3 and 7 — your repair list, and loan 5 correctly left off it. This pair of conditions is the single most reusable thing this week taught you: it turns 'something's wrong with the data' into a list of rows a person can actually fix.",
+        },
+        {
           goal: "The librarian remembers: both book-9 loans were really Dekada 70, which is book 3. Repair loan 3.",
           solution: "UPDATE loans SET book_id = 3 WHERE loan_id = 3;",
           hint: "A week-2 UPDATE, aimed by the loan's own key.",
@@ -373,6 +401,33 @@ export const day5: DayPlan = {
             "Four loans — the two Dekada 70 already had, plus the two you repaired into it. A join, a filter and a sort in one statement, composed from nothing but the question.",
         },
         {
+          goal:
+            "The other side of the audit, no help: the librarian wants the shelf-clearing list — every book nobody has ever borrowed, title and shelf, in shelf order.",
+          solution:
+            "SELECT books.title, books.shelf FROM books LEFT JOIN loans ON books.book_id = loans.book_id WHERE loans.loan_id IS NULL ORDER BY books.shelf;",
+          explain:
+            "One book — Mga Ibong Mandaragit on B2. There were two until you deleted Banaag at Sikat a few tasks ago, and the reason that DELETE was allowed is the same reason this query finds them: nothing points at either of them. Same anti-join, aimed the other way. Protect the parent instead of the child and the question flips from 'which loans are wrong?' to 'which books are dead weight?' — one pattern, both halves of a real audit.",
+        },
+        {
+          goal:
+            "Prove your own answer, the way you'd have to defend it: re-run the repair-list query — the anti-join with AND loans.book_id IS NOT NULL. An empty result is the proof.",
+          solution:
+            "SELECT loans.loan_id, loans.book_id FROM loans LEFT JOIN books ON loans.book_id = books.book_id WHERE books.book_id IS NULL AND loans.book_id IS NOT NULL;",
+          predict: {
+            question: "The lock is on and both bad loans are repaired. What does this return?",
+            choices: [
+              "0 rows — nothing left that names a book which doesn't exist",
+              "1 row — loan 5 still has no book",
+              "2 rows — the repaired loans still count as broken",
+            ],
+            answer: 0,
+            explain:
+              "Loan 5 is excluded by IS NOT NULL, and after the lock went on, a row like loans 3 and 7 used to be can no longer exist at all.",
+          },
+          explain:
+            "0 rows — and now the empty result means something, because it's the same query that returned two rows an hour ago. An audit query you only ever run after the fix proves nothing; this one you ran before, during and after.",
+        },
+        {
           goal: "Last one, entirely your own: prove the ledger is clean. Show every loan id together with its book's title, ordered by the book's title — and confirm the only blank left is the one you chose to keep.",
           solution:
             "SELECT loans.loan_id, books.title FROM loans LEFT JOIN books ON loans.book_id = books.book_id ORDER BY books.title;",
@@ -413,7 +468,7 @@ export const day5: DayPlan = {
             "UPDATE sales SET snack_id = 3 WHERE sale_id = 10;",
             "ALTER TABLE sales ADD FOREIGN KEY (snack_id) REFERENCES snacks(snack_id);",
           ],
-          distractors: [
+            distractors: [
             "DELETE FROM snacks WHERE snack_id = 1;",
           ],
           explain:
@@ -433,6 +488,24 @@ export const day5: DayPlan = {
           ],
           explain:
             "The impostor is the sales table WITHOUT the foreign key — tempting, because it's the only line in the pile that could run before its parent exists. That freedom is exactly what's wrong with it: an unlinked ledger accepts every ghost. Born linked or not at all.",
+        },
+        {
+          prompt:
+            "The repair-list query, the one you'd run first on any ledger you inherit: child rows whose parent doesn't exist, excluding the ones that honestly claim nothing. Clause order is fixed — and two lines in the pile are the classic wrong answers.",
+          lines: [
+            "SELECT sales.sale_id, sales.snack_id",
+            "FROM sales",
+            "LEFT JOIN snacks",
+            "ON sales.snack_id = snacks.snack_id",
+            "WHERE snacks.snack_id IS NULL",
+            "AND sales.snack_id IS NOT NULL;",
+          ],
+          distractors: [
+            "WHERE snacks.snack_id = NULL",
+            "WHERE sales.snack_id IS NULL",
+          ],
+          explain:
+            "Both distractors return the wrong thing without complaining. `= NULL` returns nothing at all, so the ledger looks clean; `sales.snack_id IS NULL` finds the honest blanks instead of the lies — the one group you must NOT repair. The correct pair tests opposite sides for opposite things: the join failed, and the row did make a claim.",
         },
       ],
     },
@@ -509,6 +582,7 @@ export const day5: DayPlan = {
     {
       kind: "quest",
       id: "assemble-file",
+      inline: true,
       title: "📦 Quest: assemble week3.sql",
       intro:
         "Four days of links, joins, repairs and locks — scattered across labs and Workbench tabs. Turn it into one file that reads top to bottom like the audit's story. The reader, as always, is you in three weeks.",
@@ -591,6 +665,8 @@ export const day5: DayPlan = {
         "I tried to DELETE a snack that still has sales and got 1451; deleting one with no sales worked — and I can say why the server treated them differently.",
         "The smudged NULL sale is in my table — proof I know the foreign key permits an unknown parent, just never a fake one.",
         "My file has an INNER JOIN, a LEFT JOIN and a RIGHT JOIN query, each with its question written as a comment above it.",
+        "My file has both anti-joins — parent LEFT JOIN child WHERE child.key IS NULL, and the child-side mirror — and I can say which real question each one answers.",
+        "I can explain, without looking it up, why WHERE snack_id = NULL returns nothing and raises no error, and why that is more dangerous than an error would be.",
         "In my file, both ghost repairs come BEFORE the ALTER TABLE … ADD FOREIGN KEY line, so the lock lands on a clean table.",
         "My own parent/child pair from Day 4 exists: my week-2 table is the parent, my designed child carries a foreign key to it, and both hold rows I chose.",
         "I met 1452, 1451, 1052 and 1054 on purpose at least once this week, and for each I can say in one sentence what it refuses and what the fix is.",
@@ -603,8 +679,8 @@ export const day5: DayPlan = {
     {
       kind: "quest",
       id: "data-story",
-      optional: true,
-      title: "🏔️ Challenge: a data story of your own",
+      inline: true,
+      title: "🏔️ A data story of your own",
       intro:
         "The whole week ran on the canteen's question. This challenge runs on yours: one question about school life you actually wonder about that takes TWO linked tables to answer — then you build the tables, link them, fill them, and let a join answer it.",
       missions: [
@@ -637,6 +713,54 @@ export const day5: DayPlan = {
       "The Warden guards the gate to the Java weeks and asks about everything — Monday's link, Tuesday's strict reading, Wednesday's full audit, Thursday's repair and lock. Nothing here is new; all of it is yours. Take the gate.",
     boss: { name: "the Week Three Warden", emoji: "👑" },
     questions: [
+      {
+        prompt:
+          "You inherit a ledger you know nothing about. Which query lists the child rows whose parent doesn't exist, WITHOUT you having to know a single bad id in advance?",
+        choices: [
+          "child LEFT JOIN parent ON … WHERE parent.key IS NULL",
+          "SELECT * FROM child WHERE parent_id = 9",
+          "child INNER JOIN parent ON … WHERE parent.key IS NULL",
+        ],
+        answer: 0,
+        explain:
+          "The anti-join. WHERE parent_id = 9 only works once somebody has already told you the answer is 9, and the INNER version cancels itself out — it keeps only matches, then asks for the non-matches.",
+      },
+      {
+        prompt: "A report says 'no unsold products found'. Which mistake would produce that from a healthy ledger?",
+        code: "SELECT p.name FROM products p LEFT JOIN sales s ON p.id = s.product_id WHERE s.id = NULL;",
+        choices: [
+          "None — the query is correct, so the ledger really has no unsold products",
+          "= NULL — it is never true for any row, so the filter rejects everything and raises no error",
+          "The LEFT JOIN should be a RIGHT JOIN",
+        ],
+        answer: 1,
+        explain:
+          "IS NULL is the only test for emptiness. This query is the reason an empty result deserves more suspicion than a red error message: the error tells you something is wrong, the empty grid lets you file the report.",
+      },
+      {
+        prompt:
+          "In loans LEFT JOIN books, you want the loans that name a book which doesn't exist — but NOT the loans that name no book at all. The WHERE is:",
+        choices: [
+          "WHERE books.book_id IS NULL",
+          "WHERE loans.book_id IS NULL AND books.book_id IS NOT NULL",
+          "WHERE books.book_id IS NULL AND loans.book_id IS NOT NULL",
+        ],
+        answer: 2,
+        explain:
+          "Two tests, opposite sides: the join failed (books side empty) AND the loan did make a claim (loans side filled). That separates lies, which need repairing, from honest unknowns, which don't — the distinction the foreign key itself makes.",
+      },
+      {
+        prompt: "Why does this return no unsold snacks, even though two exist?",
+        code: "SELECT snacks.name, sales.qty\nFROM snacks LEFT JOIN sales ON snacks.snack_id = sales.snack_id\nWHERE sales.qty > 0;",
+        choices: [
+          "The unsold rows have NULL in qty, and NULL > 0 is not true — the WHERE undoes the LEFT JOIN",
+          "LEFT JOIN can't be combined with a WHERE clause",
+          "qty > 0 is checked before the join runs, so the snacks never get their rows",
+        ],
+        answer: 0,
+        explain:
+          "The join protected them; the filter deleted them one line later. Any condition on the optional side of an outer join turns it back into an INNER JOIN unless it allows for NULL.",
+      },
       {
         prompt: "The exact promise of this clause:",
         code: "FOREIGN KEY (snack_id) REFERENCES snacks(snack_id)",
