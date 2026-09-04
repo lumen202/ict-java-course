@@ -39,7 +39,7 @@ export const day4: DayPlan = {
       {
         question: "Click the one smudged entry — the sale with no snack number at all.",
         matches: [6],
-        sql: "SELECT * FROM sales WHERE snack_id = 9 OR sale_id = 7;",
+        sql: "SELECT * FROM sales WHERE snack_id IS NULL;",
         explain:
           "Sale 7, honestly unknown. Keep it separate in your head from the ghosts — one of these two problems is fixable this morning, the other one isn't a problem at all.",
       },
@@ -53,19 +53,19 @@ export const day4: DayPlan = {
       },
       {
         question:
-          "Click the two snacks that would show up with NULL in a snacks LEFT JOIN sales — the ones that never sold.",
-        matches: [3, 5],
-        sql: "SELECT snacks.name, sales.sale_id\nFROM snacks LEFT JOIN sales\nON snacks.snack_id = sales.snack_id;",
+          "The notebook lists Gulaman (4) and Pastillas (6), and neither one sold all week. Click every sale here that names snack 4 or snack 6.",
+        matches: [],
+        sql: "SELECT * FROM sales WHERE snack_id = 4 OR snack_id = 6;",
         explain:
-          "Gulaman and Pastillas. Not a problem to repair — a flop is a legal, honest fact. Only the ghosts and the ambiguity of 'is this table trustworthy yet' are today's actual targets.",
+          "Nothing to click — and that IS the answer. A snack that never sold leaves no row in this ledger at all, so no amount of staring at sales will ever find it; only snacks LEFT JOIN sales can, because it starts from the notebook and keeps every snack whether a sale turned up or not. A flop isn't a repair job either — nobody buying Pastillas is a legal, honest fact. Only the ghosts are today's targets.",
       },
       {
         question:
-          "Day-1 recall, dressed differently: on your real LOCKED table, which of these two deletes would the FOREIGN KEY refuse — DELETE snack 2 (Turon, has sales) or DELETE snack 6 (Pastillas, no sales)? Click the snack whose delete gets refused.",
-        matches: [1],
-        sql: "DELETE FROM snacks WHERE snack_id = 2;\n-- Error 1451 — sales still point at Turon",
+          "Day-1 recall, aimed at a row you can actually see: on your real LOCKED table, DELETE FROM snacks WHERE snack_id = 2; (Turon) is refused, while deleting Pastillas would go straight through. Click the sale that is doing the refusing.",
+        matches: [4],
+        sql: "DELETE FROM snacks WHERE snack_id = 2;\n-- Error 1451 — sale 5 still points at Turon",
         explain:
-          "Turon. A lock doesn't just stop bad inserts — it protects a parent for as long as anything depends on it. You'll fire this exact refusal for real today.",
+          "Sale 5 — the only row still pointing at Turon. A lock doesn't just stop bad inserts: it protects a parent for as long as anything depends on it, and 1451 always means one specific child row is standing in the way. Nothing points at Pastillas, which is why deleting that one would be allowed. You'll fire this exact refusal for real today.",
       },
     ],
   },
@@ -321,7 +321,7 @@ export const day4: DayPlan = {
               "A lock protects the table going forward, not just the moment it was applied. Every future insert gets the same check the cleanup just survived.",
           },
           explain:
-            "Error 1452. What got through on Monday's UNLOCKED table now refuses instantly. This table can never grow a new ghost again — you didn't just clean the mess, you made it impossible to repeat.",
+            "Error 1452. The ghosts you spent this morning repairing walked into this ledger unchallenged, because it had no lock; the very next one bounces. This table can never grow a new ghost again — you didn't just clean the mess, you made it impossible to repeat.",
         },
         {
           goal:
@@ -343,7 +343,7 @@ export const day4: DayPlan = {
         },
         {
           goal:
-            "Re-run the audit on the now-clean, now-locked ledger: how many sales does an INNER JOIN return now, compared to Monday's 7?",
+            "Re-run the audit on the now-clean, now-locked ledger: how many sales does an INNER JOIN return now, compared to Tuesday's 7?",
           solution:
             "SELECT snacks.name, sales.qty FROM sales INNER JOIN snacks ON sales.snack_id = snacks.snack_id;",
           hint: "The join you've written all week — nothing new, just run it and count.",
@@ -363,7 +363,7 @@ export const day4: DayPlan = {
           solution:
             "SELECT snacks.name, sales.qty FROM sales INNER JOIN snacks ON sales.snack_id = snacks.snack_id WHERE sales.sold_on = '2026-08-14';",
           explain:
-            "2 rows: 4 Kwek-kwek (the repaired ghost) and 2 more Kwek-kwek. A week ago this question would have been unanswerable without knowing which rows to trust — now every row in the table already deserves to be trusted.",
+            "2 rows, both Kwek-kwek: a qty of 4 from sale 9 (honest all along) and a qty of 2 from sale 10 — the ghost you repaired an hour ago, now answering a question about a real day's trading. A week ago this would have been unanswerable without knowing which rows to trust; now every row in the table already deserves to be trusted.",
         },
       ],
     },
@@ -376,7 +376,7 @@ export const day4: DayPlan = {
       missions: [
         {
           task:
-            "A club tracks members (member_id, name) and dues (dues_id, member_id, amount, paid_on). The officer asks: 'which club has no members?' — wait, reread the question. Which club has no members paying dues, of the members that exist?",
+            "A club tracks members (member_id, name) and dues (dues_id, member_id, amount, paid_on). The officer wants one list: every member who has never paid dues. Nobody may be left off it just because they have no payment to show.",
           check: {
             question:
               "To find members who have never paid dues, which join do you reach for?",
@@ -588,7 +588,7 @@ export const day4: DayPlan = {
       id: "bug-hospital",
       title: "🏥 The bug hospital",
       intro:
-        "Six patients from the locking ward — every one of them a link that won't go on, won't come off, or won't let go. Each task shows the broken statement; diagnose it and run the CORRECTED version. The two notebooks are here unlinked, and sale 3 still points at a snack that never existed.",
+        "Five patients from the locking ward, six statements to run — every one of them a link that won't go on, won't come off, or won't let go. Each task shows the broken statement; diagnose it and run the CORRECTED version. The two notebooks are here unlinked, and sale 3 still points at a snack that never existed.",
       setup: {
         databases: [
           {
@@ -798,7 +798,7 @@ export const day4: DayPlan = {
           "The lock guards the parent's exit as hard as the child's entry. Delete or repoint the referencing sales first, and only then may Turon go.",
       },
       {
-        prompt: "After the repair, an INNER JOIN of sales and snacks now returns 9 rows instead of Monday's 7. Why the change?",
+        prompt: "After the repair, an INNER JOIN of sales and snacks now returns 9 rows instead of Tuesday's 7. Why the change?",
         choices: [
           "The lock secretly deleted one row, which is why the count went up relative to the total",
           "INNER JOIN got faster after the ALTER ran",
@@ -857,7 +857,7 @@ export const day4: DayPlan = {
   practice: {
     intro: "Exit ticket — type these into the turn-in box below:",
     steps: [
-      "The three-step cleanup ritual (find, repair, lock) in your own words, and what the server does if you try to skip a step.",
+      "The cleanup ritual in your own words — find, narrow to the lies, repair, lock — and what the server does if you try to skip a step.",
       "What surprised you or broke today (the NULL that needed no repair? the 1452 that appeared on a table that had been fine for years?), and why it happened.",
       "One question you still have.",
       "Then paste the SQL you ran today.",
