@@ -85,19 +85,22 @@ export const day4: DayPlan = {
           explain: "Monday's flagship line. Today you meet the version where the table was built WITHOUT this — and has to earn it.",
         },
         {
-          prompt: "From memory: every sale with its snack's name, keeping only matches.",
+          prompt:
+            "From memory: the strict read — each sale's snack name beside its quantity, keeping only matches. Select snacks.name then sales.qty, starting FROM sales.",
           template:
             "{SELECT snacks.name, sales.qty FROM sales INNER JOIN snacks ON sales.snack_id = snacks.snack_id;}",
           explain: "The strict read. Silent about anything unmatched — which is exactly why it's the wrong tool for hunting ghosts.",
         },
         {
-          prompt: "From memory: every sale, even the ones no snack can explain — the ghost-hunting query.",
+          prompt:
+            "From memory: every sale, even the ones no snack can explain — the ghost-hunting query. Select sales.sale_id then snacks.name, starting FROM sales.",
           template:
             "{SELECT sales.sale_id, snacks.name FROM sales LEFT JOIN snacks ON sales.snack_id = snacks.snack_id;}",
           explain: "This is today's detective. A ghost shows up as a real row with a NULL name — visible, not vanished.",
         },
         {
-          prompt: "From memory: the same audit, written as a RIGHT JOIN instead.",
+          prompt:
+            "From memory: the same audit, written as a RIGHT JOIN instead — same two columns in the same order, but start FROM snacks, so sales is the table on the right.",
           template:
             "{SELECT sales.sale_id, snacks.name FROM snacks RIGHT JOIN sales ON snacks.snack_id = sales.snack_id;}",
           explain: "Same rows, mirrored spelling — sales stays protected because it's the table named after RIGHT JOIN.",
