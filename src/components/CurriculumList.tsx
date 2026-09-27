@@ -16,20 +16,20 @@ const units = [
   {
     n: 2,
     icon: "🖥️",
-    name: "JavaFX",
-    outcome: "Turn your database work into a desktop app people can click.",
+    name: "Web pages",
+    outcome: "Build the pages people will actually use — HTML, CSS and just enough JavaScript.",
   },
   {
     n: 3,
     icon: "🌐",
-    name: "REST APIs",
-    outcome: "Put your data on the web with Spring Boot and test it properly.",
+    name: "REST APIs with Spring Boot",
+    outcome: "Put your database behind a Java web API, and make your pages talk to it.",
   },
   {
     n: 4,
     icon: "🚀",
-    name: "Capstone",
-    outcome: "Your JavaFX app talking to your own API — a real client–server system.",
+    name: "Final project",
+    outcome: "Your own idea — you propose it, then build it with everything from Units 1–3.",
   },
 ];
 

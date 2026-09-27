@@ -1,5 +1,5 @@
 import { getCurrentUser } from "@/lib/auth";
-import { getCourseState, currentLesson, releasedDayCount } from "@/lib/release";
+import { getCourseState, currentLesson, visibleDayCount } from "@/lib/release";
 import { Sidebar, type NavItem } from "@/components/Sidebar";
 import { DemoBanner } from "@/components/DemoBanner";
 
@@ -49,7 +49,7 @@ async function studentNav(): Promise<NavItem[]> {
 
   if (!lesson) return [{ href: "/lessons", label: "Lessons", icon: "📚" }];
 
-  const released = releasedDayCount(lesson.week, state);
+  const released = visibleDayCount(lesson.week, state);
   const days = lesson.week.video.days.slice(0, released).map((d, i) => ({
     href: `/week/${lesson.week.slug}?day=${i + 1}`,
     label: d.day,

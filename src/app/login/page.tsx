@@ -58,9 +58,9 @@ export default async function LoginPage({ searchParams }: PageProps<"/login">) {
           <ul className="mt-10 space-y-3 text-sm">
             {[
               ["🗄️", "Databases & SQL, then JDBC from Java"],
-              ["🖥️", "JavaFX desktop apps"],
+              ["🖥️", "Web pages: HTML, CSS and JavaScript"],
               ["🌐", "REST APIs with Spring Boot"],
-              ["🚀", "Capstone: your app talking to your own API"],
+              ["🚀", "A final project you propose yourself"],
             ].map(([icon, text], i) => (
               <li key={text} className="flex items-center gap-3">
                 <span

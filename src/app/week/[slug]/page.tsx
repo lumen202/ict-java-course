@@ -19,6 +19,7 @@ import { SqlConsole } from "@/components/SqlConsole";
 import { OrderGame } from "@/components/OrderGame";
 import { AnswerSheet } from "@/components/AnswerSheet";
 import { UploadTurnIn } from "@/components/UploadTurnIn";
+import { HtmlSandbox } from "@/components/HtmlSandbox";
 import { SelfCheck } from "@/components/SelfCheck";
 import { ReflectionForm } from "@/components/ReflectionForm";
 import { SubmissionForm } from "@/components/SubmissionForm";
@@ -27,7 +28,7 @@ import { VideoEmbed } from "@/components/VideoEmbed";
 import { MarkWeekDone } from "@/components/WeekProgress";
 import { requireUser } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
-import { getCourseState, releasedDayCount } from "@/lib/release";
+import { getCourseState, isReviewWeek, visibleDayCount } from "@/lib/release";
 
 export function generateStaticParams() {
   return weeks.map((w) => ({ slug: w.slug }));
@@ -57,7 +58,10 @@ export default async function WeekPage({ params, searchParams }: PageProps<"/wee
   // so they can review a week before opening it to the class.
   const state = await getCourseState();
   const released =
-    user.role === "teacher" ? week.video.days.length : releasedDayCount(week, state);
+    user.role === "teacher" ? week.video.days.length : visibleDayCount(week, state);
+  // A week the class has moved past is open for review: no step gate, so a
+  // student who didn't finish can read and redo any part (lib/release.ts).
+  const reviewMode = user.role !== "teacher" && isReviewWeek(week, state);
 
   if (released === 0) {
     return (
@@ -148,6 +152,8 @@ export default async function WeekPage({ params, searchParams }: PageProps<"/wee
       <OrderGame weekSlug={week.slug} dayNumber={dayNumber} game={g} />
     ) : g.kind === "answer-sheet" ? (
       <AnswerSheet weekSlug={week.slug} dayNumber={dayNumber} game={g} />
+    ) : g.kind === "html-sandbox" ? (
+      <HtmlSandbox weekSlug={week.slug} dayNumber={dayNumber} game={g} />
     ) : g.kind === "upload" ? (
       <UploadTurnIn
         weekSlug={week.slug}
@@ -311,7 +317,13 @@ export default async function WeekPage({ params, searchParams }: PageProps<"/wee
           Teachers see everything at once, and so does a student the teacher has
           unstuck for this day. */}
       <section className="mb-12">
-        {unlockAtLeast > 0 && user.role !== "teacher" && (
+        {reviewMode && (
+          <p className="mb-6 rounded-2xl border border-sky-300/80 bg-sky-50/80 dark:border-sky-800 dark:bg-sky-950/30 p-4 text-sm leading-relaxed">
+            📖 Review mode — every part of every day of this week is open. Go back over anything you missed or want to
+            practise again; whatever you hand in here still reaches your teacher.
+          </p>
+        )}
+        {!reviewMode && unlockAtLeast > 0 && user.role !== "teacher" && (
           <p className="mb-6 rounded-2xl border border-emerald-300/80 bg-emerald-50/80 dark:border-emerald-800 dark:bg-emerald-950/30 p-4 text-sm leading-relaxed">
             {unstuckStep ? (
               <>
@@ -331,7 +343,7 @@ export default async function WeekPage({ params, searchParams }: PageProps<"/wee
           storageKey={`jch-flow:${week.slug}:${dayNumber}`}
           weekSlug={week.slug}
           dayNumber={dayNumber}
-          gated={user.role !== "teacher"}
+          gated={user.role !== "teacher" && !reviewMode}
           unlockAtLeast={unlockAtLeast}
           requestedStep={requestRow ? ((requestRow.step as string | null) ?? null) : undefined}
           steps={steps.map(({ key, title, manual, optional, done, final }) => ({

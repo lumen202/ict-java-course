@@ -109,4 +109,6 @@ export const unit1Week4: Week = {
     },
   ],
   status: "available",
+  // Open for review over the weekend before Week 5 starts (teacher, 2026-09-27).
+  openForReview: true,
 };

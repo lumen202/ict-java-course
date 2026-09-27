@@ -148,6 +148,15 @@ export type QuestMission = {
    * box (label = this text). What's entered is included in the turn-in.
    */
   input?: string;
+  /**
+   * A nudge for a student who is stuck — where to look, what the thing looks
+   * like on screen, or the first step, never the answer itself. On a `check`
+   * it appears after the first wrong pick; on a do-it mission (no check) the
+   * student opens it with a "Stuck?" button, since the page can't see their
+   * machine to know they're stuck. Required from Unit 2 on
+   * (`content-integrity.test.ts`).
+   */
+  hint?: string;
 };
 
 /**
@@ -419,6 +428,85 @@ export type UploadTask = {
 };
 
 /**
+ * One thing the student's page must contain for a task to clear. Checked
+ * against the page the browser actually built from their HTML — so it judges
+ * the RESULT (is there an <h1>? does the table have 7 rows?) the way the SQL
+ * console judges effect, and any correct spelling passes.
+ */
+export type HtmlCheck = {
+  /** CSS selector, e.g. "h1", "table tr", "a[href]", "form input[type=number]". */
+  selector: string;
+  /** At least this many matches. Defaults to 1. */
+  min?: number;
+  /** Exactly this many matches — use when "too many" is the mistake. `exact: 0` means "none may exist". */
+  exact?: number;
+  /** Some match's visible text must contain this (case-insensitive). */
+  text?: string;
+  /** Some match must carry this attribute — with this value, if `value` is set. */
+  attr?: { name: string; value?: string };
+  /**
+   * Some match's COMPUTED style must equal this — `{ property: "color", value: "red" }`.
+   * The value is normalized by the browser first, so "red", "#f00" and
+   * "rgb(255, 0, 0)" all compare equal.
+   */
+  css?: { property: string; value: string };
+  /**
+   * Some match's computed style must NOT equal this — "the student changed it
+   * from the browser's default", e.g. `{ property: "margin-top", value: "8px" }`
+   * on body. Normalized the same way as `css`.
+   */
+  cssNot?: { property: string; value: string };
+  /** Shown when this check fails: what's missing, in words. The first failing one is the feedback. */
+  message: string;
+};
+
+export type HtmlSandboxTask = {
+  /** What to add or change, in words. */
+  goal: string;
+  /** All must pass. Order them so the first failure is the most useful thing to hear. */
+  checks: HtmlCheck[];
+  /** Shown after two checks that didn't pass. */
+  hint?: string;
+  /**
+   * The stuck exit (BUG-015): after four misses the student may reveal this
+   * snippet — to TYPE, never auto-inserted, so clearing still goes through
+   * their own editor and the same checks.
+   */
+  solution: string;
+  /** Shown when the task clears. */
+  explain?: string;
+};
+
+/**
+ * An in-page HTML editor with a live preview: the student edits ONE page
+ * across all tasks (like a real file), sees it render beside the code, and
+ * each task clears when the page contains what it asks for. The web-week
+ * counterpart of `sql-console` — the one part of a web course a browser can
+ * genuinely run and check. Rendered by `components/HtmlSandbox.tsx`.
+ *
+ * Scripts never run in the preview (sandboxed iframe), so this is for HTML and
+ * CSS only.
+ */
+export type HtmlSandboxGame = {
+  kind: "html-sandbox";
+  /** Stable slug — keys the auto-saved result. Never change once live. */
+  id: string;
+  title: string;
+  intro: string;
+  /** What the editor holds when the game starts. */
+  starter: string;
+  /** The file the student pastes — labels the editor and the turn-in. Defaults to "index.html". */
+  fileName?: string;
+  /**
+   * Set (even to "") to add a second editor, style.css. Its rules are applied
+   * to the preview, because a srcdoc preview can't fetch a linked file — see
+   * HtmlSandbox. The student's own <link> tag is still what `checks` see.
+   */
+  stylesheet?: string;
+  tasks: HtmlSandboxTask[];
+};
+
+/**
  * A playable mini-game. Results auto-save as turn-ins under the game's id.
  * `optional` marks a challenge-tier step: badged, skippable, and never a gate —
  * fast finishers self-serve instead of asking the teacher what's next.
@@ -433,6 +521,7 @@ export type DayGame = (
   | OrderGame
   | AnswerSheetGame
   | UploadTask
+  | HtmlSandboxGame
 ) & { optional?: boolean };
 
 export type DayPlan = {
@@ -505,4 +594,12 @@ export type Week = {
   activity: Activity;
   selfCheck: SelfCheckItem[];
   status: "available" | "coming-soon";
+  /**
+   * Open this week for review while it is still the class's CURRENT week: all
+   * its days visible and no step gate, exactly like a week the class has moved
+   * past. For the gap between finishing a week and releasing the next one
+   * (teacher, 2026-09-27, Week 4). Never opens a week the class hasn't reached.
+   * Redundant — and safe to remove — once the class moves on.
+   */
+  openForReview?: boolean;
 };

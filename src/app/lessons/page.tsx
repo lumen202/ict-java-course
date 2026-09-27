@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { requireUser } from "@/lib/auth";
 import { weeks } from "@/lib/content";
-import { getCourseState, releasedDayCount } from "@/lib/release";
+import { getCourseState, visibleDayCount } from "@/lib/release";
 
 export const metadata: Metadata = { title: "Lessons" };
 
@@ -17,7 +17,7 @@ export default async function LessonsPage() {
   const groups = published
     .map((week) => {
       const released =
-        user.role === "teacher" ? week.video.days.length : releasedDayCount(week, state);
+        user.role === "teacher" ? week.video.days.length : visibleDayCount(week, state);
       return { week, days: week.video.days.slice(0, released) };
     })
     .filter((g) => g.days.length > 0)

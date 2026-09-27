@@ -19,7 +19,7 @@ export const metadata: Metadata = {
     template: "%s · Java Course Hub",
   },
   description:
-    "Weekly coursework for ICT Java: databases and SQL, JDBC, JavaFX, REST APIs with Spring Boot, and a final capstone.",
+    "Weekly coursework for ICT Java: databases and SQL, JDBC, web pages with HTML, CSS and JavaScript, REST APIs with Spring Boot, and a final project of your own.",
 };
 
 // AppShell decides the frame: sidebar for signed-in users, bare page for the
@@ -28,6 +28,9 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
     <html
       lang="en"
+      // globals.css sets smooth scrolling; this tells Next 16 to switch it off
+      // during route changes so navigation jumps straight to the new page.
+      data-scroll-behavior="smooth"
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >
       <body className="min-h-full">

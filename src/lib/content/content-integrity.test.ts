@@ -157,6 +157,75 @@ describe("content integrity", () => {
     });
   });
 
+  test("every html-sandbox task can fail, says why, and has a stuck exit", () => {
+    // firstFailure([]) is null, so a task with no checks clears on the first
+    // click — a checkpoint that checks nothing. And the failing check's
+    // message IS the feedback, and the solution IS the stuck exit (BUG-015).
+    eachDay((_w, day, label) => {
+      for (const b of blocks(day)) {
+        if (b.kind !== "html-sandbox") continue;
+        const tasks = b.tasks as { checks: { selector: string; message: string }[]; solution: string }[];
+        for (const [i, t] of tasks.entries()) {
+          const where = `${label} · ${b.id} task ${i + 1}`;
+          assert.ok(t.checks.length > 0, `${where}: no checks, so it clears without looking at the page`);
+          assert.ok(t.solution.trim().length > 0, `${where}: empty solution — the stuck exit would reveal nothing`);
+          for (const c of t.checks as {
+            selector: string;
+            message: string;
+            exact?: number;
+            text?: string;
+            attr?: unknown;
+            css?: unknown;
+            cssNot?: unknown;
+          }[]) {
+            assert.ok(c.message.trim().length > 0, `${where}: check "${c.selector}" has no message to show when it fails`);
+            // exact: 0 returns before any filter is read (htmlChecks.ts), so a
+            // filter beside it is silently ignored. Put the filter in the selector.
+            if (c.exact === 0) {
+              assert.ok(
+                c.text === undefined && c.attr === undefined && c.css === undefined && c.cssNot === undefined,
+                `${where}: check "${c.selector}" combines exact: 0 with a filter, which is never applied`,
+              );
+            }
+          }
+        }
+      }
+    });
+  });
+
+  test("from Unit 2 on, every quest mission and checkpoint task has a hint", () => {
+    // The hint renders only when authored, so a missing one silently removes
+    // the only self-serve help on that step — and the teacher asked for every
+    // step to have one (2026-09-27): the class is beginners, and a confused
+    // student otherwise waits for the teacher.
+    eachDay((week, day, label) => {
+      if (!week.slug.startsWith("unit1-")) {
+        for (const b of blocks(day)) {
+          const parts =
+            b.kind === "quest" ? (b.missions as { hint?: string }[]) :
+            b.kind === "html-sandbox" ? (b.tasks as { hint?: string }[]) : [];
+          for (const [i, p] of parts.entries()) {
+            assert.ok(p.hint?.trim(), `${label} · ${b.id} #${i + 1}: no hint`);
+          }
+        }
+      }
+    });
+  });
+
+  test("an html-sandbox's editor is labelled with the file its starter asks for", () => {
+    // The starter tells the student which file to paste; the editor header and
+    // the teacher's turn-in name it too. Before this rule every checkpoint said
+    // index.html while asking for menu.html or tables.html.
+    eachDay((_w, day, label) => {
+      for (const b of blocks(day)) {
+        if (b.kind !== "html-sandbox") continue;
+        const asked = /paste your whole (\S+\.html)/i.exec(b.starter as string)?.[1];
+        if (!asked) continue;
+        assert.equal((b.fileName as string | undefined) ?? "index.html", asked, `${label} · ${b.id}: editor label vs starter`);
+      }
+    });
+  });
+
   test("every activity a student can be graded on can be turned in", () => {
     // A plain DayActivity with no `submit` renders a card with no turn-in box,
     // so the teacher's "N of M" never counts it and the student's progress

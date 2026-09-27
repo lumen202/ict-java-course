@@ -61,6 +61,9 @@ export function Quest({
   const [wrong, setWrong] = useState<Set<number>>(new Set());
   const [firstTry, setFirstTry] = useState(0);
   const [inputs, setInputs] = useState<Record<number, string>>({});
+  // The page can't see the student's machine to know they're stuck, so every
+  // mission's hint opens by hand — or by itself after a wrong pick.
+  const [hintOpen, setHintOpen] = useState(false);
   const { submit, saved, onPaste } = useTurnIn({ weekSlug, dayNumber, item: game.id });
 
   const mission = missions[idx];
@@ -73,6 +76,7 @@ export function Quest({
     setWrong(new Set());
     setFirstTry(0);
     setInputs({});
+    setHintOpen(false);
     setOpen(true);
   }
 
@@ -93,6 +97,7 @@ export function Quest({
 
   function next(finalFirstTry: number) {
     setWrong(new Set());
+    setHintOpen(false);
     if (idx + 1 >= total) {
       setPhase("done");
       const typed = game.missions
@@ -156,6 +161,24 @@ export function Quest({
                     <p className="mt-2 text-xs text-zinc-600 dark:text-zinc-400">
                       Not that one — look again at what you just did, then try another.
                     </p>
+                  )}
+                </div>
+              )}
+
+              {phase === "mission" && mission.hint && (
+                <div className="mt-3">
+                  {hintOpen || wrong.size > 0 ? (
+                    <p className="text-sm leading-relaxed">
+                      💡 <span className="font-medium">Hint:</span> {mission.hint}
+                    </p>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => setHintOpen(true)}
+                      className="text-xs font-medium text-amber-700 underline underline-offset-2 hover:text-amber-600 dark:text-amber-400"
+                    >
+                      💡 Stuck? Show a hint
+                    </button>
                   )}
                 </div>
               )}
