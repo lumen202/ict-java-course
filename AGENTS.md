@@ -22,7 +22,7 @@ Before doing anything else in this repo, in this order:
    issues, and links to everything else so you never need to scan the whole `docs/agent/` tree at
    once. It explains what this project is, the stack, the folder layout, and the invariants that
    must not be silently broken.
-2. Before any non-trivial change, call **`mcp__brain__brain_recall`** with a plain sentence
+2. Before any non-trivial change, call **`mcp__scar__scar_recall`** with a plain sentence
    describing what you are about to do (not keywords), and say in one line what came back. The
    brain's standing kernel is injected automatically by the `SessionStart` hook in
    `.claude/settings.json` — recall is the part that is per-task and is *not* automatic. A

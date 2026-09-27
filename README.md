@@ -51,8 +51,9 @@ immediate practice, playable SQL games, per-activity turn-ins, and a short refle
 teacher releases days with one click, reads the turned-in work to see who's stuck on what,
 and manages the roster. Every day is designed to fill a ~5-hour class session.
 
-**Course arc:** `Unit 1` SQL + JDBC → `Unit 2` JavaFX → `Unit 3` REST API (Spring Boot) →
-`Unit 4` capstone — a JavaFX client consuming their own API.
+**Course arc:** `Unit 1` SQL + JDBC → `Unit 2` web pages (HTML, CSS, JavaScript) → `Unit 3` REST API
+(Spring Boot) → `Unit 4` a final project each student proposes, starting December.
+Lab machines are set up once per [`docs/lab-setup-windows.md`](docs/lab-setup-windows.md).
 
 ## 🧠 The interesting parts
 
