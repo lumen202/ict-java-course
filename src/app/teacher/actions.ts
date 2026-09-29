@@ -221,6 +221,97 @@ export async function updateStudentName(formData: FormData) {
   revalidatePath("/", "layout");
 }
 
+export type SetPasswordState = { error?: string; notice?: string };
+
+// Give a student a password the teacher hands over in person. Two cases, one
+// button: an existing account gets its password replaced; an address with no
+// account yet gets one created with that password — the same admin createUser
+// that register() uses, so handle_new_user() still refuses anyone not on the
+// class list and stamps onboarded_at because the account is born with a password.
+//
+// Auth-admin is service-role only and bypasses RLS, so the checks are made by
+// hand, as in deleteAccountFor(): the caller's own cohort only, and never a
+// teacher account. Unlike the void actions above, every failure is returned to
+// the form — a teacher who walks away believing a password was set, when it
+// wasn't, sends the student a password that doesn't work (BUG-011's shape).
+//
+// The password itself is never logged or returned; the form already has it.
+export async function setStudentPassword(
+  _prev: SetPasswordState,
+  formData: FormData,
+): Promise<SetPasswordState> {
+  const teacher = await requireTeacher("/teacher/students");
+
+  const email = String(formData.get("email") ?? "").trim().toLowerCase();
+  const password = String(formData.get("password") ?? "");
+  if (!email) return { error: "No student selected." };
+  if (password.length < 8) return { error: "Use at least 8 characters." };
+  if (password.length > 72) return { error: "Use at most 72 characters." };
+  if (cohortFromEmail(email) !== teacher.demoCohort) return { error: "That student isn't in your class." };
+
+  const admin = createAdminClient();
+  if (!admin) {
+    return { error: "Setting passwords needs SUPABASE_SERVICE_ROLE_KEY on the server." };
+  }
+
+  const { data: authUsers, error: listError } = await admin.auth.admin.listUsers({ perPage: 1000 });
+  if (listError) {
+    console.error("set password: list users failed:", listError.message);
+    return { error: "Couldn't look up the account. Try again." };
+  }
+  const account = authUsers.users.find((u) => u.email?.toLowerCase() === email);
+
+  if (!account) {
+    const { error } = await admin.auth.admin.createUser({ email, password, email_confirm: true });
+    if (error) {
+      console.error("set password: create user failed:", error.message);
+      return {
+        error: error.message.toLowerCase().includes("class list")
+          ? "That email isn't on the class list."
+          : "Couldn't create the account. Try again.",
+      };
+    }
+    revalidatePath("/teacher/students");
+    revalidatePath("/", "layout");
+    return { notice: "Account created." };
+  }
+
+  if (account.id === teacher.id) return { error: "Change your own password from your account." };
+  const { data: profile } = await admin
+    .from("profiles")
+    .select("role, demo_cohort, onboarded_at")
+    .eq("id", account.id)
+    .maybeSingle();
+  if (profile?.role === "teacher") return { error: "Teacher passwords can't be set here." };
+  if ((profile?.demo_cohort ?? null) !== teacher.demoCohort) {
+    return { error: "That student isn't in your class." };
+  }
+
+  // email_confirm: an emailed invite that was never opened leaves the address
+  // unconfirmed, which would refuse this password at sign-in.
+  const { error } = await admin.auth.admin.updateUserById(account.id, {
+    password,
+    email_confirm: true,
+  });
+  if (error) {
+    console.error("set password: update failed:", error.message);
+    return { error: "Couldn't set the password. Try again." };
+  }
+
+  // The same invited-but-never-accepted account now has a password, which is
+  // what onboarded_at means — without this the dashboard would count them as a
+  // pending invite forever (BUG-007's shape, reached by a new path).
+  if (profile && !profile.onboarded_at) {
+    await admin
+      .from("profiles")
+      .update({ onboarded_at: new Date().toISOString() })
+      .eq("id", account.id);
+    revalidatePath("/", "layout");
+  }
+
+  return { notice: "Password set." };
+}
+
 // Hand work back. The lesson page gates each day on the turn-ins that exist,
 // so deleting them re-locks that part of the day and the student walks it
 // again — including on their own browser, which discards its stored progress

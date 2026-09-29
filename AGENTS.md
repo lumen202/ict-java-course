@@ -86,8 +86,8 @@ Breaking any of these is never "just a style choice":
   (self-registration at `/register` or emailed invite; the `handle_new_user()` trigger is the
   gate), and `teacher` is granted only by hand in SQL.
 - **The service-role key never leaves `lib/supabase/admin.ts`** and is never used to read course
-  data. Its five callers: invite sending, `updateStudentName` and `removeStudent`'s account
-  deletion (all behind `requireTeacher()`), `register()`'s create-user path (trigger-gated), and
+  data. Its callers: invite sending, `updateStudentName`, `removeStudent`'s account
+  deletion and `setStudentPassword` (all behind `requireTeacher()`), `register()`'s create-user path (trigger-gated), and
   demo-account lifecycle. Everything else runs as the logged-in user. Admin writes bypass RLS, so
   they bypass demo cohort scoping too — each must check the cohort itself.
 - **Demo mode's isolation lives in the policies**, not in the app: every teacher-side policy is

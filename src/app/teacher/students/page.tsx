@@ -5,6 +5,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { AddStudentForm } from "../AddStudentForm";
 import { EditableName } from "../EditableName";
 import { RemoveStudentButton } from "../RemoveStudentButton";
+import { SetPasswordButton } from "../SetPasswordButton";
 
 export const metadata: Metadata = { title: "Students" };
 
@@ -72,6 +73,10 @@ export default async function StudentsPage() {
         Boolean(row.registered_at) || accountEmails.has(row.email.toLowerCase());
 
   const registered = classList.filter(hasAccount).length;
+  // Teachers change their own password elsewhere; the action refuses them anyway.
+  const teacherEmails = new Set(
+    people.filter((p) => p.role === "teacher").map((p) => (p.email ?? "").toLowerCase()),
+  );
 
   return (
     <main className="mx-auto w-full max-w-7xl px-6 py-10 lg:px-10">
@@ -86,7 +91,9 @@ export default async function StudentsPage() {
         <p className="mb-4 text-sm text-zinc-600 dark:text-zinc-400 leading-relaxed">
           Only emails on this list can create an account. Add the address, then
           tell the student to go to <span className="font-mono">/register</span> and
-          set their own password — no email is sent.
+          set their own password — no email is sent. Or use{" "}
+          <span className="font-medium">Set password</span> on their row and send them
+          the password yourself.
         </p>
         <AddStudentForm />
       </section>
@@ -139,7 +146,10 @@ export default async function StudentsPage() {
                       {new Date(s.added_at).toLocaleDateString()}
                     </td>
                     <td className="px-4 py-3 text-right">
-                      <RemoveStudentButton email={s.email} hasAccount={hasAccount(s)} />
+                      <div className="flex items-start justify-end gap-1">
+                        {admin && !teacherEmails.has(s.email.toLowerCase()) && <SetPasswordButton email={s.email} hasAccount={hasAccount(s)} />}
+                        <RemoveStudentButton email={s.email} hasAccount={hasAccount(s)} />
+                      </div>
                     </td>
                   </tr>
                 ))}
