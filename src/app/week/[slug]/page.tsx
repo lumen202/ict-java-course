@@ -20,6 +20,7 @@ import { OrderGame } from "@/components/OrderGame";
 import { AnswerSheet } from "@/components/AnswerSheet";
 import { UploadTurnIn } from "@/components/UploadTurnIn";
 import { HtmlSandbox } from "@/components/HtmlSandbox";
+import { JsonCheck } from "@/components/JsonCheck";
 import { SelfCheck } from "@/components/SelfCheck";
 import { ReflectionForm } from "@/components/ReflectionForm";
 import { SubmissionForm } from "@/components/SubmissionForm";
@@ -154,6 +155,8 @@ export default async function WeekPage({ params, searchParams }: PageProps<"/wee
       <AnswerSheet weekSlug={week.slug} dayNumber={dayNumber} game={g} />
     ) : g.kind === "html-sandbox" ? (
       <HtmlSandbox weekSlug={week.slug} dayNumber={dayNumber} game={g} />
+    ) : g.kind === "json-check" ? (
+      <JsonCheck weekSlug={week.slug} dayNumber={dayNumber} game={g} />
     ) : g.kind === "upload" ? (
       <UploadTurnIn
         weekSlug={week.slug}

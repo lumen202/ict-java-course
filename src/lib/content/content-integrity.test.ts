@@ -1,7 +1,8 @@
 import { test, describe } from "node:test";
 import assert from "node:assert/strict";
 import { weeks } from "./index";
-import type { DayPlan, Week } from "./types";
+import type { DayPlan, JsonCheck, JsonCheckTask, Week } from "./types";
+import { firstJsonFailure, parsePasted } from "@/lib/game/jsonChecks";
 
 /**
  * Structural checks over the whole authored corpus — the defects that are
@@ -164,26 +165,38 @@ describe("content integrity", () => {
     eachDay((_w, day, label) => {
       for (const b of blocks(day)) {
         if (b.kind !== "html-sandbox") continue;
-        const tasks = b.tasks as { checks: { selector: string; message: string }[]; solution: string }[];
+        const scripted = b.script !== undefined;
+        const tasks = b.tasks as { checks: { selector?: string; message: string }[]; solution: string; actions?: unknown[] }[];
         for (const [i, t] of tasks.entries()) {
           const where = `${label} · ${b.id} task ${i + 1}`;
           assert.ok(t.checks.length > 0, `${where}: no checks, so it clears without looking at the page`);
           assert.ok(t.solution.trim().length > 0, `${where}: empty solution — the stuck exit would reveal nothing`);
+          // Only a script page runs, so only it can be acted on or print.
+          assert.ok(scripted || !t.actions, `${where}: actions on a game with no script editor are never performed`);
           for (const c of t.checks as {
-            selector: string;
+            selector?: string;
+            log?: string;
             message: string;
             exact?: number;
             text?: string;
+            textNot?: string;
             attr?: unknown;
             css?: unknown;
             cssNot?: unknown;
           }[]) {
-            assert.ok(c.message.trim().length > 0, `${where}: check "${c.selector}" has no message to show when it fails`);
+            assert.ok(
+              (c.selector === undefined) !== (c.log === undefined),
+              `${where}: a check needs exactly one of selector or log (${c.message})`,
+            );
+            assert.ok(scripted || c.log === undefined, `${where}: a log check on a game with no script editor can never pass`);
+            const s = c as { source?: boolean; css?: unknown; cssNot?: unknown };
+            assert.ok(!s.source || (scripted && s.css === undefined && s.cssNot === undefined), `${where}: a source check needs a script game and can't read computed styles`);
+            assert.ok(c.message.trim().length > 0, `${where}: check "${c.selector ?? c.log}" has no message to show when it fails`);
             // exact: 0 returns before any filter is read (htmlChecks.ts), so a
             // filter beside it is silently ignored. Put the filter in the selector.
             if (c.exact === 0) {
               assert.ok(
-                c.text === undefined && c.attr === undefined && c.css === undefined && c.cssNot === undefined,
+                c.text === undefined && c.textNot === undefined && c.attr === undefined && c.css === undefined && c.cssNot === undefined,
                 `${where}: check "${c.selector}" combines exact: 0 with a filter, which is never applied`,
               );
             }
@@ -203,9 +216,35 @@ describe("content integrity", () => {
         for (const b of blocks(day)) {
           const parts =
             b.kind === "quest" ? (b.missions as { hint?: string }[]) :
-            b.kind === "html-sandbox" ? (b.tasks as { hint?: string }[]) : [];
+            b.kind === "html-sandbox" || b.kind === "json-check" ? (b.tasks as { hint?: string }[]) : [];
           for (const [i, p] of parts.entries()) {
             assert.ok(p.hint?.trim(), `${label} · ${b.id} #${i + 1}: no hint`);
+          }
+        }
+      }
+    });
+  });
+
+  test("every json-check task can be cleared by a correct app, and fails an empty answer", () => {
+    // `example` is a real answer captured from a correct Spring Boot build. If
+    // its own checks reject it, no student can clear the task; if "[]" and
+    // "{}" pass, the task checks nothing.
+    eachDay((_w, day, label) => {
+      for (const b of blocks(day)) {
+        if (b.kind !== "json-check") continue;
+        for (const [i, t] of (b.tasks as JsonCheckTask[]).entries()) {
+          const where = `${label} · ${b.id} task ${i + 1}`;
+          assert.ok(t.checks.length > 0, `${where}: no checks`);
+          assert.ok(t.solution.trim().length > 0, `${where}: empty solution — the stuck exit would reveal nothing`);
+          for (const ch of t.checks as JsonCheck[]) {
+            assert.ok(ch.message.trim().length > 0, `${where}: a check has no message`);
+          }
+          const parsed = parsePasted(t.example);
+          assert.ok(parsed.ok, `${where}: example is not JSON`);
+          const failed = parsed.ok ? firstJsonFailure(parsed.value, t.checks) : null;
+          assert.equal(failed, null, `${where}: the correct example fails "${failed?.message}"`);
+          for (const empty of [[], {}]) {
+            assert.notEqual(firstJsonFailure(empty, t.checks), null, `${where}: ${JSON.stringify(empty)} passes every check`);
           }
         }
       }
@@ -222,6 +261,20 @@ describe("content integrity", () => {
         const asked = /paste your whole (\S+\.html)/i.exec(b.starter as string)?.[1];
         if (!asked) continue;
         assert.equal((b.fileName as string | undefined) ?? "index.html", asked, `${label} · ${b.id}: editor label vs starter`);
+      }
+    });
+  });
+
+  test("a script checkpoint's editor is labelled with the file its starter asks for", () => {
+    // Same rule for the JavaScript editor — and it matters more here, because
+    // the label is also the file name the page's <script src> must name for
+    // the code to load at all (sandboxPage.ts).
+    eachDay((_w, day, label) => {
+      for (const b of blocks(day)) {
+        if (b.kind !== "html-sandbox" || b.script === undefined) continue;
+        const asked = /paste your whole (\S+\.js)\b/i.exec(b.script as string)?.[1];
+        if (!asked) continue;
+        assert.equal((b.scriptFile as string | undefined) ?? "script.js", asked, `${label} · ${b.id}: script label vs starter`);
       }
     });
   });

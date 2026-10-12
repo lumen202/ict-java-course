@@ -434,14 +434,36 @@ export type UploadTask = {
  * console judges effect, and any correct spelling passes.
  */
 export type HtmlCheck = {
-  /** CSS selector, e.g. "h1", "table tr", "a[href]", "form input[type=number]". */
-  selector: string;
+  /**
+   * CSS selector, e.g. "h1", "table tr", "a[href]", "form input[type=number]".
+   * Every check has a `selector` or a `log`, never both.
+   */
+  selector?: string;
+  /**
+   * Instead of a selector: some line the page's script printed with
+   * console.log (or warn/error) must contain this text (case-insensitive).
+   * Only meaningful in a game with a `script` editor.
+   */
+  log?: string;
+  /**
+   * Run this check against the student's HTML AS THEY WROTE IT (parsed with no
+   * script run), not the page after their script changed it — to tell "the
+   * script wrote this" from "it was typed into the HTML". Script games only;
+   * structure and text only (`css`/`cssNot` mean nothing on an unrendered page).
+   */
+  source?: boolean;
   /** At least this many matches. Defaults to 1. */
   min?: number;
   /** Exactly this many matches — use when "too many" is the mistake. `exact: 0` means "none may exist". */
   exact?: number;
   /** Some match's visible text must contain this (case-insensitive). */
   text?: string;
+  /**
+   * Some match's visible text must NOT contain this (case-insensitive) — for a
+   * mistake that leaves tell-tale text behind, like a literal "${" when a
+   * template literal was written in quotes instead of backticks.
+   */
+  textNot?: string;
   /** Some match must carry this attribute — with this value, if `value` is set. */
   attr?: { name: string; value?: string };
   /**
@@ -460,9 +482,37 @@ export type HtmlCheck = {
   message: string;
 };
 
+/**
+ * Something the checker does to the page before it checks — the way a user
+ * would: type into a box, pick from a drop-down, click a button. Lets a
+ * checkpoint judge what the page's SCRIPT does in response, not just what the
+ * HTML says. Only meaningful in a game with a `script` editor; the steps are
+ * listed to the student under the goal, so nothing the checker does is a
+ * surprise.
+ */
+export type SandboxAction =
+  | { action: "click"; target: string }
+  /** Sets the box's value, then fires `input` and `change`, like typing. */
+  | { action: "type"; target: string; value: string }
+  /** Picks the <option> with this value in a <select>, then fires `input` and `change`. */
+  | { action: "choose"; target: string; value: string }
+  /**
+   * Presses the form's submit button, whichever kind it is — <button>,
+   * <button type="submit"> or <input type="submit">, all of which Week 5
+   * accepted. `target` is the FORM. Clicking it the way a person would also
+   * runs a click listener on the button, before the browser's validation.
+   */
+  | { action: "submit"; target: string };
+
 export type HtmlSandboxTask = {
   /** What to add or change, in words. */
   goal: string;
+  /**
+   * Done to a freshly loaded page, in order, before `checks` run (script games
+   * only). A target the page doesn't have fails the task with a message that
+   * names it.
+   */
+  actions?: SandboxAction[];
   /** All must pass. Order them so the first failure is the most useful thing to hear. */
   checks: HtmlCheck[];
   /** Shown after two checks that didn't pass. */
@@ -484,8 +534,10 @@ export type HtmlSandboxTask = {
  * counterpart of `sql-console` — the one part of a web course a browser can
  * genuinely run and check. Rendered by `components/HtmlSandbox.tsx`.
  *
- * Scripts never run in the preview (sandboxed iframe), so this is for HTML and
- * CSS only.
+ * Without `script`, nothing the student writes ever executes (the preview is a
+ * script-less sandbox), so it judges HTML and CSS only. With `script`, a third
+ * editor holds the page's JavaScript file and the page runs in an
+ * isolated sandbox — see `lib/game/sandboxPage.ts`.
  */
 export type HtmlSandboxGame = {
   kind: "html-sandbox";
@@ -503,7 +555,113 @@ export type HtmlSandboxGame = {
    * HtmlSandbox. The student's own <link> tag is still what `checks` see.
    */
   stylesheet?: string;
+  /**
+   * Set (even to "") to add a JavaScript editor and let the page run. The
+   * script is loaded where the student's own <script src="…"> tag for
+   * `scriptFile` sits, with that tag's attributes (defer and all) — so a page
+   * with no such tag runs none of it, exactly as on their machine. The preview
+   * then re-renders on ▶ Run instead of on every keystroke, and shows the
+   * console under it.
+   */
+  script?: string;
+  /** The JavaScript file the student pastes. Defaults to "script.js". */
+  scriptFile?: string;
+  /**
+   * Files the page's script can `fetch()` by relative name — e.g.
+   * { "rows.json": "…" } — standing in for the files beside the page in
+   * static/. Each gets its own editor, starting from this text, so the
+   * student pastes their own file. Anything else fetches as a 404 with the
+   * JSON body Spring Boot sends a fetch (Accept: *\/*), as it would from
+   * their app at 8080 — so `response.json()` succeeds and the code fails one
+   * step later, exactly as it does there.
+   */
+  files?: Record<string, string>;
+  /**
+   * Answer the page's fetch("/api/…") calls like the student's own Week 7 app:
+   * status codes and error bodies as observed from a real Spring Boot build
+   * (lib/game/canteenApi.ts). Only meaningful with `script`.
+   */
+  api?: "canteen";
   tasks: HtmlSandboxTask[];
+};
+
+/**
+ * One thing the JSON a student pasted must satisfy. Each check names at most
+ * one condition; the first failing check's `message` is the feedback.
+ *
+ * `path` picks a value out of the JSON before the check runs: "" (or omitted)
+ * is the whole thing, "0" the first item of an array, "message" a key,
+ * "0.price" a key of the first item. A path that leads nowhere fails the check.
+ */
+export type JsonCheck = {
+  path?: string;
+  /** The value is an array / an object / a number / a string. */
+  is?: "array" | "object" | "number" | "string";
+  /** For an array: at least / exactly this many items. */
+  min?: number;
+  exact?: number;
+  /** The value equals this (numbers and strings compared strictly: 12 is not "12"). */
+  equals?: number | string | boolean;
+  /** The value is text containing this (case-insensitive). */
+  contains?: string;
+  /** Every item of the array (or the object itself) has all these keys. */
+  keys?: string[];
+  /** Every item of the array (or the object itself) has these keys holding these types. */
+  types?: Record<string, "number" | "string" | "boolean">;
+  /** Some item of the array has all these key/values. */
+  some?: Record<string, number | string | boolean>;
+  /** Every item of the array has a number at `key` that is at most `max`. */
+  everyAtMost?: { key: string; max: number };
+  message: string;
+};
+
+export type JsonCheckTask = {
+  /** What to do, in words — usually which address to open. */
+  goal: string;
+  /** The address the student opens, shown monospace, e.g. "localhost:8080/api/snacks". */
+  url?: string;
+  /**
+   * A line to run in the browser's console instead of opening an address —
+   * for answers a browser tab can't show as JSON (errors, POSTs). Shown as its
+   * own block under the goal. End it with `copy(t)` so the console puts the
+   * answer on the clipboard: copying from the console by hand easily takes
+   * the typed line and "Promise {<pending>}" along.
+   */
+  command?: string;
+  checks: JsonCheck[];
+  /** Shown after two misses. */
+  hint?: string;
+  /**
+   * The stuck exit (BUG-015): after four misses the student may reveal this —
+   * the JAVA to fix, never JSON to paste, because pasting the right JSON
+   * proves nothing about their app.
+   */
+  solution: string;
+  /**
+   * What a correct app really returns for this task, captured from a real
+   * Spring Boot build. Never shown to students: an integrity test runs every
+   * task's checks against it, so a task nobody could clear fails `npm test`.
+   */
+  example: string;
+  /** Shown when the task clears. */
+  explain?: string;
+};
+
+/**
+ * The API weeks' checkpoint: the student opens an address of their own running
+ * app (or runs a fetch in the console), copies the JSON it answered with, and
+ * pastes it here; each task clears when that JSON has the right shape and
+ * values — "your snacks have no price". The JSON counterpart of
+ * `html-sandbox`; their Java can't run in this site, but what it answers can be
+ * judged. Judge in `lib/game/jsonChecks.ts`, rendered by `components/JsonCheck.tsx`.
+ */
+export type JsonCheckGame = {
+  kind: "json-check";
+  /** Stable slug — keys the auto-saved result. Never change once live. */
+  id: string;
+  title: string;
+  intro: string;
+  tasks: JsonCheckTask[];
 };
 
 /**
@@ -522,6 +680,7 @@ export type DayGame = (
   | AnswerSheetGame
   | UploadTask
   | HtmlSandboxGame
+  | JsonCheckGame
 ) & { optional?: boolean };
 
 export type DayPlan = {

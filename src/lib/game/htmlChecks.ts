@@ -9,15 +9,32 @@ import type { HtmlCheck } from "@/lib/content/types";
 // same tree the student is looking at, and `css` checks read the styles the
 // browser actually computed (a rule that lost the cascade doesn't count).
 
-/** The first check the page fails, or null when it passes them all. */
-export function firstFailure(doc: Document, checks: HtmlCheck[]): HtmlCheck | null {
+/**
+ * The first check the page fails, or null when it passes them all. `logs` is
+ * what the page's script printed to the console, and `source` the student's
+ * HTML as written, before any script ran (both script games only).
+ */
+export function firstFailure(
+  doc: Document,
+  checks: HtmlCheck[],
+  logs: string[] = [],
+  source: Document = doc,
+): HtmlCheck | null {
   for (const check of checks) {
-    if (!passes(doc, check)) return check;
+    if (!passes(check.source ? source : doc, check, logs)) return check;
   }
   return null;
 }
 
-function passes(doc: Document, check: HtmlCheck): boolean {
+function passes(doc: Document, check: HtmlCheck, logs: string[]): boolean {
+  if (check.log !== undefined) {
+    const want = squash(check.log);
+    return logs.some((line) => squash(line).includes(want));
+  }
+  if (check.selector === undefined) {
+    console.error("html-sandbox: a check with neither selector nor log");
+    return false;
+  }
   let matches: Element[];
   try {
     matches = Array.from(doc.querySelectorAll(check.selector));
@@ -40,6 +57,10 @@ function passes(doc: Document, check: HtmlCheck): boolean {
   if (check.text !== undefined) {
     const want = squash(check.text);
     candidates = candidates.filter((el) => squash(el.textContent ?? "").includes(want));
+  }
+  if (check.textNot !== undefined) {
+    const unwanted = squash(check.textNot);
+    candidates = candidates.filter((el) => !squash(el.textContent ?? "").includes(unwanted));
   }
   if (check.attr) {
     const { name, value } = check.attr;

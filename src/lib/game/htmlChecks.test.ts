@@ -127,4 +127,35 @@ describe("firstFailure", () => {
       console.error = original;
     }
   });
+
+  test("textNot passes only on a match whose text lacks the phrase", () => {
+    const interpolated = check({ selector: "#special", textNot: "${" });
+    assert.equal(firstFailure(doc({ "#special": [el("Today's special: ${special}")] }), [interpolated]), interpolated);
+    assert.equal(firstFailure(doc({ "#special": [el("Today's special: Turon — ₱12")] }), [interpolated]), null);
+  });
+
+  test("a log check reads what the script printed, ignoring case and spacing", () => {
+    const logged = { log: "Total: 36", message: "nothing logged" } as HtmlCheck;
+    assert.equal(firstFailure(doc({}), [logged]), logged, "no logs at all");
+    assert.equal(firstFailure(doc({}), [logged], ["total: 35"]), logged);
+    assert.equal(firstFailure(doc({}), [logged], ["hello", "TOTAL:   36 pesos"]), null);
+  });
+
+  test("a source check reads the HTML as written, not the page after the script", () => {
+    const written = check({ selector: "#special:empty", source: true });
+    const afterScript = doc({ "#special:empty": [] });
+    assert.equal(firstFailure(afterScript, [written], [], doc({ "#special:empty": [el()] })), null);
+    assert.equal(firstFailure(afterScript, [written], [], doc({})), written);
+  });
+
+  test("a check with neither selector nor log fails rather than clearing", () => {
+    const empty = { message: "authoring bug" } as HtmlCheck;
+    const original = console.error;
+    console.error = () => {};
+    try {
+      assert.equal(firstFailure(doc({ h1: [el()] }), [empty]), empty);
+    } finally {
+      console.error = original;
+    }
+  });
 });
