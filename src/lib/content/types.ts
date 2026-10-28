@@ -446,6 +446,13 @@ export type HtmlCheck = {
    */
   log?: string;
   /**
+   * Instead of a selector or a log: the student's script AS TYPED must not
+   * contain this text (case-sensitive, comments included) — for leftover code
+   * whose output the checker can't tell apart from the new code's, like a
+   * typed price list that happens to hold the API's prices. Script games only.
+   */
+  scriptNot?: string;
+  /**
    * Run this check against the student's HTML AS THEY WROTE IT (parsed with no
    * script run), not the page after their script changed it — to tell "the
    * script wrote this" from "it was typed into the HTML". Script games only;
@@ -504,6 +511,9 @@ export type SandboxAction =
    */
   | { action: "submit"; target: string };
 
+/** One order in the canteen API fake, shaped like the real app's `Order` record. */
+export type CanteenSeedOrder = { order_id: number; snack_id: number; name: string; qty: number; total: number };
+
 export type HtmlSandboxTask = {
   /** What to add or change, in words. */
   goal: string;
@@ -513,6 +523,23 @@ export type HtmlSandboxTask = {
    * names it.
    */
   actions?: SandboxAction[];
+  /**
+   * Orders the canteen API fake already holds when this task's page loads, as
+   * if customers had ordered before — for pages that LIST orders (Week 7 Day 5's
+   * orders board), which have nothing to show on a fresh fake. Needs the game's
+   * `api: "canteen"`; each `total` must equal the fake's price × qty (an
+   * integrity rule checks it), and new orders are numbered after these. The
+   * seed applies on every load for this task — the checker's run AND ▶ Run — so
+   * say it in the goal ("the checker starts with 3 orders already placed").
+   */
+  apiOrders?: CanteenSeedOrder[];
+  /**
+   * Pretend the student's app is switched off: every fetch("/api/…") rejects
+   * with "Failed to fetch", as one does in a real browser when nothing listens
+   * on the port. Lets a task prove a page's `.catch` shows something, which a
+   * fake that always answers never could. Needs `api: "canteen"`. Say it in the goal.
+   */
+  apiDown?: boolean;
   /** All must pass. Order them so the first failure is the most useful thing to hear. */
   checks: HtmlCheck[];
   /** Shown after two checks that didn't pass. */
@@ -643,6 +670,16 @@ export type JsonCheckTask = {
    * task's checks against it, so a task nobody could clear fails `npm test`.
    */
   example: string;
+  /**
+   * What the PREVIOUS stage's real app answered to this same task's address or
+   * console line — captured from a real build, like `example`, never shown to
+   * students. An integrity test asserts the checks REJECT it, so a checkpoint
+   * can't be cleared by last stage's code (Week 8's reviews found checkpoints
+   * that the stage before already passed, which proved nothing). Leave it off
+   * only for a task that is meant to keep passing (a "still works" regression)
+   * and say so where the week's test lists such tasks.
+   */
+  previousStage?: string;
   /** Shown when the task clears. */
   explain?: string;
 };

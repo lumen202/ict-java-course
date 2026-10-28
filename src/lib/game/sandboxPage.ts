@@ -1,4 +1,4 @@
-import type { SandboxAction } from "@/lib/content/types";
+import type { CanteenSeedOrder, SandboxAction } from "@/lib/content/types";
 import { CANTEEN_API_JS } from "@/lib/game/canteenApi";
 
 // Builds the document a SCRIPT checkpoint runs (html-sandbox with `script`).
@@ -64,6 +64,10 @@ export type SandboxPageOptions = {
   files?: Record<string, string>;
   /** Serve /api/… from the Week 7 canteen API fake (lib/game/canteenApi.ts). */
   api?: "canteen";
+  /** Orders the fake already holds at load (a task's `apiOrders`). Only with `api`. */
+  apiOrders?: CanteenSeedOrder[];
+  /** Every /api/… fetch rejects, as when the app is off (a task's `apiDown`). Only with `api`. */
+  apiDown?: boolean;
   /** Echoed on every message, so a stale frame's messages can be ignored. */
   nonce: string;
   /** Set to judge: perform these, then post a snapshot. Omit for a plain run. */
@@ -79,6 +83,8 @@ export function buildSandboxPage(o: SandboxPageOptions): string {
     htmlFile: o.htmlFile,
     files: o.files ?? {},
     api: o.api ?? null,
+    apiOrders: o.api ? o.apiOrders ?? [] : [],
+    apiDown: !!o.api && !!o.apiDown,
     judge: o.actions !== undefined,
     actions: o.actions ?? [],
   };
@@ -171,7 +177,7 @@ const HARNESS = `
     fail("The form was sent, so a real browser would now load a new page and wipe out everything your script just did. A button that should NOT send the form needs type=\\"button\\". A submit listener needs event.preventDefault() as its first line.");
   });
   __API__
-  var apiState = { orders: [] };
+  var apiState = { orders: cfg.apiOrders.slice() };
   function headerOf(headers, wanted) {
     if (!headers) return "";
     if (typeof headers.get === "function") return headers.get(wanted) || "";
@@ -182,6 +188,12 @@ const HARNESS = `
     init = init || {};
     var name = String(input && input.url ? input.url : input).replace(/^\\.\\//, "");
     if (cfg.api && /^\\/?api\\//.test(name)) {
+      if (cfg.apiDown) {
+        console.info("→ " + (init.method || "GET").toUpperCase() + " " + (name.charAt(0) === "/" ? name : "/" + name) + " · no answer");
+        return new Promise(function (resolve, reject) {
+          setTimeout(function () { reject(new TypeError("Failed to fetch")); }, 20);
+        });
+      }
       var body = init.body;
       var type = headerOf(init.headers, "Content-Type") || (body != null ? "text/plain;charset=UTF-8" : "");
       var res = canteenApi({ method: init.method, path: name.charAt(0) === "/" ? name : "/" + name, contentType: type, body: body == null ? null : String(body) }, apiState);

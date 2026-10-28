@@ -107,3 +107,86 @@ describe("buildSandboxPage", () => {
     assert.ok(buildSandboxPage(base).includes('"judge":false'));
   });
 });
+
+// Runs the harness itself (stubbing only the browser objects it touches) and
+// calls the fetch it installs — so what is pinned is what a page would see.
+// (The real thing in a real iframe was checked in Chrome; see the day-5 log.)
+function harnessFetch(options: Parameters<typeof buildSandboxPage>[0]) {
+  const src = harnessSource(buildSandboxPage(options));
+  const printed: string[] = [];
+  const console_ = {
+    log: (...a: unknown[]) => printed.push(a.join(" ")),
+    info: (...a: unknown[]) => printed.push(a.join(" ")),
+    warn: (...a: unknown[]) => printed.push(a.join(" ")),
+    error: (...a: unknown[]) => printed.push(a.join(" ")),
+  };
+  class FakeResponse {
+    status: number;
+    constructor(private text: string, init: { status: number }) {
+      this.status = init.status;
+    }
+    json() {
+      return Promise.resolve(JSON.parse(this.text));
+    }
+  }
+  const win: { fetch?: (u: string, i?: object) => Promise<FakeResponse>; parent: object; addEventListener: () => void } = {
+    parent: { postMessage() {} },
+    addEventListener() {},
+  };
+  const doc = { currentScript: null, addEventListener() {} };
+  new Function("window", "document", "console", "Response", `${src}`)(win, doc, console_, FakeResponse);
+  return { fetch: win.fetch!, printed };
+}
+
+describe("the canteen API inside the harness", () => {
+  const seed = [
+    { order_id: 1, snack_id: 3, name: "Kwek-kwek", qty: 2, total: 40 },
+    { order_id: 2, snack_id: 2, name: "Turon", qty: 1, total: 12 },
+  ];
+
+  test("a fresh page starts with no orders", async () => {
+    const { fetch } = harnessFetch({ ...base, api: "canteen" });
+    const res = await fetch("/api/orders");
+    assert.deepEqual(await res.json(), []);
+  });
+
+  test("a task's apiOrders are what the page finds, and new orders are numbered after them", async () => {
+    const { fetch, printed } = harnessFetch({ ...base, api: "canteen", apiOrders: seed });
+    assert.equal((await (await fetch("/api/orders")).json()).length, 2);
+    assert.deepEqual(await (await fetch("/api/summary")).json(), { total_orders: 2, total_sales: 52 });
+    assert.equal((await fetch("/api/orders/2")).status, 200);
+    const placed = await fetch("/api/orders", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ snack_id: 5, qty: 2 }),
+    });
+    assert.equal(placed.status, 201);
+    assert.equal((await placed.json()).order_id, 3);
+    assert.ok(printed.includes("→ GET /api/summary · 200"), printed.join("|"));
+  });
+
+  test("each page load gets its own copy of the seed (a POST never leaks into the config)", async () => {
+    const a = harnessFetch({ ...base, api: "canteen", apiOrders: seed });
+    await a.fetch("/api/orders", { method: "POST", headers: { "Content-Type": "application/json" }, body: '{"snack_id":1,"qty":1}' });
+    const b = harnessFetch({ ...base, api: "canteen", apiOrders: seed });
+    assert.equal((await (await b.fetch("/api/orders")).json()).length, 2);
+    assert.equal(seed.length, 2);
+  });
+
+  test("a seed without the canteen API is ignored", () => {
+    const page = buildSandboxPage({ ...base, apiOrders: seed });
+    assert.ok(page.includes('"apiOrders":[]'));
+  });
+
+  test("apiDown: the fetch rejects like an app that is off, and says so in the console", async () => {
+    const { fetch, printed } = harnessFetch({ ...base, api: "canteen", apiDown: true });
+    await assert.rejects(fetch("/api/orders"), { name: "TypeError", message: "Failed to fetch" });
+    assert.ok(printed.includes("→ GET /api/orders · no answer"), printed.join("|"));
+  });
+
+  test("apiDown leaves files beside the page alone", async () => {
+    const { fetch } = harnessFetch({ ...base, api: "canteen", apiDown: true, files: { "rows.json": "[]" } });
+    assert.equal((await fetch("rows.json")).status, 200);
+  });
+});
+

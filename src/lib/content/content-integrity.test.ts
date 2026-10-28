@@ -1,7 +1,8 @@
 import { test, describe } from "node:test";
 import assert from "node:assert/strict";
 import { weeks } from "./index";
-import type { DayPlan, JsonCheck, JsonCheckTask, Week } from "./types";
+import type { CanteenSeedOrder, DayPlan, JsonCheck, JsonCheckTask, Week } from "./types";
+import { CANTEEN_API_JS } from "@/lib/game/canteenApi";
 import { firstJsonFailure, parsePasted } from "@/lib/game/jsonChecks";
 
 /**
@@ -184,14 +185,16 @@ describe("content integrity", () => {
             css?: unknown;
             cssNot?: unknown;
           }[]) {
+            const scriptNot = (c as { scriptNot?: string }).scriptNot;
             assert.ok(
-              (c.selector === undefined) !== (c.log === undefined),
-              `${where}: a check needs exactly one of selector or log (${c.message})`,
+              [c.selector, c.log, scriptNot].filter((v) => v !== undefined).length === 1,
+              `${where}: a check needs exactly one of selector, log or scriptNot (${c.message})`,
             );
+            assert.ok(scripted || scriptNot === undefined, `${where}: a scriptNot check on a game with no script editor can never fail`);
             assert.ok(scripted || c.log === undefined, `${where}: a log check on a game with no script editor can never pass`);
             const s = c as { source?: boolean; css?: unknown; cssNot?: unknown };
             assert.ok(!s.source || (scripted && s.css === undefined && s.cssNot === undefined), `${where}: a source check needs a script game and can't read computed styles`);
-            assert.ok(c.message.trim().length > 0, `${where}: check "${c.selector ?? c.log}" has no message to show when it fails`);
+            assert.ok(c.message.trim().length > 0, `${where}: check "${c.selector ?? c.log ?? scriptNot}" has no message to show when it fails`);
             // exact: 0 returns before any filter is read (htmlChecks.ts), so a
             // filter beside it is silently ignored. Put the filter in the selector.
             if (c.exact === 0) {
@@ -200,6 +203,39 @@ describe("content integrity", () => {
                 `${where}: check "${c.selector}" combines exact: 0 with a filter, which is never applied`,
               );
             }
+          }
+        }
+      }
+    });
+  });
+
+  test("a task's canteen-API seed (apiOrders) and apiDown need api: canteen, and the seed is what the fake would hold", () => {
+    // The seed stands in for customers who already ordered, so it must look
+    // like orders the real app made: numbered 1, 2, 3…, each name and total
+    // what the fake's own prices give for that snack and qty — otherwise the
+    // board teaches a total the student's own Java would never print.
+    const prices = new Map<number, { name: string; price: number }>();
+    const fake = new Function(`${CANTEEN_API_JS}; return canteenApi;`)() as (
+      req: { path: string },
+      state: { orders: unknown[] },
+    ) => { body: { snack_id: number; name: string; price: number }[] };
+    for (const s of fake({ path: "/api/snacks" }, { orders: [] }).body) prices.set(s.snack_id, s);
+    eachDay((_w, day, label) => {
+      for (const b of blocks(day)) {
+        if (b.kind !== "html-sandbox") continue;
+        for (const [i, t] of (b.tasks as { apiOrders?: CanteenSeedOrder[]; apiDown?: boolean }[]).entries()) {
+          const where = `${label} · ${b.id} task ${i + 1}`;
+          if (t.apiOrders === undefined && !t.apiDown) continue;
+          assert.equal(b.api, "canteen", `${where}: apiOrders/apiDown only mean something with api: "canteen"`);
+          assert.ok(b.script !== undefined, `${where}: apiOrders/apiDown need a script game`);
+          assert.ok(!(t.apiDown && t.apiOrders), `${where}: an app that is off has no orders to seed`);
+          for (const [n, o] of (t.apiOrders ?? []).entries()) {
+            const snack = prices.get(o.snack_id);
+            assert.ok(snack, `${where}: seeded order ${n + 1} has unknown snack_id ${o.snack_id}`);
+            assert.equal(o.order_id, n + 1, `${where}: seeded orders are numbered 1, 2, 3… like the app's`);
+            assert.equal(o.name, snack.name, `${where}: seeded order ${n + 1} name`);
+            assert.ok(o.qty >= 1 && o.qty <= 20, `${where}: seeded order ${n + 1} qty is outside 1–20`);
+            assert.equal(o.total, snack.price * o.qty, `${where}: seeded order ${n + 1} total is not price × qty`);
           }
         }
       }

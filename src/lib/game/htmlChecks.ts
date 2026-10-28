@@ -12,15 +12,21 @@ import type { HtmlCheck } from "@/lib/content/types";
 /**
  * The first check the page fails, or null when it passes them all. `logs` is
  * what the page's script printed to the console, and `source` the student's
- * HTML as written, before any script ran (both script games only).
+ * HTML as written, before any script ran, and `script` the student's script
+ * file as typed (all three script games only).
  */
 export function firstFailure(
   doc: Document,
   checks: HtmlCheck[],
   logs: string[] = [],
   source: Document = doc,
+  script = "",
 ): HtmlCheck | null {
   for (const check of checks) {
+    if (check.scriptNot !== undefined) {
+      if (script.includes(check.scriptNot)) return check;
+      continue;
+    }
     if (!passes(check.source ? source : doc, check, logs)) return check;
   }
   return null;

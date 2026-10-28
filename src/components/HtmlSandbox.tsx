@@ -201,7 +201,9 @@ export function HtmlSandbox({
   );
 
   /** Script mode: (re)load the page fresh — to try it, or with `actions` to judge it. */
-  function runPage(actions?: SandboxAction[], from = { code, css, js, files }) {
+  // `forTask` is passed when idx was just set in the same handler: `task` still
+  // holds the old index there, and its apiOrders/apiDown would seed the page.
+  function runPage(actions?: SandboxAction[], from = { code, css, js, files }, forTask = task) {
     nonceRef.current = newNonce();
     setConsoleLines([]);
     setSnapshot(null);
@@ -215,6 +217,8 @@ export function HtmlSandbox({
         htmlFile: fileName,
         files: from.files,
         api: game.api,
+        apiOrders: forTask.apiOrders,
+        apiDown: forTask.apiDown,
         nonce: nonceRef.current,
         actions,
       }),
@@ -279,7 +283,7 @@ export function HtmlSandbox({
     if (phase !== "task") return;
     // The student's HTML as written: DOMParser runs no script and loads nothing.
     const source = new DOMParser().parseFromString(code, "text/html");
-    const failed = firstFailure(doc, task.checks, logs, source);
+    const failed = firstFailure(doc, task.checks, logs, source, js);
     if (failed && error) {
       miss({ message: `${failed.message} (The console also shows: ${error})` });
     } else if (failed) {
@@ -317,7 +321,7 @@ export function HtmlSandbox({
     setAssisted(0);
     if (hasJs) {
       endJudging();
-      runPage(undefined, { code: game.starter, css: game.stylesheet ?? "", js: game.script ?? "", files: game.files ?? {} });
+      runPage(undefined, { code: game.starter, css: game.stylesheet ?? "", js: game.script ?? "", files: game.files ?? {} }, game.tasks[0]);
     }
     setOpen(true);
   }
@@ -361,7 +365,7 @@ export function HtmlSandbox({
   }
 
   function judge(doc: Document, logs: string[] = [], source?: Document) {
-    const failed = firstFailure(doc, task.checks, logs, source);
+    const failed = firstFailure(doc, task.checks, logs, source, js);
     if (failed) {
       miss(failed);
       return;
@@ -391,6 +395,8 @@ export function HtmlSandbox({
     } else {
       setIdx(idx + 1);
       setPhase("task");
+      // The next task may seed the API differently; show its page, not the last one's.
+      if (hasJs) runPage(undefined, undefined, game.tasks[idx + 1]);
     }
   }
 

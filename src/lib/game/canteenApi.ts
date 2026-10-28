@@ -3,8 +3,14 @@
 // controller answers — status codes AND error bodies — as observed from a
 // Spring Boot 4.1.1 build on 2026-10-11 with
 // spring.web.error.include-message=always (the property Week 7 Day 2 adds).
+// GET /api/orders/{id} and GET /api/summary (Week 7 Day 5, Part 2) and the
+// out-of-range-id answer were observed on a 4.1.1 build on 2026-10-28.
 // If the Week 7 controller changes, change this too, or the checker will
 // teach errors the student's own app never shows.
+//
+// isInt() mirrors Java's int: a longer number is a conversion error (400), not
+// a lookup. NO line comments inside the string: the harness collapses it onto
+// one line, and a // would swallow everything after it.
 //
 // Plain ES5 in a string, because it runs INSIDE the sandboxed page (the
 // harness embeds it); the same string is evaluated in node by
@@ -30,6 +36,9 @@ function canteenApi(req, state) {
     body.path = path;
     return { status: status, body: body, allow: allow };
   }
+  function isInt(text) {
+    return /^-?\\d+$/.test(text) && Number(text) >= -2147483648 && Number(text) <= 2147483647;
+  }
   function findSnack(id) {
     for (var i = 0; i < snacks.length; i++) if (snacks[i].snack_id === id) return snacks[i];
     return null;
@@ -38,16 +47,29 @@ function canteenApi(req, state) {
     if (method !== "GET") return error(405, "Method Not Allowed", "Method '" + method + "' is not supported.", "GET");
     var max = /(?:^|&)maxPrice=([^&]*)/.exec(query);
     if (!max) return { status: 200, body: snacks };
-    if (!/^-?\\d+$/.test(decodeURIComponent(max[1]))) return error(400, "Bad Request", "Method parameter 'maxPrice': Failed to convert value of type 'java.lang.String' to required type 'java.lang.Integer'; For input string: \\"" + decodeURIComponent(max[1]) + "\\"");
+    if (!isInt(decodeURIComponent(max[1]))) return error(400, "Bad Request", "Method parameter 'maxPrice': Failed to convert value of type 'java.lang.String' to required type 'java.lang.Integer'; For input string: \\"" + decodeURIComponent(max[1]) + "\\"");
     var limit = Number(decodeURIComponent(max[1]));
     return { status: 200, body: snacks.filter(function (s) { return s.price <= limit; }) };
   }
   var one = /^\\/api\\/snacks\\/([^/]+)$/.exec(path);
   if (one) {
     if (method !== "GET") return error(405, "Method Not Allowed", "Method '" + method + "' is not supported.", "GET");
-    if (!/^-?\\d+$/.test(one[1])) return error(400, "Bad Request", "Method parameter 'id': Failed to convert value of type 'java.lang.String' to required type 'int'; For input string: \\"" + one[1] + "\\"");
+    if (!isInt(one[1])) return error(400, "Bad Request", "Method parameter 'id': Failed to convert value of type 'java.lang.String' to required type 'int'; For input string: \\"" + one[1] + "\\"");
     var found = findSnack(Number(one[1]));
     return found ? { status: 200, body: found } : error(404, "Not Found", "No snack with id " + Number(one[1]));
+  }
+  var oneOrder = /^\\/api\\/orders\\/([^/]+)$/.exec(path);
+  if (oneOrder) {
+    if (method !== "GET") return error(405, "Method Not Allowed", "Method '" + method + "' is not supported.", "GET");
+    if (!isInt(oneOrder[1])) return error(400, "Bad Request", "Method parameter 'id': Failed to convert value of type 'java.lang.String' to required type 'int'; For input string: \\"" + oneOrder[1] + "\\"");
+    for (var j = 0; j < state.orders.length; j++) if (state.orders[j].order_id === Number(oneOrder[1])) return { status: 200, body: state.orders[j] };
+    return error(404, "Not Found", "No order with id " + Number(oneOrder[1]));
+  }
+  if (path === "/api/summary") {
+    if (method !== "GET") return error(405, "Method Not Allowed", "Method '" + method + "' is not supported.", "GET");
+    var sales = 0;
+    for (var k = 0; k < state.orders.length; k++) sales += state.orders[k].total;
+    return { status: 200, body: { total_orders: state.orders.length, total_sales: sales } };
   }
   if (path === "/api/orders") {
     if (method === "GET") return { status: 200, body: state.orders };
@@ -83,6 +105,6 @@ function canteenApi(req, state) {
     state.orders.push(order);
     return { status: 201, body: order };
   }
-  return error(404, "Not Found", "No static resource " + path.replace(/^\\//, "") + ".");
+  return error(404, "Not Found", "No static resource " + path.replace(/^\\//, "").replace(/\\/$/, "") + ".");
 }
 `;

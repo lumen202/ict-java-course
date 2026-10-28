@@ -148,6 +148,16 @@ describe("firstFailure", () => {
     assert.equal(firstFailure(afterScript, [written], [], doc({})), written);
   });
 
+  test("scriptNot fails when the typed script contains the text, whatever the page shows", () => {
+    const leftover: HtmlCheck = { scriptNot: "prices", message: "typed prices left in" };
+    const page = doc({ h1: [el()] });
+    assert.equal(firstFailure(page, [leftover], [], page, "const prices = { 1: 15 };"), leftover);
+    assert.equal(firstFailure(page, [leftover], [], page, "let snacks = [];"), null);
+    // It is checked in authored order like any other check.
+    const missing: HtmlCheck = { selector: "h2", message: "no h2" };
+    assert.equal(firstFailure(page, [missing, leftover], [], page, "const prices = {};"), missing);
+  });
+
   test("a check with neither selector nor log fails rather than clearing", () => {
     const empty = { message: "authoring bug" } as HtmlCheck;
     const original = console.error;

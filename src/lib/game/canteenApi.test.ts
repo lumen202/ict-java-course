@@ -88,4 +88,79 @@ describe("canteen API fake", () => {
     const broken = canteenApi({ method: "POST", path: "/api/orders", contentType: json, body: '{"snack_id":3,' }, fresh());
     assert.equal(broken.status, 400);
   });
+
+  // Observed on a real Spring Boot 4.1.1 build, 2026-10-28 (curl; the build's
+  // controller is Week 7 Day 5's SnackController with getOrder and summary).
+  test("GET /api/summary adds up the orders: zeros when empty, then count and sales", () => {
+    const state = fresh();
+    const empty = canteenApi({ path: "/api/summary" }, state);
+    assert.equal(empty.status, 200);
+    assert.deepEqual(empty.body, { total_orders: 0, total_sales: 0 });
+    canteenApi({ method: "POST", path: "/api/orders", contentType: json, body: '{"snack_id":3,"qty":2}' }, state);
+    canteenApi({ method: "POST", path: "/api/orders", contentType: json, body: '{"snack_id":2,"qty":1}' }, state);
+    assert.deepEqual(canteenApi({ path: "/api/summary" }, state).body, { total_orders: 2, total_sales: 52 });
+  });
+
+  test("GET /api/summary answers from seeded orders too", () => {
+    const state = {
+      orders: [
+        { order_id: 1, snack_id: 3, name: "Kwek-kwek", qty: 2, total: 40 },
+        { order_id: 2, snack_id: 2, name: "Turon", qty: 1, total: 12 },
+        { order_id: 3, snack_id: 5, name: "Siopao", qty: 2, total: 50 },
+      ],
+    };
+    assert.deepEqual(canteenApi({ path: "/api/summary" }, state).body, { total_orders: 3, total_sales: 102 });
+  });
+
+  test("GET /api/orders/{id}: the order, or 404 with the controller's message", () => {
+    const state = fresh();
+    canteenApi({ method: "POST", path: "/api/orders", contentType: json, body: '{"snack_id":3,"qty":2}' }, state);
+    canteenApi({ method: "POST", path: "/api/orders", contentType: json, body: '{"snack_id":2,"qty":1}' }, state);
+    const two = canteenApi({ path: "/api/orders/2" }, state);
+    assert.equal(two.status, 200);
+    assert.deepEqual(two.body, { order_id: 2, snack_id: 2, name: "Turon", qty: 1, total: 12 });
+    for (const id of ["99", "0", "-1"]) {
+      const missing = canteenApi({ path: `/api/orders/${id}` }, state);
+      assert.equal(missing.status, 404, id);
+      assert.equal(msg(missing), `No order with id ${id}`);
+      assert.equal((missing.body as { path: string }).path, `/api/orders/${id}`);
+    }
+  });
+
+  test("GET /api/orders/{id}: a non-integer is the same 400 conversion error as /api/snacks/{id}", () => {
+    for (const id of ["abc", "2.5", "99999999999"]) {
+      const r = canteenApi({ path: `/api/orders/${id}` }, fresh());
+      assert.equal(r.status, 400, id);
+      assert.equal(
+        msg(r),
+        `Method parameter 'id': Failed to convert value of type 'java.lang.String' to required type 'int'; For input string: "${id}"`,
+      );
+    }
+  });
+
+  test("an id too big for a Java int is a 400 on every id route, not a lookup", () => {
+    assert.equal(canteenApi({ path: "/api/snacks/99999999999" }, fresh()).status, 400);
+    assert.equal(canteenApi({ path: "/api/snacks?maxPrice=99999999999" }, fresh()).status, 400);
+    assert.equal(canteenApi({ path: "/api/snacks/2147483647" }, fresh()).status, 404);
+  });
+
+  test("/api/orders/{id} and /api/summary are GET-only (405 with Allow: GET)", () => {
+    for (const path of ["/api/orders/1", "/api/summary"]) {
+      for (const method of ["POST", "DELETE"]) {
+        const r = canteenApi({ method, path }, fresh());
+        assert.equal(r.status, 405, `${method} ${path}`);
+        assert.equal(r.allow, "GET");
+        assert.equal(msg(r), `Method '${method}' is not supported.`);
+      }
+    }
+  });
+
+  test("the fake has no // line comment: the harness collapses it onto one line, and a // would swallow the rest", () => {
+    assert.ok(!/(^|\s)\/\/(?!\/)/m.test(CANTEEN_API_JS.replace(/"[^"\n]*"|'[^'\n]*'|\/[^/\n]*\/[a-z]*\.exec|\/\^[^/\n]*\//g, "")));
+  });
+
+  test("a trailing slash is not the route: 404 'No static resource'", () => {
+    assert.equal(msg(canteenApi({ path: "/api/orders/" }, fresh())), "No static resource api/orders.");
+    assert.equal(msg(canteenApi({ path: "/api/summary/" }, fresh())), "No static resource api/summary.");
+  });
 });
