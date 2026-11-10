@@ -328,8 +328,8 @@ describe("week 8: copy that must be true for every student's ledger", () => {
 
   test("the lab snack is a name no earlier week uses, and Taho only appears in the one warning about it", () => {
     const mine = /Kutsinta|Halo-halo/;
-    for (const w of weeks) {
-      if (w.slug === unit3Week8.slug) continue;
+    // only the weeks BEFORE Week 8: later weeks build on the same ledger and use Kutsinta on purpose
+    for (const w of weeks.slice(0, weeks.indexOf(unit3Week8))) {
       assert.ok(!mine.test(JSON.stringify(w)), `${w.slug} already uses ${mine.exec(JSON.stringify(w))?.[0]}`);
     }
     const taho = [...everything.matchAll(/Taho/g)];
