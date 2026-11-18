@@ -494,6 +494,8 @@ describe("week 9: it fits into the course", () => {
     const items = roadmap.flatMap((r) => r.items);
     assert.ok(items.length >= 2);
     for (const item of items) assert.ok(!/\bWeeks? 9\b|Weeks 9–10/.test(item), `the roadmap still lists Week 9: ${item}`);
-    assert.ok(items.some((item) => /^Week 10 /.test(item)), "the roadmap should still name Week 10");
+    // Week 10 has shipped too (see unit3-week10/week10.test.ts): the roadmap names only what is still to come.
+    for (const item of items) assert.ok(!/^Week 10 /.test(item), `the roadmap still lists Week 10: ${item}`);
+    assert.ok(items.some((item) => /^Weeks 11–12 /.test(item)), "the roadmap should still name Weeks 11–12");
   });
 });

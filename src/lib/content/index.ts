@@ -8,6 +8,7 @@ import { unit2Week6 } from "./weeks/unit2-week6";
 import { unit3Week7 } from "./weeks/unit3-week7";
 import { unit3Week8 } from "./weeks/unit3-week8";
 import { unit3Week9 } from "./weeks/unit3-week9";
+import { unit3Week10 } from "./weeks/unit3-week10";
 
 // Order here = display order on the home page.
 export const weeks: Week[] = [
@@ -20,6 +21,7 @@ export const weeks: Week[] = [
   unit3Week7,
   unit3Week8,
   unit3Week9,
+  unit3Week10,
 ];
 
 // Roadmap shown on the home page for weeks that don't exist yet.
@@ -28,7 +30,6 @@ export const roadmap: { unit: string; items: string[] }[] = [
   {
     unit: "Unit 3 · REST APIs with Spring Boot",
     items: [
-      "Week 10 — A site that runs entirely on your API",
       "Weeks 11–12 — Logins, errors end to end, and one program you can hand to someone",
     ],
   },
